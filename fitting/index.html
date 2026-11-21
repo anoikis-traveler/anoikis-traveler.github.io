@@ -355,8 +355,8 @@ const SLOTS = [
 const STATES = ["offline", "online", "active", "overload"];
 
 const RING = [ // rack, attribut du nombre de slots, angle du 1er slot, pas (0° = droite, sens horaire) — disposition du jeu
-  ["high", "hiSlots", -124, 10.6], ["medium", "medSlots", -41, 10.6], ["low", "lowSlots", 46, 11],
-  ["rig", "rigSlots", 202, 10.6], ["subsystem", "maxSubSystems", 140, 10.6],
+  ["high", "hiSlots", -120, 10.4], ["medium", "medSlots", -36, 10.4], ["low", "lowSlots", 47.5, 10.6],
+  ["rig", "rigSlots", 201, 10.6], ["subsystem", "maxSubSystems", 140, 10.6],
 ];
 const R_SLOT = 41.5, R_GAUGE = 48;
 const pol = (r, a) => [50 + r * Math.cos(a * Math.PI / 180), 50 + r * Math.sin(a * Math.PI / 180)];
@@ -404,7 +404,9 @@ function renderFit() {
   svg += gtext("POWERGRID", Z("powerLoad"), S("powerOutput"), 101, 97, "end", "#e0574f");
   svg += gtext("CPU", Z("cpuLoad"), S("cpuOutput"), 101, 89.5, "end", "#4fc3cf");
   if (S("upgradeCapacity")) {
-    svg += gauge(Z("upgradeLoad"), S("upgradeCapacity"), 188, 248, "#9aa6b8");
+    // même étendue que les emplacements de rigs, juste à côté d'eux
+    const [, , rs, rstep] = RING.find(r => r[0] === "rig"), rn = Math.max(1, Math.round(S("rigSlots") || 0));
+    svg += gauge(Z("upgradeLoad"), S("upgradeCapacity"), rs - 5.3, rs + (rn - 1) * rstep + 5.3, "#9aa6b8");
     svg += gtext("CALIBRATION", Z("upgradeLoad"), S("upgradeCapacity"), -1, 3, "start", "#aab6cc");
   }
   const hp = `turrets ${f0(S("turretSlotsLeft"))} free · launchers ${f0(S("launcherSlotsLeft"))} free`;
