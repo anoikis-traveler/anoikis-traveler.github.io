@@ -317,13 +317,14 @@ function readSde(buf) {
   const u32 = p => dv.getUint32(p, true), i32 = p => dv.getInt32(p, true), u16 = p => dv.getUint16(p, true);
   const field = (t, i) => { const vt = t - i32(t), n = u16(vt); return 4 + 2 * i < n ? u16(vt + 4 + 2 * i) : 0; };
   const int = (t, i, d = 0) => { const o = field(t, i); return o ? i32(t + o) : d; };
+  const flt = (t, i) => { const o = field(t, i); return o ? dv.getFloat32(t + o, true) : 0; };
   const bool = (t, i) => { const o = field(t, i); return o ? dv.getUint8(t + o) !== 0 : false; };
   const str = (t, i) => { const o = field(t, i); if (!o) return null; const s = t + o + u32(t + o); return td.decode(new Uint8Array(buf.buffer, buf.byteOffset + s + 4, u32(s))); };
   const tables = (t, i) => { const o = field(t, i); if (!o) return []; const v = t + o + u32(t + o), n = u32(v), r = [];
     for (let k = 0; k < n; k++) { const e = v + 4 + 4 * k; r.push(e + u32(e)); } return r; };
   const root = u32(0);
   const types = new Map(), groups = new Map(), attrByName = {};
-  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4), market: int(t, 6), meta: int(t, 7), _t: t });
+  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4), market: int(t, 6), meta: int(t, 7), capacity: flt(t, 9), volume: flt(t, 12), _t: t });
   // valeur de base d'un attribut dogma d'un type (vecteur de structs {int32 id, float32 valeur})
   const typeAttr = (typeId, attrId) => {
     const t = types.get(typeId)?._t; if (t == null) return undefined;
@@ -683,6 +684,11 @@ function recalc() {
   }
   try { localStorage.setItem("fit.link", E.save_esf_link(fit)); } catch {}
   renderFit(); renderStats();
+  const ids = fitCosts().ids;
+  if (ids.some(id => !(priceCache[id] && Date.now() - priceCache[id].t < PRICE_TTL))) {
+    ensurePrices(ids).then(changedPrices => { if (changedPrices && calc) { renderFit(); renderStats(); } });
+    renderStats(); // affiche « loading… »
+  }
 }
 
 /* ---------- Affichage ---------- */
@@ -745,7 +751,8 @@ function renderFit() {
       if (!entry) { slots += `<span class="slot empty" style="${pos}" data-rack="${rack}" data-idx="${k}" data-tip="<span class='dim'>Empty ${RACKNAME[rack]} slot</span>"></span>`; continue; }
       const [it, i] = entry, r = calc.items[i] || {}, st = r.state || it.state;
       const can = STATES.indexOf(r.max_state || "offline") > 0;
-      const tip = `<b>${esc(name(it.type_id))}</b>${it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : ""}<span class="s" style="color:${STCOL[st]}">${st}</span>${can ? ` <span class="dim" style="font-size:11px">· click to change</span>` : ""}`;
+      const pr = sellOf(it.type_id);
+      const tip = `<b>${esc(name(it.type_id))}</b>${it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : ""}<span class="s" style="color:${STCOL[st]}">${st}</span>${can ? ` <span class="dim" style="font-size:11px">· click to change</span>` : ""}${pr != null ? `<small>Jita: ${isk(pr)} ISK</small>` : ""}`;
       const label = `${name(it.type_id)}${it.charge ? ", " + name(it.charge.type_id) : ""}, ${st}`;
       slots += `<button type="button" class="slot st ${st} ${k >= total ? "bad" : ""}" style="${pos}" data-i="${i}" data-rack="${rack}" data-idx="${k}" ${can ? "" : 'aria-disabled="true"'} data-tip="${esc(tip)}" aria-label="${esc(label)}">
         <img class="ic" src="${IMG(it.type_id, 64)}" alt="">${it.charge ? `<img class="ch" src="${IMG(it.charge.type_id)}" alt="">` : ""}</button>`;
@@ -820,6 +827,76 @@ function resCell(res, color) {
   if (res == null) return "<td>–</td>";
   const p = (1 - res) * 100;
   return `<td><span class="rc"><i style="width:${Math.max(0, p)}%;background:${color}"></i><span>${f1(p)}%</span></span></td>`;
+}
+
+/* ---------- Prix Jita (marché officiel d'EVE, ordres de la station Jita IV - Moon 4 - Caldari Navy Assembly Plant) ---------- */
+const JITA_REGION = 10000002, JITA_STATION = 60003760, PRICE_TTL = 30 * 60e3;
+let priceCache = store.get("fit.prices", {});      // typeId -> {s: meilleure vente, b: meilleur achat, t}
+const pricePending = new Set();
+async function fetchPrice(id) {
+  let sell = null, buy = null;
+  for (let page = 1, pages = 1; page <= pages && page <= 5; page++) {
+    const r = await fetch(`${ESI}/markets/${JITA_REGION}/orders?order_type=all&type_id=${id}&page=${page}`,
+      { headers: { Accept: "application/json", "X-Compatibility-Date": ESI_DATE } });
+    if (!r.ok) { if (r.status === 404) break; throw new Error("ESI " + r.status); }
+    pages = +r.headers.get("X-Pages") || 1;
+    for (const o of await r.json()) {
+      if (o.location_id !== JITA_STATION) continue;
+      if (o.is_buy_order) { if (buy === null || o.price > buy) buy = o.price; }
+      else if (sell === null || o.price < sell) sell = o.price;
+    }
+  }
+  priceCache[id] = { s: sell, b: buy, t: Date.now() };
+}
+async function ensurePrices(ids) {
+  const now = Date.now();
+  const need = [...new Set(ids)].filter(id => id > 0 && !pricePending.has(id) && !(priceCache[id] && now - priceCache[id].t < PRICE_TTL));
+  if (!need.length) return false;
+  need.forEach(id => pricePending.add(id));
+  const queue = [...need];
+  await Promise.all(Array.from({ length: Math.min(6, queue.length) }, async () => {
+    while (queue.length) { const id = queue.shift(); try { await fetchPrice(id); } catch {} finally { pricePending.delete(id); } }
+  }));
+  for (const k in priceCache) if (now - priceCache[k].t > 24 * 3600e3) delete priceCache[k];
+  store.set("fit.prices", priceCache);
+  return true;
+}
+const sellOf = id => priceCache[id]?.s ?? null, buyOf = id => priceCache[id]?.b ?? null;
+const isk = v => v == null ? "–" : v >= 1e9 ? f2(v / 1e9) + " B" : v >= 1e6 ? f2(v / 1e6) + " M" : v >= 1e3 ? f1(v / 1e3) + " k" : f0(v);
+/* nombre de munitions dans un chargement complet du module */
+function chargesPerLoad(moduleId, chargeId) {
+  const cap = SDE.types.get(moduleId)?.capacity || 0, vol = SDE.types.get(chargeId)?.volume || 0;
+  return cap > 0 && vol > 0 ? Math.max(1, Math.floor(cap / vol + 1e-6)) : 1;
+}
+/* ce que coûte le fit (hors implants du personnage connecté) */
+function fitCosts() {
+  const parts = { hull: [], modules: [], charges: [], drones: [], cargo: [], implants: [] };
+  parts.hull.push([fit.ship.type_id, 1]);
+  for (const it of fit.items) {
+    const t = it.slot.type, q = it.quantity || 1;
+    if (["high", "medium", "low", "rig", "subsystem", "service"].includes(t)) {
+      parts.modules.push([it.type_id, 1]);
+      if (it.charge) parts.charges.push([it.charge.type_id, chargesPerLoad(it.type_id, it.charge.type_id)]);
+    } else if (t === "drone_bay" || t === "fighter_bay" || t === "fighter_tube") parts.drones.push([it.type_id, q]);
+    else if (t === "implant" || t === "booster") parts.implants.push([it.type_id, 1]);
+    else parts.cargo.push([it.type_id, q]);
+  }
+  const sum = (list, f) => { let v = 0, missing = 0; for (const [id, q] of list) { const p = f(id); if (p == null) missing++; else v += p * q; } return { v, missing }; };
+  const out = {};
+  for (const k in parts) out[k] = { sell: sum(parts[k], sellOf), buy: sum(parts[k], buyOf), n: parts[k].length };
+  out.ids = Object.values(parts).flat().map(([id]) => id);
+  return out;
+}
+function priceSection() {
+  const c = fitCosts();
+  const keys = [["hull", "Hull"], ["modules", "Modules"], ["charges", "Charges"], ["drones", "Drones"], ["implants", "Implants"], ["cargo", "Cargo"]];
+  let ts = 0, tb = 0, miss = 0;
+  for (const [k] of keys) { ts += c[k].sell.v; tb += c[k].buy.v; miss += c[k].sell.missing; }
+  const loading = c.ids.some(id => pricePending.has(id));
+  const rows = keys.filter(([k]) => c[k].n).map(([k, l]) => kv(l, isk(c[k].sell.v) + (c[k].sell.missing ? " <small>*</small>" : "")));
+  return section("price", "Price · Jita", loading ? `<span class="dim" style="font-size:12px">loading…</span>` : `${isk(ts)} <small>ISK</small>`,
+    grid(...rows) + `<div style="margin-top:4px">${kv("Total (sell orders)", isk(ts) + " <small>ISK</small>")}${kv("Total (buy orders)", isk(tb) + " <small>ISK</small>")}</div>` +
+    `<div class="dim" style="font-size:11px;margin-top:6px">Lowest sell / highest buy orders in Jita 4-4, refreshed every 30 min.${miss ? " * some items have no Jita order." : ""} Character implants not included.</div>`);
 }
 
 /* Panneau de stats compact, façon fenêtre de fitting du jeu : sections repliables, valeur clé dans le titre. */
@@ -902,6 +979,7 @@ function renderStats() {
     kv("Bandwidth", `${f0(Z("droneBandwidthLoad"))} / ${f0(S("droneBandwidth"))} <small>Mbit/s</small>`, Z("droneBandwidthLoad") > S("droneBandwidth") ? "over" : ""),
     kv("Drone bay", `${f0(Z("droneCapacityLoad"))} / ${f0(S("droneCapacity"))} <small>m³</small>`, Z("droneCapacityLoad") > S("droneCapacity") ? "over" : ""))));
 
+  out.push(priceSection());
   $("statsCol").innerHTML = out.join("");
 }
 
