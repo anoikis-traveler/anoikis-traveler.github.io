@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anoikis Traveler · Fitting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Outil de fitting : calculs faits dans le navigateur par le moteur MIT d'EVEShip.fit (WebAssembly). */
+:root{
+  --bg:#070a12; --panel:#0e1424; --panel-2:#141c30; --line:#24314c; --text:#e2e8f3; --dim:#8b98b0;
+  --accent:#f2a74b; --ok:#5fd68a; --warn:#f2c94b; --bad:#ef5a5a;
+  --em:#5fb7ef; --th:#ef6a5a; --ki:#b8c2d4; --ex:#f2a74b;
+  --display:"Saira Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel-2);border:1px solid var(--line);padding:6px 11px;cursor:pointer;border-radius:3px}
+button:hover{border-color:var(--dim)}
+button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent);font-weight:600}
+button.small{padding:3px 8px;font-size:12px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);padding:6px 8px;border-radius:3px;min-width:0}
+a{color:var(--accent)}
+.mono{font-family:var(--mono)} .dim{color:var(--dim)} .num{font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-family:var(--display);font-size:1.5rem;margin:0;letter-spacing:.05em;text-transform:uppercase}
+header h1 b{color:var(--accent)}
+.ver{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 6px;white-space:nowrap}
+header .grow{flex:1}
+main{display:grid;grid-template-columns:minmax(260px,330px) minmax(300px,1fr) minmax(320px,420px);gap:12px;padding:12px;align-items:start}
+@media (max-width:1100px){main{grid-template-columns:minmax(260px,1fr) minmax(300px,1.3fr)} #statsCol{grid-column:1 / -1}}
+@media (max-width:720px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;margin-bottom:12px}
+.card h2{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;margin:0;padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.card h2 .grow{flex:1}
+.card .body{padding:10px 12px}
+textarea#eft{width:100%;min-height:260px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.45}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.field label{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.msg{font-size:13px;padding:8px 10px;border-radius:3px;margin-top:8px}
+.msg.err{background:#2a1214;border:1px solid #5a2a2a;color:#ffb3b3}
+.msg.info{background:var(--panel-2);border:1px solid var(--line);color:var(--dim)}
+/* Fit */
+.shiphead{display:flex;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.shiphead img{width:64px;height:64px;border-radius:3px;background:var(--bg)}
+.shiphead .n{font-family:var(--display);font-size:1.4rem;letter-spacing:.03em}
+.slotgrp{padding:6px 12px 8px}
+.slotgrp h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:4px 0;font-weight:600;display:flex;gap:6px}
+.slotgrp h3 .c{margin-left:auto;font-family:var(--mono)}
+.item{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:3px}
+.item:hover{background:var(--panel-2)}
+.item img{width:28px;height:28px;flex:none;border-radius:2px;background:var(--bg)}
+.item .nm{flex:1;min-width:0;line-height:1.2}
+.item .nm small{display:block;color:var(--dim);font-size:11px}
+.item.off .nm{opacity:.5}
+.st{font-family:var(--mono);font-size:11px;padding:2px 7px;min-width:66px;text-transform:uppercase}
+.st.offline{color:var(--dim)} .st.online{color:var(--text)} .st.active{color:var(--ok);border-color:#2c5a3c} .st.overload{color:var(--bad);border-color:#5a2a2a}
+.st:disabled{cursor:default;opacity:.7}
+/* Stats */
+.stat{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed #1b253b}
+.stat:last-child{border-bottom:0}
+.stat span:first-child{color:var(--dim)}
+.stat b{font-weight:500;font-family:var(--mono);font-size:13px}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:8px}
+.big div{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:6px 8px}
+.big small{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.big b{font-family:var(--mono);font-size:1.15rem;font-weight:500}
+.bar{position:relative;height:18px;background:var(--bg);border:1px solid var(--line);border-radius:2px;margin:2px 0 8px;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:#2a4a7a}
+.bar.over i{background:#7a2a2a}
+.bar span{position:relative;font-family:var(--mono);font-size:11px;padding:0 6px;line-height:16px;display:flex;justify-content:space-between}
+table.res{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+table.res th{font-family:var(--body);font-weight:500;color:var(--dim);font-size:11px;text-align:right;padding:2px 4px}
+table.res th:first-child,table.res td:first-child{text-align:left}
+table.res td{padding:2px 4px;text-align:right}
+.rc{position:relative;display:block;padding:1px 4px;border-radius:2px;overflow:hidden}
+.rc i{position:absolute;inset:0 auto 0 0;opacity:.28}
+.rc span{position:relative}
+.problems li{margin:3px 0}
+.problems{margin:0;padding-left:18px;color:#ffc9c9}
+.ok{color:var(--ok)}
+#loading{padding:40px 20px;text-align:center;color:var(--dim)}
+#loading .pb{width:280px;max-width:80%;height:6px;background:var(--panel-2);border-radius:3px;margin:12px auto;overflow:hidden}
+#loading .pb i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Anoikis <b>Traveler</b></h1>
+  <span class="ver">Fitting · preview</span>
+  <span class="grow"></span>
+  <a href="../">← Wormhole map</a>
+</header>
+
+<div id="loading"><div>Loading the fitting engine and EVE data…</div><div class="pb"><i id="pbar"></i></div><div id="pmsg" class="mono" style="font-size:12px"></div></div>
+
+<main id="app" hidden>
+  <section>
+    <div class="card">
+      <h2>EFT fit <span class="grow"></span><button type="button" class="small" id="btnExample">Example</button></h2>
+      <div class="body">
+        <textarea id="eft" spellcheck="false" wrap="off" placeholder="Paste a fit here (in EVE: Fitting window → Save as / Copy to clipboard)"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="primary" id="btnCalc">Calculate</button>
+          <button type="button" id="btnCopy">Copy EFT</button>
+          <button type="button" id="btnLink">Share link</button>
+        </div>
+        <div id="eftMsg"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Conditions</h2>
+      <div class="body">
+        <div class="field"><label for="skills">Skills</label>
+          <select id="skills"><option value="5">All skills V</option><option value="4">All skills IV</option><option value="3">All skills III</option><option value="0">No skills</option></select></div>
+        <div class="field"><label for="dmg">Incoming damage</label>
+          <select id="dmg"><option value="uniform">Uniform</option><option value="em">EM</option><option value="thermal">Thermal</option><option value="kinetic">Kinetic</option><option value="explosive">Explosive</option></select></div>
+        <div class="field"><label for="sec">Space</label>
+          <select id="sec"><option value="high_sec">High-sec</option><option value="low_sec">Low-sec</option><option value="null_sec">Null-sec</option><option value="wormhole">Wormhole</option></select></div>
+        <div class="field"><label for="beacon">WH effect</label><select id="beacon"><option value="">None</option></select></div>
+        <div class="dim" style="font-size:12px">Character skills from EVE login come in a later version.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card" id="fitCard"><div class="body dim">Paste a fit and press Calculate.</div></div>
+  </section>
+
+  <section id="statsCol"></section>
+</main>
+
+<footer>
+  <span id="dataInfo"></span><br>
+  Calculations by the <a href="https://github.com/EVEShipFit/dogma-engine" target="_blank" rel="noopener">EVEShip.fit dogma engine</a> (MIT licence), run entirely in your browser.<br>
+  EVE Online and the EVE logo are the registered trademarks of CCP hf. All rights are reserved worldwide. All other trademarks are the property of their respective owners. EVE Online, the EVE logo, EVE and all associated logos and designs are the intellectual property of CCP hf. All artwork, screenshots, characters, vehicles, storylines, world facts or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of CCP hf. CCP hf. has granted permission to Anoikis Traveler to use EVE Online and all associated logos and designs for promotional and information purposes on its website but does not endorse, and is not in any way affiliated with, Anoikis Traveler. CCP is in no way responsible for the content on or functioning of this website, nor can it be liable for any damage arising from the use of this website.
+</footer>
+
+<script type="module">
+/* Versions figées : une étape ultérieure les mettra à jour automatiquement (tâche GitHub). */
+const ENGINE_VERSION = "15.2.0";
+const SDE_VERSION = "14.3720952.0";
+const CDN = "https://cdn.jsdelivr.net/npm/";
+const ENGINE_URL = `${CDN}@eveshipfit/dogma-engine@${ENGINE_VERSION}/esf_dogma_engine.js`;
+const SDE_URL = `${CDN}@eveshipfit/sde@${SDE_VERSION}/dist/sde.dat`;
+const IMG = (id, size = 32) => `https://images.evetech.net/types/${id}/icon?size=${size}`;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const EXAMPLE = `[Rifter, Example]
+Damage Control II
+Gyrostabilizer II
+Small Ancillary Armor Repairer, Nanite Repair Paste
+
+5MN Microwarpdrive II
+Warp Scrambler II
+
+200mm AutoCannon II, Republic Fleet EMP S
+200mm AutoCannon II, Republic Fleet EMP S
+200mm AutoCannon II, Republic Fleet EMP S
+
+Small Projectile Burst Aerator I
+Small Projectile Collision Accelerator I`;
+
+/* ---------- Lecture minimale de sde.dat (FlatBuffers, schéma eve.fbs de @eveshipfit/sde) ---------- */
+function readSde(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), td = new TextDecoder();
+  const u32 = p => dv.getUint32(p, true), i32 = p => dv.getInt32(p, true), u16 = p => dv.getUint16(p, true);
+  const field = (t, i) => { const vt = t - i32(t), n = u16(vt); return 4 + 2 * i < n ? u16(vt + 4 + 2 * i) : 0; };
+  const int = (t, i, d = 0) => { const o = field(t, i); return o ? i32(t + o) : d; };
+  const bool = (t, i) => { const o = field(t, i); return o ? dv.getUint8(t + o) !== 0 : false; };
+  const str = (t, i) => { const o = field(t, i); if (!o) return null; const s = t + o + u32(t + o); return td.decode(new Uint8Array(buf.buffer, buf.byteOffset + s + 4, u32(s))); };
+  const tables = (t, i) => { const o = field(t, i); if (!o) return []; const v = t + o + u32(t + o), n = u32(v), r = [];
+    for (let k = 0; k < n; k++) { const e = v + 4 + 4 * k; r.push(e + u32(e)); } return r; };
+  const root = u32(0);
+  const types = new Map(), groups = new Map(), attrByName = {};
+  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4) });
+  for (const t of tables(root, 2)) groups.set(int(t, 0), { id: int(t, 0), name: str(t, 1) });
+  for (const t of tables(root, 4)) attrByName[str(t, 1)] = int(t, 0);
+  return { build: int(root, 0), release: str(root, 12), types, groups, attrByName };
+}
+
+/* ---------- Chargement ---------- */
+async function fetchWithProgress(url, onProgress) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  const total = +res.headers.get("content-length") || 10e6;
+  const reader = res.body.getReader(), chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProgress(Math.min(1, got / total)); }
+  const out = new Uint8Array(got); let p = 0; for (const c of chunks) { out.set(c, p); p += c.length; }
+  return out;
+}
+
+let E, SDE, A, allSkills = {};
+let fit = null, calc = null;
+
+async function boot() {
+  try {
+    $("pmsg").textContent = "engine…";
+    const [engine, bytes] = await Promise.all([
+      import(ENGINE_URL).then(async m => { await m.default(); return m; }),
+      fetchWithProgress(SDE_URL, f => { $("pbar").style.width = (f * 100).toFixed(0) + "%"; $("pmsg").textContent = `EVE data ${(f * 100).toFixed(0)}%`; }),
+    ]);
+    E = engine;
+    E.load_sde(bytes);
+    SDE = readSde(bytes);
+    A = SDE.attrByName;
+    for (const t of SDE.types.values()) if (t.category === 16 && t.published) allSkills[t.id] = 5;
+    fillBeacons();
+    $("dataInfo").textContent = `EVE data: SDE build ${SDE.build} (${(SDE.release || "").slice(0, 10)}) · engine ${ENGINE_VERSION} · ${Object.keys(allSkills).length} skills`;
+    $("loading").hidden = true; $("app").hidden = false;
+    const fromHash = loadFromHash();
+    if (!fromHash) { $("eft").value = localStorage.getItem("fit.eft") || EXAMPLE; importEft(); }
+  } catch (err) {
+    console.error(err);
+    $("pmsg").innerHTML = `<span style="color:var(--bad)">Could not load: ${esc(err.message || err)}</span>`;
+  }
+}
+
+function fillBeacons() {
+  const list = [...SDE.types.values()].filter(t => SDE.groups.get(t.group)?.name === "Effect Beacon" && /^Class \d .+ Effects$/.test(t.name));
+  const kind = n => n.replace(/^Class \d /, "").replace(/ Effects$/, "");
+  list.sort((a, b) => kind(a.name).localeCompare(kind(b.name)) || a.name.localeCompare(b.name));
+  let og = null, last = "";
+  for (const t of list) {
+    const k = kind(t.name);
+    if (k !== last) { og = document.createElement("optgroup"); og.label = k; $("beacon").append(og); last = k; }
+    og.append(new Option(t.name.replace(/ Effects$/, "").replace(/^Class (\d) .*/, `C$1 ${k}`), t.id));
+  }
+}
+
+/* ---------- Fit ---------- */
+function skillsFor(level) {
+  const s = {}; for (const id in allSkills) s[id] = level; return s;
+}
+function conditions() {
+  const d = $("dmg").value;
+  const profile = d === "uniform" ? { em: 1, thermal: 1, kinetic: 1, explosive: 1 } : { em: 0, thermal: 0, kinetic: 0, explosive: 0, [d]: 1 };
+  const b = $("beacon").value;
+  if (b) $("sec").value = "wormhole";
+  const c = {
+    character: { skills: skillsFor(+$("skills").value) },
+    environment: { damage_profile: profile, security: $("sec").value },
+  };
+  if (b) c.incoming = E.beacon(+b);
+  return c;
+}
+
+function importEft() {
+  const text = $("eft").value.trim();
+  $("eftMsg").innerHTML = "";
+  if (!text) return;
+  try {
+    const { incoming, ...loaded } = E.load_eft(text);
+    fit = E.post_load({ ...loaded, ...conditions() });
+    localStorage.setItem("fit.eft", text);
+    recalc();
+  } catch (err) {
+    $("eftMsg").innerHTML = `<div class="msg err">${esc(String(err.message || err).replace(/^Error: /, ""))}</div>`;
+  }
+}
+
+function loadFromHash() {
+  const m = location.hash.match(/^#esf=([\w-]+)/);
+  if (!m) return false;
+  try {
+    const { incoming, ...loaded } = E.load_esf_link(m[1]);
+    fit = { ...loaded, ...conditions() };
+    $("eft").value = E.save_eft(fit);
+    recalc();
+    return true;
+  } catch (err) { console.warn(err); return false; }
+}
+
+function recalc() {
+  if (!fit) return;
+  const { incoming, ...base } = fit;
+  fit = { ...base, ...conditions() };
+  try {
+    calc = E.calculate(fit, { validate: true });
+  } catch (err) {
+    $("eftMsg").innerHTML = `<div class="msg err">Calculation failed: ${esc(err.message || err)}</div>`;
+    return;
+  }
+  renderFit(); renderStats();
+}
+
+/* ---------- Affichage ---------- */
+const name = id => SDE.types.get(id)?.name ?? `#${id}`;
+const val = (attrs, n) => attrs.get(typeof n === "number" ? n : A[n])?.value;
+const S = n => val(calc.ship.attributes, n);
+const f0 = v => v == null || isNaN(v) ? "–" : Math.round(v).toLocaleString("en-US");
+const f1 = v => v == null || isNaN(v) ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const f2 = v => v == null || isNaN(v) ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+const dur = s => { if (s == null || s < 0) return "–"; s = Math.round(s); const m = Math.floor(s / 60); return m ? `${m}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`; };
+
+const SLOTS = [
+  ["high", "High slots", "hiSlots"], ["medium", "Mid slots", "medSlots"], ["low", "Low slots", "lowSlots"],
+  ["rig", "Rigs", "rigSlots"], ["subsystem", "Subsystems", "maxSubSystems"], ["service", "Service slots", "serviceSlots"],
+  ["fighter_tube", "Fighter tubes", null], ["drone_bay", "Drone bay", null], ["fighter_bay", "Fighter bay", null],
+  ["implant", "Implants", null], ["booster", "Boosters", null], ["cargo", "Cargo", null],
+];
+const STATES = ["offline", "online", "active", "overload"];
+
+function renderFit() {
+  const ship = fit.ship.type_id;
+  let h = `<div class="shiphead"><img src="${IMG(ship, 64)}" alt=""><div><div class="n">${esc(name(ship))}</div><div class="dim">${esc(fit.name || "")}</div></div></div>`;
+  for (const [slot, label, countAttr] of SLOTS) {
+    const rows = fit.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot);
+    const total = countAttr ? S(countAttr) : null;
+    if (!rows.length && !total) continue;
+    h += `<div class="slotgrp"><h3>${label}${total != null ? `<span class="c">${rows.length} / ${f0(total)}</span>` : ""}</h3>`;
+    rows.sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
+    for (const [it, i] of rows) {
+      const r = calc.items[i] || {};
+      const st = r.state || it.state, max = r.max_state || "offline";
+      const qty = it.quantity > 1 ? ` <span class="dim">×${it.quantity}</span>` : "";
+      const charge = it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : "";
+      const canToggle = STATES.indexOf(max) > 0;
+      h += `<div class="item ${st === "offline" ? "off" : ""}"><img src="${IMG(it.type_id)}" alt="" loading="lazy">
+        <div class="nm">${esc(name(it.type_id))}${qty}${charge}</div>
+        ${slot === "cargo" ? "" : `<button type="button" class="st small ${st}" data-i="${i}" ${canToggle ? "" : "disabled"} title="Click to change state">${slot === "drone_bay" || slot === "fighter_bay" ? (st === "offline" ? "in bay" : "in space") : st}</button>`}</div>`;
+    }
+    h += `</div>`;
+  }
+  $("fitCard").innerHTML = h;
+}
+
+$("fitCard").addEventListener("click", ev => {
+  const b = ev.target.closest("button.st"); if (!b || b.disabled) return;
+  const i = +b.dataset.i, it = fit.items[i], r = calc.items[i];
+  const maxIdx = STATES.indexOf(r.max_state), cur = STATES.indexOf(r.state);
+  let next = STATES[cur + 1 > maxIdx ? 0 : cur + 1];
+  if (it.slot.type === "drone_bay" || it.slot.type === "fighter_bay") next = r.state === "offline" ? "active" : "offline";
+  fit.items[i] = { ...it, state: next };
+  recalc();
+});
+
+function bar(label, used, total, unit = "") {
+  const pct = total > 0 ? Math.min(100, used / total * 100) : (used > 0 ? 100 : 0);
+  return `<div class="dim" style="font-size:12px">${label}</div><div class="bar ${used > total + 1e-6 ? "over" : ""}"><i style="width:${pct}%"></i><span><span>${f2(used)} / ${f2(total)} ${unit}</span><span>${total > 0 ? f1(used / total * 100) + "%" : ""}</span></span></div>`;
+}
+const stat = (l, v) => `<div class="stat"><span>${l}</span><b>${v}</b></div>`;
+const card = (title, body) => `<div class="card"><h2>${title}</h2><div class="body">${body}</div></div>`;
+function resCell(res, color) {
+  if (res == null) return "<td>–</td>";
+  const p = (1 - res) * 100;
+  return `<td><span class="rc"><i style="width:${Math.max(0, p)}%;background:${color}"></i><span>${f1(p)}%</span></span></td>`;
+}
+
+function renderStats() {
+  const out = [];
+  const all = calc.violations || [];
+  const v = all.filter(x => x.rule.type !== "skill");
+  const missing = new Map();
+  for (const x of all) if (x.rule.type === "skill") {
+    const m = missing.get(x.rule.type_id) || { level: x.rule.level, required: 0 };
+    m.required = Math.max(m.required, x.rule.required); missing.set(x.rule.type_id, m);
+  }
+  const ROMAN = ["0", "I", "II", "III", "IV", "V"];
+  const skillList = [...missing].sort((a, b) => name(a[0]).localeCompare(name(b[0])))
+    .map(([id, m]) => `<li>${esc(name(id))} <b>${ROMAN[m.required]}</b> <span class="dim">(have ${ROMAN[m.level] ?? m.level})</span></li>`).join("");
+  const n = v.length + (missing.size ? 1 : 0);
+  out.push(card(`Problems${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
+    !n ? `<span class="ok">✓ This fit can be flown with these skills.</span>` :
+    (v.length ? `<ul class="problems">${v.map(x => `<li>${esc(describe(x))}</li>`).join("")}</ul>` : "") +
+    (missing.size ? `<div class="dim" style="margin:${v.length ? "8px" : "0"} 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Missing skills (${missing.size})</div><ul class="problems">${skillList}</ul>` : "")));
+
+  out.push(card("Offense", `<div class="big">
+      <div><small>DPS</small><b>${f1(S("damagePerSecondWithReload"))}</b></div>
+      <div><small>DPS (no reload)</small><b>${f1(S("damagePerSecondWithoutReload"))}</b></div>
+      <div><small>Volley</small><b>${f0(S("damageAlpha"))}</b></div></div>
+    ${stat("Drone DPS", f1(S("droneDamagePerSecond")))}`));
+
+  const layers = [["Shield", "shieldEhp", "shieldCapacity", "shield"], ["Armor", "armorEhp", "armorHP", "armor"], ["Hull", "hullEhp", "hp", ""]];
+  const rname = (pre, d) => pre ? `${pre}${d[0].toUpperCase()}${d.slice(1)}DamageResonance` : `${d}DamageResonance`;
+  const dtypes = [["em", "var(--em)"], ["thermal", "var(--th)"], ["kinetic", "var(--ki)"], ["explosive", "var(--ex)"]];
+  out.push(card("Defense", `<div class="big">
+      <div><small>Effective HP</small><b>${f0(S("ehp"))}</b></div>
+      <div><small>Shield regen</small><b>${f1(S("passiveShieldEffectiveRechargeRate"))}</b></div></div>
+    <table class="res"><tr><th></th><th>HP</th><th>EHP</th>${dtypes.map(([d, c]) => `<th style="color:${c}">${d === "explosive" ? "Exp" : d === "kinetic" ? "Kin" : d === "thermal" ? "Th" : "EM"}</th>`).join("")}</tr>
+    ${layers.map(([l, ehp, hp, pre]) => `<tr><td>${l}</td><td>${f0(S(hp))}</td><td>${f0(S(ehp))}</td>${dtypes.map(([d, c]) => resCell(S(rname(pre, d)), c)).join("")}</tr>`).join("")}
+    </table>
+    <div style="margin-top:8px">
+    ${stat("Shield boost (EHP/s)", f1(S("shieldEffectiveBoostRate")))}
+    ${stat("Armor repair (EHP/s)", f1(S("armorEffectiveRepairRate")))}
+    ${stat("Hull repair (EHP/s)", f1(S("hullEffectiveRepairRate")))}</div>`));
+
+  const depletes = S("capacitorDepletesIn"), stable = S("capacitorStablePercentage");
+  out.push(card("Capacitor", `<div class="big">
+      <div><small>Capacity</small><b>${f0(S("capacitorCapacity"))} GJ</b></div>
+      <div><small>${depletes != null && depletes >= 0 ? "Lasts" : "Stable at"}</small><b style="color:${depletes != null && depletes >= 0 ? "var(--warn)" : "var(--ok)"}">${depletes != null && depletes >= 0 ? dur(depletes) : f1(stable) + "%"}</b></div></div>
+    ${stat("Recharge time", dur(S("rechargeRate") / 1000))}
+    ${stat("Peak recharge", f1(S("capacitorPeakRecharge")) + " GJ/s")}
+    ${stat("Peak usage", f1(S("capacitorPeakLoad")) + " GJ/s")}`));
+
+  const warp = S("warpSpeedMultiplier") * (S("baseWarpSpeed") || 1);
+  out.push(card("Navigation", `<div class="big">
+      <div><small>Max speed</small><b>${f0(S("maxVelocity"))} m/s</b></div>
+      <div><small>Align time</small><b>${f2(S("alignTime"))} s</b></div></div>
+    ${stat("Warp speed", f2(warp) + " AU/s")}
+    ${stat("Mass", f0(S("mass")) + " kg")}
+    ${stat("Signature radius", f0(S("signatureRadius")) + " m")}`));
+
+  out.push(card("Targeting", `${stat("Lock range", f1(S("maxTargetRange") / 1000) + " km")}
+    ${stat("Scan resolution", f0(S("scanResolution")) + " mm")}
+    ${stat("Max locked targets", f0(S("maxTargets")))}
+    ${stat("Sensor strength", f1(S("scanStrength")))}`));
+
+  out.push(card("Fitting", `${bar("CPU", S("cpuLoad"), S("cpuOutput"), "tf")}
+    ${bar("Powergrid", S("powerLoad"), S("powerOutput"), "MW")}
+    ${bar("Calibration", S("upgradeLoad"), S("upgradeCapacity"))}
+    ${S("droneBandwidth") ? bar("Drone bandwidth", S("droneBandwidthLoad"), S("droneBandwidth"), "Mbit/s") : ""}
+    ${S("droneCapacity") ? bar("Drone bay", S("droneCapacityLoad"), S("droneCapacity"), "m³") : ""}
+    ${stat("Free turret / launcher hardpoints", `${f0(S("turretSlotsLeft"))} / ${f0(S("launcherSlotsLeft"))}`)}`));
+
+  $("statsCol").innerHTML = out.join("");
+}
+
+const RES = { cpu: "CPU", powergrid: "Powergrid", calibration: "Calibration", drone_bay: "Drone bay", drone_bandwidth: "Drone bandwidth", launched_drones: "Launched drones",
+  fighter_bay: "Fighter bay", fighter_tubes: "Fighter tubes", cargo_bay: "Cargo bay", charge_capacity: "Charge capacity" };
+function describe(v) {
+  const r = v.rule, t = v.target;
+  const who = t.type === "ship" ? "" : t.type === "charge" ? `${name(fit.items[t.index].charge?.type_id)}: ` : `${name(fit.items[t.index].type_id)}: `;
+  const n = x => f2(x);
+  switch (r.type) {
+    case "resource": return `${RES[r.resource] || r.resource} exceeded — ${n(r.used)} used of ${n(r.available)}`;
+    case "slots": return `Too many ${r.slot} items — ${r.used} of ${r.available}`;
+    case "skill": return `${who}needs ${name(r.type_id)} ${r.required} (you have ${r.level})`;
+    case "wrong_slot": return `${who}belongs in the ${r.expected} slots`;
+    case "rig_size": return `${who}wrong rig size for this ship`;
+    case "ship_restricted": return `${who}cannot be fitted to this ship`;
+    case "capital_item": return `${who}capital module on a non-capital ship`;
+    case "max_group": return `${who}only ${r.allowed} of this group can be ${r.limit}`;
+    case "max_type": return `${who}only ${r.allowed} can be fitted`;
+    case "charge_group": case "charge_size": return `${who}this charge does not fit the module`;
+    default: return `${who}${r.type.replace(/_/g, " ")}`;
+  }
+}
+
+/* ---------- Actions ---------- */
+$("btnCalc").onclick = importEft;
+$("btnExample").onclick = () => { $("eft").value = EXAMPLE; importEft(); };
+$("eft").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) importEft(); });
+for (const id of ["skills", "dmg", "sec", "beacon"]) $(id).addEventListener("change", recalc);
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = "Copied ✓"; setTimeout(() => btn.textContent = o, 1200); }
+  catch { prompt("Copy:", text); }
+}
+$("btnCopy").onclick = e => fit && copy(E.save_eft(fit), e.currentTarget);
+$("btnLink").onclick = e => {
+  if (!fit) return;
+  const url = `${location.origin}${location.pathname}#esf=${E.save_esf_link(fit)}`;
+  history.replaceState(null, "", url);
+  copy(url, e.currentTarget);
+};
+window.addEventListener("hashchange", loadFromHash);
+
+boot();
+</script>
+</body>
+</html>
