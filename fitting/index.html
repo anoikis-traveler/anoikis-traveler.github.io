@@ -722,10 +722,10 @@ $("fitCard").addEventListener("click", ev => {
   const b = ev.target.closest("button.st"); if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return;
   const i = +b.dataset.i, it = fit.items[i], r = calc.items[i];
   if (!it) return; // implant du personnage : pas d'état à changer
-  const maxIdx = STATES.indexOf(r.max_state), cur = STATES.indexOf(r.state);
-  let next = STATES[cur + 1 > maxIdx ? 0 : cur + 1];
+  const maxIdx = STATES.indexOf(r.max_state), now = STATES.indexOf(r.state);
+  let next = STATES[now + 1 > maxIdx ? 0 : now + 1];
   if (it.slot.type === "drone_bay" || it.slot.type === "fighter_bay") next = r.state === "offline" ? "active" : "offline";
-  cur.items[i] = { ...it, state: next };
+  fit.items[i] = { ...it, state: next };
   recalc();
 });
 
