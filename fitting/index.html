@@ -186,12 +186,32 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
 </footer>
 
 <script type="module">
-/* Versions figées : une étape ultérieure les mettra à jour automatiquement (tâche GitHub). */
-const ENGINE_VERSION = "15.2.0";
-const SDE_VERSION = "14.3720952.0";
+/* Versions : la page demande à jsDelivr la dernière version publiée dans la même version majeure
+   (données EVE reconstruites chaque jour par EVEShip.fit à partir du SDE de CCP).
+   Si jsDelivr ne répond pas, elle garde ces versions connues et testées. */
+const FALLBACK = { engine: "15.2.0", sde: "14.3720952.0" };
+const MAJOR = { engine: "15", sde: "14" };
 const CDN = "https://cdn.jsdelivr.net/npm/";
-const ENGINE_URL = `${CDN}@eveshipfit/dogma-engine@${ENGINE_VERSION}/esf_dogma_engine.js`;
-const SDE_URL = `${CDN}@eveshipfit/sde@${SDE_VERSION}/dist/sde.dat`;
+const PKG = { engine: "@eveshipfit/dogma-engine", sde: "@eveshipfit/sde" };
+
+async function resolveVersions() {
+  const KEY = "fit.versions", TTL = 6 * 3600e3;
+  try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (c && Date.now() - c.at < TTL) return c.v; } catch {}
+  const one = async k => {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(`https://data.jsdelivr.com/v1/packages/npm/${PKG[k]}/resolved?specifier=${MAJOR[k]}`, { signal: ctl.signal });
+      clearTimeout(t);
+      const v = (await r.json()).version;
+      return typeof v === "string" && v.startsWith(MAJOR[k] + ".") ? v : FALLBACK[k];
+    } catch { return FALLBACK[k]; }
+  };
+  const [engine, sde] = await Promise.all([one("engine"), one("sde")]);
+  const v = { engine, sde };
+  { try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), v })); } catch {} }
+  return v;
+}
+let VERSIONS = FALLBACK;
 const IMG = (id, size = 32) => `https://images.evetech.net/types/${id}/icon?size=${size}`;
 
 const $ = id => document.getElementById(id);
@@ -242,22 +262,36 @@ async function fetchWithProgress(url, onProgress) {
 }
 
 let E, SDE, A, allSkills = {};
+
+async function loadAll(v) {
+  const [engine, bytes] = await Promise.all([
+    import(`${CDN}${PKG.engine}@${v.engine}/esf_dogma_engine.js`).then(async m => { await m.default(); return m; }),
+    fetchWithProgress(`${CDN}${PKG.sde}@${v.sde}/dist/sde.dat`, f => { $("pbar").style.width = (f * 100).toFixed(0) + "%"; $("pmsg").textContent = `EVE data ${(f * 100).toFixed(0)}%`; }),
+  ]);
+  engine.load_sde(bytes); // refuse des données incompatibles
+  return [engine, bytes];
+}
 let fit = null, calc = null;
 
 async function boot() {
   try {
-    $("pmsg").textContent = "engine…";
-    const [engine, bytes] = await Promise.all([
-      import(ENGINE_URL).then(async m => { await m.default(); return m; }),
-      fetchWithProgress(SDE_URL, f => { $("pbar").style.width = (f * 100).toFixed(0) + "%"; $("pmsg").textContent = `EVE data ${(f * 100).toFixed(0)}%`; }),
-    ]);
+    $("pmsg").textContent = "checking for updates…";
+    VERSIONS = await resolveVersions();
+    let engine, bytes;
+    try { [engine, bytes] = await loadAll(VERSIONS); }
+    catch (err) {
+      // nouvelle version défectueuse ou incompatible : on revient aux versions testées
+      if (VERSIONS.engine === FALLBACK.engine && VERSIONS.sde === FALLBACK.sde) throw err;
+      console.warn("Falling back to tested versions", err);
+      try { localStorage.setItem("fit.versions", JSON.stringify({ at: Date.now(), v: FALLBACK })); } catch {}
+      location.reload(); return;
+    }
     E = engine;
-    E.load_sde(bytes);
     SDE = readSde(bytes);
     A = SDE.attrByName;
     for (const t of SDE.types.values()) if (t.category === 16 && t.published) allSkills[t.id] = 5;
     fillBeacons();
-    $("dataInfo").textContent = `EVE data: SDE build ${SDE.build} (${(SDE.release || "").slice(0, 10)}) · engine ${ENGINE_VERSION} · ${Object.keys(allSkills).length} skills`;
+    $("dataInfo").textContent = `EVE data: SDE build ${SDE.build} (${(SDE.release || "").slice(0, 10)}) · engine ${VERSIONS.engine} · data ${VERSIONS.sde} · ${Object.keys(allSkills).length} skills`;
     $("loading").hidden = true; $("app").hidden = false;
     const fromHash = loadFromHash();
     if (!fromHash) { $("eft").value = localStorage.getItem("fit.eft") || EXAMPLE; importEft(); }
