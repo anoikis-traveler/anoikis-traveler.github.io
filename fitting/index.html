@@ -52,7 +52,9 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .layout.bc #browser h2 .grow{display:none}
 #btnBrowser{padding:0 7px;font-size:13px;line-height:20px}
 .layout > .ringcol,#browser{position:sticky;top:12px}
-#browser{display:flex;flex-direction:column;height:calc(100vh - 24px);max-height:calc(100vh - 24px);min-height:420px;margin:0}
+/* les trois colonnes ont la même hauteur (celle de l'écran sous la barre d'outils) et défilent à l'intérieur */
+#browser{display:flex;flex-direction:column;height:var(--colh,80vh);margin:0}
+.ringcol #fitCard{height:var(--colh,80vh);overflow-y:auto;margin:0}
 .layout.bc #browser{height:auto;min-height:0}
 #tree,#results{overflow:auto;flex:1;padding:0 4px 8px;min-height:120px}
 .bhint{font-size:11px;color:var(--dim);padding:0 10px 6px}
@@ -69,7 +71,7 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .ty .add{position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:0 6px;font-size:13px;line-height:18px;opacity:0}
 .ty:hover .add,.ty:focus-within .add{opacity:1}
 @media (hover:none){.ty .add{opacity:1}}
-#statsCol{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+#statsCol{position:sticky;top:12px;height:var(--colh,80vh);overflow-y:auto;overflow-x:hidden;background:var(--panel);border:1px solid var(--line);border-radius:4px}
 .sec{border-bottom:1px solid var(--line)}
 .sec:last-child{border-bottom:0}
 .sec summary{display:flex;align-items:baseline;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;user-select:none}
@@ -82,15 +84,15 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .sec .hv small,.kv small{color:var(--dim);font-size:11px}
 .sec .sb{padding:2px 12px 10px}
 .sec.bad .t{color:#ffb3b3}
-.kvg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;margin-top:4px}
-.kv{display:flex;justify-content:space-between;gap:6px;font-size:12.5px;padding:2px 0;border-bottom:1px dashed #1b253b}
+.kvg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 14px;margin-top:4px}
+.kv{min-width:0;display:flex;justify-content:space-between;gap:6px;font-size:12.5px;padding:2px 0;border-bottom:1px dashed #1b253b}
 .kv span{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .kv b{font-family:var(--mono);font-weight:500;white-space:nowrap}
 .kv.over b{color:var(--bad)}
 .okline{padding:9px 12px;color:var(--ok);border-bottom:1px solid var(--line);font-size:13px}
 .sub{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px}
 #statsCol .problems{font-size:12.5px}
-@media (max-width:1100px){.layout{grid-template-columns:var(--bw,240px) 1fr}#statsCol{grid-column:1 / -1;position:static;max-height:none;columns:2 300px;column-gap:0}#statsCol .sec,#statsCol .okline{break-inside:avoid}}
-@media (max-width:760px){.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
+@media (max-width:1100px){.layout{grid-template-columns:var(--bw,240px) 1fr}#statsCol{grid-column:1 / -1;position:static;height:auto;columns:2 300px;column-gap:0}#statsCol .sec,#statsCol .okline{break-inside:avoid}}
+@media (max-width:760px){.ringcol #fitCard{height:auto}#browser{height:50vh}.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
 /* glisser-déposer : les emplacements possibles s'allument */
 #fitCard[data-drag="high"] .slot[data-rack="high"],#fitCard[data-drag="medium"] .slot[data-rack="medium"],
 #fitCard[data-drag="low"] .slot[data-rack="low"],#fitCard[data-drag="rig"] .slot[data-rack="rig"],
@@ -134,7 +136,7 @@ details.slotgrp[open] summary h3::before{transform:rotate(90deg)}
 .slot[aria-disabled="true"]{cursor:default}
 /* Anneau façon fenêtre de fitting en jeu */
 .ringwrap{padding:22px 18px 4px}
-.ring{position:relative;width:100%;max-width:min(720px,calc(100vh - 190px));aspect-ratio:1;margin:0 auto;container-type:inline-size}
+.ring{position:relative;width:100%;max-width:min(760px,calc(var(--colh,80vh) - 90px));aspect-ratio:1;margin:0 auto;container-type:inline-size}
 .ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .ring .render{position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;object-fit:cover;
   -webkit-mask:radial-gradient(circle,#000 58%,transparent 71%);mask:radial-gradient(circle,#000 58%,transparent 71%)}
@@ -399,6 +401,7 @@ async function boot() {
     if (c0) { try { await loadCharData(c0); } catch (e) { toast(e.message, true); } }
     const fromHash = loadFromHash();
     initBrowser();
+    sizeColumns(); addEventListener("resize", sizeColumns);
     if (!fromHash) {
       let ok = false;
       const link = localStorage.getItem("fit.link");
@@ -1061,16 +1064,26 @@ function removeItem(i) {
 const SIZES = ["Small", "Medium", "Large", "Capital"];
 const SIZE_WORD = /^(Small|Medium|Large|Extra Large|X-Large|Capital)$/i;
 function sizeOf(id) {
-  const n = SDE.types.get(id)?.name || "";
-  const cs = SDE.typeAttr(id, A.chargeSize); if (cs) return SIZES[Math.min(4, Math.round(cs)) - 1];
-  const rs = SDE.typeAttr(id, A.rigSize); if (rs) return SIZES[Math.min(4, Math.round(rs)) - 1];
-  let m = n.match(/\b(\d+)MN\b/); if (m) { const v = +m[1]; return v <= 5 ? "Small" : v <= 50 ? "Medium" : v <= 500 ? "Large" : "Capital"; }
-  m = n.match(/Cap Booster (\d+)/); if (m) { const v = +m[1]; return v <= 100 ? "Small" : v <= 200 ? "Medium" : v <= 800 ? "Large" : "Capital"; }
+  const t = SDE.types.get(id); if (!t) return null;
+  const n = t.name, size = v => SIZES[Math.min(4, Math.max(1, Math.round(v))) - 1];
+  let m;
+  if (t.category === 8) { // munitions
+    if (/Script/i.test(SDE.groups.get(t.group)?.name || "")) return null;
+    if ((m = n.match(/Cap Booster (\d+)/))) { const v = +m[1]; return v <= 100 ? "Small" : v <= 200 ? "Medium" : v <= 800 ? "Large" : "Capital"; }
+    if (/\b(Rocket|Light)\b/.test(n) && /Missile|Rocket/.test(n)) return "Small";
+    if (/\bHeavy\b/.test(n) && /Missile/.test(n)) return "Medium";
+    if (/\b(Cruise|Torpedo)\b/.test(n)) return "Large";
+    if (/\bXL\b/.test(n)) return "Capital";
+    const cs = SDE.typeAttr(id, A.chargeSize); if (cs) return size(cs);
+  }
+  if (SDE.typeEffects(id).includes(42)) { const cs = SDE.typeAttr(id, A.chargeSize); if (cs) return size(cs); } // tourelles
+  const rs = SDE.typeAttr(id, A.rigSize); if (rs) return size(rs);
+  if ((m = n.match(/\b(\d+)MN\b/))) { const v = +m[1]; return v <= 5 ? "Small" : v <= 50 ? "Medium" : v <= 500 ? "Large" : "Capital"; }
   if (/\b(Capital|X-Large|Giga|Huge)\b/i.test(n)) return "Capital";
-  if (/\bSmall\b/i.test(n)) return "Small";
+  if (/\b(Small|Light)\b/i.test(n)) return "Small";
   if (/\bMedium\b/i.test(n)) return "Medium";
   if (/\b(Large|Heavy)\b/i.test(n)) return "Large";
-  m = n.match(/\b(\d+)mm\b/); if (m) { const v = +m[1]; return v <= 200 ? "Small" : v <= 800 ? "Medium" : v <= 1600 ? "Large" : "Capital"; }
+  if ((m = n.match(/\b(\d+)mm\b/))) { const v = +m[1]; return v <= 200 ? "Small" : v <= 800 ? "Medium" : v <= 1600 ? "Large" : "Capital"; }
   return null;
 }
 const vfTypes = new Map(); // sous-dossier de taille -> types
@@ -1096,13 +1109,14 @@ function expand(el) {
   const types = (g.types || []).map(t => SDE.types.get(t)).filter(t => t && t.published)
     .sort((a, b) => (a.meta || 0) - (b.meta || 0) || a.name.localeCompare(b.name));
   // si le groupe mélange plusieurs tailles : un sous-dossier par taille
-  const sz = types.map(t => sizeOf(t.id)), known = new Set(sz.filter(Boolean));
-  const unknown = sz.filter(x => !x).length;
-  if (g.types && !SIZE_WORD.test(g.name) && known.size >= 2 && unknown <= types.length / 2) {
-    for (const size of [...SIZES, null]) {
+  // sans taille reconnue = « Standard » (ex. Warp Disruptor face au Heavy Warp Disruptor)
+  const sz = types.map(t => sizeOf(t.id) || "Standard");
+  const nKnown = sz.filter(x => x !== "Standard").length, buckets = new Set(sz);
+  if (g.types && !SIZE_WORD.test(g.name) && nKnown >= 2 && buckets.size >= 2) {
+    for (const size of ["Standard", ...SIZES]) {
       const list = types.filter((t, i) => sz[i] === size); if (!list.length) continue;
-      const key = g.id + ":" + (size || "Other"); vfTypes.set(key, list);
-      h += `<div class="mg" data-vf="${key}" style="--d:${depth}"><span class="car">▸</span>${size || "Other sizes"} <span class="dim" style="margin-left:auto;font-size:11px">${list.length}</span></div><div class="kids" hidden></div>`;
+      const key = g.id + ":" + size; vfTypes.set(key, list);
+      h += `<div class="mg" data-vf="${key}" style="--d:${depth}"><span class="car">▸</span>${size} <span class="dim" style="margin-left:auto;font-size:11px">${list.length}</span></div><div class="kids" hidden></div>`;
     }
   } else h += types.map(t => rowHtml(t, depth)).join("");
   kids.innerHTML = h || `<div class="dim" style="padding:4px 8px 4px calc(10px + ${depth} * 12px);font-size:12px">Empty</div>`;
@@ -1123,6 +1137,10 @@ function setBrowserCollapsed(on) {
   $("browser").parentElement.classList.toggle("bc", on);
   $("btnBrowser").textContent = on ? "›" : "‹";
   store.set("fit.bcollapsed", on);
+}
+function sizeColumns() {
+  const top = document.querySelector(".layout").getBoundingClientRect().top + scrollY;
+  document.documentElement.style.setProperty("--colh", Math.max(520, innerHeight - top - 12) + "px");
 }
 function initBrowser() {
   setBrowserCollapsed(store.get("fit.bcollapsed", false));
