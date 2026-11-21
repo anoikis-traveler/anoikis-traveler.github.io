@@ -81,7 +81,7 @@ textarea#eft{width:100%;min-height:340px;resize:vertical;font-family:var(--mono)
 .st.pill{font-family:var(--mono);font-size:11px;padding:2px 7px;min-width:66px;text-transform:uppercase}
 .st.pill.offline{color:var(--dim)} .st.pill.online{color:var(--text)} .st.pill.active{color:var(--ok);border-color:#2c5a3c} .st.pill.overload{color:var(--bad);border-color:#5a2a2a}
 .st.pill:disabled{cursor:default;opacity:.7}
-.slot:disabled{cursor:default}
+.slot[aria-disabled="true"]{cursor:default}
 /* Anneau façon fenêtre de fitting en jeu */
 .ringwrap{padding:22px 18px 4px}
 .ring{position:relative;width:100%;max-width:640px;aspect-ratio:1;margin:0 auto;container-type:inline-size}
@@ -106,6 +106,15 @@ textarea#eft{width:100%;min-height:340px;resize:vertical;font-family:var(--mono)
 .gv{font-family:var(--mono);font-size:2.9px;fill:var(--text);paint-order:stroke;stroke:#070a12;stroke-width:.8px}
 .legend{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:11px;color:var(--dim);padding:4px 0 8px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid;margin-right:4px;vertical-align:-1px}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:9px 14px;border-radius:4px;z-index:50;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:92vw}
+#toast.err{border-color:#5a2a2a;color:#ffb3b3}
+.fitrow{display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:3px;cursor:pointer}
+.fitrow:hover{background:var(--panel-2)}
+.fitrow img{width:32px;height:32px;border-radius:2px}
+.fitrow small{display:block;color:var(--dim)}
+#tip{position:fixed;z-index:60;pointer-events:none;background:#0b1120;border:1px solid var(--line);border-radius:3px;padding:6px 9px;font-size:13px;line-height:1.35;box-shadow:0 4px 18px rgba(0,0,0,.6);max-width:280px}
+#tip b{font-weight:600} #tip small{display:block;color:var(--dim);font-size:11.5px}
+#tip .s{font-family:var(--mono);font-size:11px;text-transform:uppercase}
 /* Stats */
 .stat{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed #1b253b}
 .stat:last-child{border-bottom:0}
@@ -154,9 +163,13 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
       <button type="button" class="primary" id="btnImport">Import EFT</button>
       <button type="button" id="btnCopy">Copy EFT</button>
       <button type="button" id="btnLink">Share link</button>
+      <span class="sep"></span>
+      <button type="button" id="btnEveFits" title="Load one of the fits saved in EVE">My EVE fits</button>
+      <button type="button" id="btnSaveEve" title="Save this fit in EVE (Fitting window → personal fits)">Save to EVE</button>
     </div>
     <div class="cond">
-      <label>Skills<select id="skills"><option value="5">All V</option><option value="4">All IV</option><option value="3">All III</option><option value="0">None</option></select></label>
+      <label>Skills<span class="row" style="gap:4px;flex-wrap:nowrap"><img id="charPic" alt="" hidden style="width:26px;height:26px;border-radius:2px"><select id="skills"></select></span></label>
+      <label id="impBox" hidden>Implants<select id="implants"><option value="1">Character's</option><option value="0">None</option></select></label>
       <label>Incoming damage<select id="dmg"><option value="uniform">Uniform</option><option value="em">EM</option><option value="thermal">Thermal</option><option value="kinetic">Kinetic</option><option value="explosive">Explosive</option></select></label>
       <label>Space<select id="sec"><option value="high_sec">High-sec</option><option value="low_sec">Low-sec</option><option value="null_sec">Null-sec</option><option value="wormhole">Wormhole</option></select></label>
       <label>WH effect<select id="beacon"><option value="">None</option></select></label>
@@ -167,6 +180,15 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
     <section id="statsCol"></section>
   </div>
 </main>
+
+<dialog id="dlgFits">
+  <div class="card" style="margin:0;border:0">
+    <h2><span id="fitsTitle">Fits saved in EVE</span> <span class="grow"></span><button type="button" class="small" id="btnFitsClose" aria-label="Close">✕</button></h2>
+    <div class="body"><input id="fitsFilter" placeholder="Filter by ship or name…" style="width:100%;margin-bottom:8px"><div id="fitsList" style="max-height:60vh;overflow:auto"></div></div>
+  </div>
+</dialog>
+<div id="toast" hidden></div>
+<div id="tip" hidden></div>
 
 <dialog id="dlg">
   <div class="card" style="margin:0;border:0">
@@ -244,10 +266,18 @@ function readSde(buf) {
     for (let k = 0; k < n; k++) { const e = v + 4 + 4 * k; r.push(e + u32(e)); } return r; };
   const root = u32(0);
   const types = new Map(), groups = new Map(), attrByName = {};
-  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4) });
+  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4), _t: t });
+  // valeur de base d'un attribut dogma d'un type (vecteur de structs {int32 id, float32 valeur})
+  const typeAttr = (typeId, attrId) => {
+    const t = types.get(typeId)?._t; if (t == null) return undefined;
+    const o = field(t, 13); if (!o) return undefined;
+    const v = t + o + u32(t + o), n = u32(v);
+    for (let k = 0; k < n; k++) if (i32(v + 4 + 8 * k) === attrId) return dv.getFloat32(v + 8 + 8 * k, true);
+    return undefined;
+  };
   for (const t of tables(root, 2)) groups.set(int(t, 0), { id: int(t, 0), name: str(t, 1) });
   for (const t of tables(root, 4)) attrByName[str(t, 1)] = int(t, 0);
-  return { build: int(root, 0), release: str(root, 12), types, groups, attrByName };
+  return { build: int(root, 0), release: str(root, 12), types, groups, attrByName, typeAttr };
 }
 
 /* ---------- Chargement ---------- */
@@ -271,9 +301,11 @@ async function loadAll(v) {
   engine.load_sde(bytes); // refuse des données incompatibles
   return [engine, bytes];
 }
-let fit = null, calc = null;
+let fit = null, cur = null, calc = null;
 
+let callbackDone = Promise.resolve(null);
 async function boot() {
+  callbackDone = handleCallback();
   try {
     $("pmsg").textContent = "checking for updates…";
     VERSIONS = await resolveVersions();
@@ -293,6 +325,11 @@ async function boot() {
     fillBeacons();
     $("dataInfo").textContent = `EVE data: SDE build ${SDE.build} (${(SDE.release || "").slice(0, 10)}) · engine ${VERSIONS.engine} · data ${VERSIONS.sde} · ${Object.keys(allSkills).length} skills`;
     $("loading").hidden = true; $("app").hidden = false;
+    fillSkillSelect();
+    const restore = await callbackDone;
+    if (restore && !location.hash) history.replaceState(null, "", CALLBACK + "#esf=" + restore);
+    const c0 = selectedChar();
+    if (c0) { try { await loadCharData(c0); } catch (e) { toast(e.message, true); } }
     const fromHash = loadFromHash();
     if (!fromHash) { $("eft").value = localStorage.getItem("fit.eft") || EXAMPLE; importEft(); }
   } catch (err) {
@@ -313,9 +350,209 @@ function fillBeacons() {
   }
 }
 
+/* ---------- Connexion EVE (SSO PKCE, application « Anoikis Fitting », sans secret) ---------- */
+const CLIENT_ID = "5a46c9a772c0466888cd6785d4fe7244";
+const SSO = "https://login.eveonline.com/v2/oauth";
+const ESI = "https://esi.evetech.net";
+const ESI_DATE = "2025-09-30";
+const SCOPES = "esi-skills.read_skills.v1 esi-clones.read_implants.v1 esi-fittings.read_fittings.v1 esi-fittings.write_fittings.v1";
+const CALLBACK = location.origin + location.pathname.replace(/index\.html$/, "");
+const store = {
+  get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let chars = store.get("fit.chars", []);          // [{charId, charName, access_token, refresh_token, exp}]
+let charData = store.get("fit.chardata", {});    // charId -> {skills:{id:level}, implants:[typeId], at}
+const saveChars = () => store.set("fit.chars", chars);
+
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = err ? "err" : ""; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, err ? 7000 : 4500);
+}
+const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const jwt = t => { try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch { return {}; } };
+
+async function login() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  sessionStorage.setItem("fit.pkce", JSON.stringify({ verifier, state, link: fit ? E.save_esf_link(fit) : null }));
+  location.href = `${SSO}/authorize?` + new URLSearchParams({ response_type: "code", redirect_uri: CALLBACK, client_id: CLIENT_ID,
+    scope: SCOPES, code_challenge: challenge, code_challenge_method: "S256", state });
+}
+async function tokenRequest(params) {
+  const r = await fetch(`${SSO}/token`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) });
+  if (!r.ok) throw Object.assign(new Error(`EVE login refused (${r.status})`), { status: r.status });
+  const j = await r.json(), c = jwt(j.access_token);
+  return { access_token: j.access_token, refresh_token: j.refresh_token, exp: (c.exp || 0) * 1000,
+           charId: Number(String(c.sub || "").split(":").pop()), charName: c.name || "" };
+}
+/* Retour de la page de connexion de CCP : échange du code contre les jetons. Renvoie le lien du fit à restaurer. */
+async function handleCallback() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("code") && !q.has("error")) return null;
+  let saved = null; try { saved = JSON.parse(sessionStorage.getItem("fit.pkce") || "null"); } catch {}
+  sessionStorage.removeItem("fit.pkce");
+  history.replaceState(null, "", CALLBACK);
+  if (q.has("error")) { toast("EVE login cancelled.", true); return saved?.link; }
+  if (!saved || saved.state !== q.get("state")) { toast("Login interrupted, please try again.", true); return saved?.link; }
+  try {
+    const t = await tokenRequest({ grant_type: "authorization_code", code: q.get("code"), client_id: CLIENT_ID, code_verifier: saved.verifier });
+    chars = chars.filter(c => c.charId !== t.charId).concat([t]); saveChars();
+    store.set("fit.skillsel", "c:" + t.charId);
+    delete charData[t.charId];
+    toast(`Logged in: ${t.charName}`);
+  } catch (e) { toast(e.message, true); }
+  return saved?.link;
+}
+async function ensureToken(c) {
+  if (c.exp - 60e3 > Date.now()) return c;
+  try {
+    Object.assign(c, await tokenRequest({ grant_type: "refresh_token", refresh_token: c.refresh_token, client_id: CLIENT_ID }));
+    saveChars(); return c;
+  } catch (e) {
+    if (e.status === 400 || e.status === 401) {
+      chars = chars.filter(x => x !== c); saveChars(); fillSkillSelect();
+      throw new Error(`${c.charName}: EVE login expired, please log in again.`);
+    }
+    throw e;
+  }
+}
+async function esi(c, path, opts = {}) {
+  await ensureToken(c);
+  const headers = { Accept: "application/json", "X-Compatibility-Date": ESI_DATE, Authorization: "Bearer " + c.access_token };
+  if (opts.body) headers["Content-Type"] = "application/json";
+  const r = await fetch(ESI + path, { ...opts, cache: "no-store", headers });
+  if (r.status === 401 || r.status === 403) throw new Error(`EVE refused access for ${c.charName} (${r.status}). Try logging in again.`);
+  if (!r.ok) { let m = ""; try { m = (await r.json()).error || ""; } catch {} throw new Error(`ESI error ${r.status}${m ? ": " + m : ""}`); }
+  return r.status === 204 ? null : r.json();
+}
+const charById = id => chars.find(c => c.charId === id);
+function selectedChar() { const v = $("skills").value || ""; return v.startsWith("c:") ? charById(+v.slice(2)) : null; }
+
+async function loadCharData(c, force) {
+  const d = charData[c.charId];
+  if (!force && d && Date.now() - d.at < 3600e3) return d;
+  const [sk, imp] = await Promise.all([esi(c, `/characters/${c.charId}/skills`), esi(c, `/characters/${c.charId}/implants`)]);
+  const skills = {};
+  for (const x of sk.skills || []) skills[x.skill_id] = x.active_skill_level ?? x.trained_skill_level ?? 0;
+  charData[c.charId] = { skills, implants: imp || [], at: Date.now() };
+  store.set("fit.chardata", charData);
+  return charData[c.charId];
+}
+
+function fillSkillSelect() {
+  const sel = $("skills"), keep = sel.value || store.get("fit.skillsel", "5");
+  sel.innerHTML = "";
+  const g1 = document.createElement("optgroup"); g1.label = "Generic";
+  for (const [v, l] of [["5", "All V"], ["4", "All IV"], ["3", "All III"], ["0", "None"]]) g1.append(new Option(l, v));
+  sel.append(g1);
+  const g2 = document.createElement("optgroup"); g2.label = "Characters";
+  for (const c of chars) g2.append(new Option(c.charName, "c:" + c.charId));
+  g2.append(new Option("+ Log in a character…", "login"));
+  if (chars.length) g2.append(new Option("Log out all characters", "logout"));
+  sel.append(g2);
+  sel.value = [...sel.options].some(o => o.value === keep) && !["login", "logout"].includes(keep) ? keep : "5";
+  updateCharUi();
+}
+function updateCharUi() {
+  const c = selectedChar();
+  $("charPic").hidden = !c; $("impBox").hidden = !c;
+  if (c) $("charPic").src = `https://images.evetech.net/characters/${c.charId}/portrait?size=32`;
+}
+async function onSkillChange() {
+  const v = $("skills").value;
+  if (v === "login") { $("skills").value = store.get("fit.skillsel", "5"); return login(); }
+  if (v === "logout") {
+    chars = []; charData = {}; saveChars(); store.set("fit.chardata", {}); store.set("fit.skillsel", "5");
+    fillSkillSelect(); toast("Logged out."); return recalc();
+  }
+  store.set("fit.skillsel", v); updateCharUi();
+  const c = selectedChar();
+  if (c) {
+    try { $("statsCol").style.opacity = .5; await loadCharData(c, true); }
+    catch (e) { toast(e.message, true); }
+    finally { $("statsCol").style.opacity = 1; }
+  }
+  recalc();
+}
+/* Le fit calculé : celui de l'utilisateur + les implants du personnage (ajoutés à la fin, pour garder les indices). */
+function withCharacter(f) {
+  const c = selectedChar(), d = c && charData[c.charId];
+  if (!d || $("implants").value !== "1") return f;
+  const used = new Set(f.items.filter(i => i.slot.type === "implant").map(i => i.slot.index));
+  const extra = [];
+  for (const id of d.implants) {
+    const slot = Math.round(SDE.typeAttr(id, A.implantness) || 0);
+    if (slot >= 1 && slot <= 10 && !used.has(slot) && SDE.types.has(id)) {
+      used.add(slot); extra.push({ type_id: id, slot: { type: "implant", index: slot }, state: "online" });
+    }
+  }
+  return extra.length ? { ...f, items: [...f.items, ...extra] } : f;
+}
+
+/* Envoi dans EVE : les munitions vont en soute (une seule entrée par emplacement côté ESI). */
+function toEsi(f, name) {
+  const e = E.save_esi_fitting({ ...f, name });
+  const seen = new Set(), items = [], cargo = new Map();
+  for (const it of e.items) {
+    if (/^(HiSlot|MedSlot|LoSlot|RigSlot|SubSystemSlot|ServiceSlot)\d$/.test(it.flag)) {
+      if (seen.has(it.flag)) { cargo.set(it.type_id, (cargo.get(it.type_id) || 0) + it.quantity); continue; }
+      seen.add(it.flag);
+    }
+    items.push(it);
+  }
+  for (const [type_id, quantity] of cargo) {
+    const ex = items.find(i => i.flag === "Cargo" && i.type_id === type_id);
+    if (ex) ex.quantity += quantity; else items.push({ flag: "Cargo", type_id, quantity });
+  }
+  return { name: name.slice(0, 50), description: (e.description || "Saved from Anoikis Traveler").slice(0, 500), ship_type_id: e.ship_type_id, items };
+}
+function pickChar(action) {
+  const c = selectedChar() || (chars.length === 1 ? chars[0] : null);
+  if (c) return c;
+  if (!chars.length) { if (confirm(`To ${action}, log in with your EVE character first.\nGo to the EVE login page now?`)) login(); return null; }
+  toast("Choose a character in the Skills list first.", true); $("skills").focus(); return null;
+}
+const shipName = () => SDE.types.get(fit.ship.type_id)?.name || "Fit";
+async function saveToEve() {
+  if (!fit) return;
+  const c = pickChar("save fits in EVE"); if (!c) return;
+  const name = prompt(`Save this fit in EVE for ${c.charName}.\nName of the fit (max 50 characters):`, (fit.name || shipName()).slice(0, 50));
+  if (name == null || !name.trim()) return;
+  try {
+    await esi(c, `/characters/${c.charId}/fittings`, { method: "POST", body: JSON.stringify(toEsi(fit, name.trim())) });
+    toast(`Saved in EVE for ${c.charName}: “${name.trim()}”. Find it in the Fitting window → Personal fits.`);
+  } catch (e) { toast(e.message, true); }
+}
+let eveFits = [];
+async function openEveFits() {
+  const c = pickChar("load your EVE fits"); if (!c) return;
+  $("fitsTitle").textContent = `Fits saved in EVE — ${c.charName}`;
+  $("fitsList").innerHTML = `<div class="dim">Loading…</div>`; $("fitsFilter").value = "";
+  $("dlgFits").showModal();
+  try { eveFits = await esi(c, `/characters/${c.charId}/fittings`) || []; renderEveFits(); }
+  catch (e) { $("fitsList").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+function renderEveFits() {
+  const f = $("fitsFilter").value.trim().toLowerCase();
+  const rows = eveFits.map(x => ({ x, ship: SDE.types.get(x.ship_type_id)?.name || "?" }))
+    .filter(r => !f || r.ship.toLowerCase().includes(f) || (r.x.name || "").toLowerCase().includes(f))
+    .sort((a, b) => a.ship.localeCompare(b.ship) || (a.x.name || "").localeCompare(b.x.name || ""));
+  $("fitsList").innerHTML = rows.length
+    ? rows.map(r => `<div class="fitrow" data-id="${r.x.fitting_id}"><img src="${IMG(r.x.ship_type_id, 64)}" alt="" loading="lazy"><div><b>${esc(r.x.name)}</b><small>${esc(r.ship)}</small></div></div>`).join("")
+    : `<div class="dim">${eveFits.length ? "No match." : "No fits saved in EVE for this character."}</div>`;
+}
+
 /* ---------- Fit ---------- */
 function skillsFor(level) {
   const s = {}; for (const id in allSkills) s[id] = level; return s;
+}
+function charSkills() {
+  const c = selectedChar(), d = c && charData[c.charId];
+  if (d) return { ...d.skills };
+  const v = $("skills").value;
+  return skillsFor(/^\d$/.test(v) ? +v : 5);
 }
 function conditions() {
   const d = $("dmg").value;
@@ -323,7 +560,7 @@ function conditions() {
   const b = $("beacon").value;
   if (b) $("sec").value = "wormhole";
   const c = {
-    character: { skills: skillsFor(+$("skills").value) },
+    character: { skills: charSkills() },
     environment: { damage_profile: profile, security: $("sec").value },
   };
   if (b) c.incoming = E.beacon(+b);
@@ -361,8 +598,9 @@ function recalc() {
   if (!fit) return;
   const { incoming, ...base } = fit;
   fit = { ...base, ...conditions() };
+  cur = withCharacter(fit);
   try {
-    calc = E.calculate(fit, { validate: true });
+    calc = E.calculate(cur, { validate: true });
   } catch (err) {
     $("eftMsg").innerHTML = `<div class="msg err">Calculation failed: ${esc(err.message || err)}</div>`;
     return;
@@ -387,12 +625,14 @@ const SLOTS = [
   ["implant", "Implants", null], ["booster", "Boosters", null], ["cargo", "Cargo", null],
 ];
 const STATES = ["offline", "online", "active", "overload"];
+const STCOL = { offline: "var(--dim)", online: "var(--text)", active: "var(--ok)", overload: "var(--bad)" };
 
 const RING = [ // rack, attribut du nombre de slots, angle du 1er slot, pas (0° = droite, sens horaire) — disposition du jeu
   ["high", "hiSlots", -120, 10.4], ["medium", "medSlots", -36, 10.4], ["low", "lowSlots", 47.5, 10.6],
   ["rig", "rigSlots", 201, 10.6], ["subsystem", "maxSubSystems", 140, 10.6],
 ];
 const R_SLOT = 41.5, R_GAUGE = 48;
+const RACKNAME = { high: "high", medium: "mid", low: "low", rig: "rig", subsystem: "subsystem" };
 const pol = (r, a) => [50 + r * Math.cos(a * Math.PI / 180), 50 + r * Math.sin(a * Math.PI / 180)];
 const arc = (r, a1, a2) => { const [x1, y1] = pol(r, a1), [x2, y2] = pol(r, a2);
   return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${Math.abs(a2 - a1) > 180 ? 1 : 0} ${a2 > a1 ? 1 : 0} ${x2.toFixed(2)} ${y2.toFixed(2)}`; };
@@ -414,7 +654,7 @@ function renderFit() {
   const ship = fit.ship.type_id;
   let svg = "", slots = "";
   for (const [rack, countAttr, start, step] of RING) {
-    const items = fit.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === rack)
+    const items = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === rack)
       .sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
     const total = Math.round(S(countAttr) || 0), n = Math.max(total, items.length);
     if (!n) continue;
@@ -423,11 +663,12 @@ function renderFit() {
     for (let k = 0; k < n; k++) {
       const [x, y] = pol(R_SLOT, start + k * step), pos = `left:${x.toFixed(2)}%;top:${y.toFixed(2)}%`;
       const entry = items[k];
-      if (!entry) { slots += `<span class="slot empty" style="${pos}" title="Empty ${rack} slot"></span>`; continue; }
+      if (!entry) { slots += `<span class="slot empty" style="${pos}" data-tip="<span class='dim'>Empty ${RACKNAME[rack]} slot</span>"></span>`; continue; }
       const [it, i] = entry, r = calc.items[i] || {}, st = r.state || it.state;
       const can = STATES.indexOf(r.max_state || "offline") > 0;
-      const tip = `${name(it.type_id)}${it.charge ? "\n" + name(it.charge.type_id) : ""}\nState: ${st}${can ? " — click to change" : ""}`;
-      slots += `<button type="button" class="slot st ${st} ${k >= total ? "bad" : ""}" style="${pos}" data-i="${i}" ${can ? "" : "disabled"} title="${esc(tip)}" aria-label="${esc(tip)}">
+      const tip = `<b>${esc(name(it.type_id))}</b>${it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : ""}<span class="s" style="color:${STCOL[st]}">${st}</span>${can ? ` <span class="dim" style="font-size:11px">· click to change</span>` : ""}`;
+      const label = `${name(it.type_id)}${it.charge ? ", " + name(it.charge.type_id) : ""}, ${st}`;
+      slots += `<button type="button" class="slot st ${st} ${k >= total ? "bad" : ""}" style="${pos}" data-i="${i}" ${can ? "" : 'aria-disabled="true"'} data-tip="${esc(tip)}" aria-label="${esc(label)}">
         <img class="ic" src="${IMG(it.type_id, 64)}" alt="">${it.charge ? `<img class="ch" src="${IMG(it.charge.type_id)}" alt="">` : ""}</button>`;
     }
   }
@@ -452,11 +693,11 @@ function renderFit() {
       ${slots}
     </div>
     <div class="legend"><span><i style="border-color:#2c3a57"></i>offline</span><span><i style="border-color:#7d8aa3"></i>online</span><span><i style="border-color:var(--ok)"></i>active</span><span><i style="border-color:var(--bad)"></i>overheated</span><span>${hp}</span></div>
-    <div class="legend" style="padding-top:0">Click a module to change its state · hover for its name</div></div>`;
+    <div class="legend" style="padding-top:0">Click a module to change its state · hover for details</div></div>`;
 
   for (const [slot, label, countAttr] of SLOTS) {
     if (RING.some(r => r[0] === slot)) continue;
-    const rows = fit.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot);
+    const rows = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot);
     const total = countAttr ? S(countAttr) : null;
     if (!rows.length) continue;
     h += `<div class="slotgrp"><h3>${label}${total ? `<span class="c">${rows.length} / ${f0(total)}</span>` : ""}</h3>`;
@@ -466,9 +707,10 @@ function renderFit() {
       const st = r.state || it.state, max = r.max_state || "offline";
       const qty = it.quantity > 1 ? ` <span class="dim">×${it.quantity}</span>` : "";
       const charge = it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : "";
-      const canToggle = STATES.indexOf(max) > 0;
+      const fromChar = i >= fit.items.length; // implant venant du personnage connecté
+      const canToggle = !fromChar && STATES.indexOf(max) > 0;
       h += `<div class="item ${st === "offline" ? "off" : ""}"><img src="${IMG(it.type_id)}" alt="" loading="lazy">
-        <div class="nm">${esc(name(it.type_id))}${qty}${charge}</div>
+        <div class="nm">${esc(name(it.type_id))}${qty}${charge}${fromChar ? `<small>from ${esc(selectedChar()?.charName || "character")}${st === "offline" ? " · inactive: missing skill" : ""}</small>` : ""}</div>
         ${slot === "cargo" ? "" : `<button type="button" class="st pill small ${st}" data-i="${i}" ${canToggle ? "" : "disabled"}>${slot === "drone_bay" || slot === "fighter_bay" ? (st === "offline" ? "in bay" : "in space") : st}</button>`}</div>`;
     }
     h += `</div>`;
@@ -477,12 +719,13 @@ function renderFit() {
 }
 
 $("fitCard").addEventListener("click", ev => {
-  const b = ev.target.closest("button.st"); if (!b || b.disabled) return;
+  const b = ev.target.closest("button.st"); if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return;
   const i = +b.dataset.i, it = fit.items[i], r = calc.items[i];
+  if (!it) return; // implant du personnage : pas d'état à changer
   const maxIdx = STATES.indexOf(r.max_state), cur = STATES.indexOf(r.state);
   let next = STATES[cur + 1 > maxIdx ? 0 : cur + 1];
   if (it.slot.type === "drone_bay" || it.slot.type === "fighter_bay") next = r.state === "offline" ? "active" : "offline";
-  fit.items[i] = { ...it, state: next };
+  cur.items[i] = { ...it, state: next };
   recalc();
 });
 
@@ -511,8 +754,9 @@ function renderStats() {
   const skillList = [...missing].sort((a, b) => name(a[0]).localeCompare(name(b[0])))
     .map(([id, m]) => `<li>${esc(name(id))} <b>${ROMAN[m.required]}</b> <span class="dim">(have ${ROMAN[m.level] ?? m.level})</span></li>`).join("");
   const n = v.length + (missing.size ? 1 : 0);
-  C.problems = (card(`Problems${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
-    !n ? `<span class="ok">✓ This fit can be flown with these skills.</span>` :
+  const who = selectedChar();
+  C.problems = (card(`Problems${who ? ` <span class="dim" style="font-family:var(--body);text-transform:none;letter-spacing:0;font-size:12px">· ${esc(who.charName)}</span>` : ""}${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
+    !n ? `<span class="ok">✓ ${who ? esc(who.charName) + " can fly this fit." : "This fit can be flown with these skills."}</span>` :
     (v.length ? `<ul class="problems">${v.map(x => `<li>${esc(describe(x))}</li>`).join("")}</ul>` : "") +
     (missing.size ? `<div class="dim" style="margin:${v.length ? "8px" : "0"} 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Missing skills (${missing.size})</div><ul class="problems">${skillList}</ul>` : "")));
 
@@ -573,7 +817,7 @@ const RES = { cpu: "CPU", powergrid: "Powergrid", calibration: "Calibration", dr
   fighter_bay: "Fighter bay", fighter_tubes: "Fighter tubes", cargo_bay: "Cargo bay", charge_capacity: "Charge capacity" };
 function describe(v) {
   const r = v.rule, t = v.target;
-  const who = t.type === "ship" ? "" : t.type === "charge" ? `${name(fit.items[t.index].charge?.type_id)}: ` : `${name(fit.items[t.index].type_id)}: `;
+  const who = t.type === "ship" ? "" : t.type === "charge" ? `${name(cur.items[t.index].charge?.type_id)}: ` : `${name(cur.items[t.index].type_id)}: `;
   const n = x => f2(x);
   switch (r.type) {
     case "resource": return `${RES[r.resource] || r.resource} exceeded — ${n(r.used)} used of ${n(r.available)}`;
@@ -589,6 +833,30 @@ function describe(v) {
     default: return `${who}${r.type.replace(/_/g, " ")}`;
   }
 }
+
+/* ---------- Infobulle des slots ---------- */
+(() => {
+  const tip = $("tip");
+  const place = ev => {
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + 14, y = ev.clientY + 16;
+    if (x + w > innerWidth - 6) x = ev.clientX - w - 12;
+    if (y + h > innerHeight - 6) y = ev.clientY - h - 12;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  };
+  $("fitCard").addEventListener("pointerover", ev => {
+    const el = ev.target.closest("[data-tip]"); if (!el) return;
+    tip.innerHTML = el.dataset.tip; tip.hidden = false; place(ev);
+  });
+  $("fitCard").addEventListener("pointermove", ev => { if (!tip.hidden) place(ev); });
+  $("fitCard").addEventListener("pointerout", ev => {
+    const el = ev.target.closest("[data-tip]");
+    if (el && !el.contains(ev.relatedTarget)) tip.hidden = true;
+  });
+  $("fitCard").addEventListener("click", () => { // après un clic, le contenu change : on le met à jour
+    requestAnimationFrame(() => { const el = $("fitCard").querySelector("[data-tip]:hover"); if (el) tip.innerHTML = el.dataset.tip; else tip.hidden = true; });
+  });
+})();
 
 /* ---------- Actions ---------- */
 $("btnCalc").onclick = importEft;
@@ -606,7 +874,23 @@ document.addEventListener("paste", ev => {
   if ($("eftMsg").innerHTML) $("dlg").showModal();
 });
 $("eft").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) importEft(); });
-for (const id of ["skills", "dmg", "sec", "beacon"]) $(id).addEventListener("change", recalc);
+for (const id of ["dmg", "sec", "beacon", "implants"]) $(id).addEventListener("change", recalc);
+$("skills").addEventListener("change", onSkillChange);
+$("btnSaveEve").onclick = saveToEve;
+$("btnEveFits").onclick = openEveFits;
+$("btnFitsClose").onclick = () => $("dlgFits").close();
+$("fitsFilter").addEventListener("input", renderEveFits);
+$("fitsList").addEventListener("click", ev => {
+  const row = ev.target.closest(".fitrow"); if (!row) return;
+  const x = eveFits.find(f => f.fitting_id === +row.dataset.id); if (!x) return;
+  try {
+    const { incoming, ...loaded } = E.load_esi_fitting(x);
+    fit = E.post_load({ ...loaded, ...conditions() });
+    $("eft").value = E.save_eft(fit); localStorage.setItem("fit.eft", $("eft").value);
+    history.replaceState(null, "", CALLBACK);
+    $("dlgFits").close(); recalc();
+  } catch (e) { toast("Could not load this fit: " + e.message, true); }
+});
 async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = "Copied ✓"; setTimeout(() => btn.textContent = o, 1200); }
   catch { prompt("Copy:", text); }
