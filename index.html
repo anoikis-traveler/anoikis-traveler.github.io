@@ -268,7 +268,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 <body>
 <header>
   <h1>Anoikis <b>Traveler</b></h1>
-  <span class="ver" id="appVersion" title="Map version">v6.1</span>
+  <span class="ver" id="appVersion" title="Map version">v6.2</span>
   <form id="addForm" autocomplete="off">
     <input id="addName" placeholder="Add a system…" aria-label="Name of the system to add">
     <button type="submit">Add</button>
@@ -418,6 +418,11 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <h3 id="lockTitle">🔒 Lock this site to my map</h3>
       <p class="note">Only your map will exist on this site: nobody can plug in their own EVE application or database, and nobody else can create a map. Players still open your map if you allow them in Access.</p>
       <div class="row"><button type="button" class="small primary" id="btnLock">Download site.json</button><button type="button" class="small" id="btnLockRules">Copy the locked database rules</button></div>
+      <div id="liveBox" hidden>
+        <p class="note">This site uses the <b>live server</b> (Cloudflare): no limit on simultaneous connections. Firebase is no longer used.</p>
+        <p class="note">One-time move: in Firebase → Realtime Database, open the <b>⋮</b> menu → <b>Export JSON</b>, then choose that file here. Maps, owners and access lists are copied; nothing is deleted in Firebase.</p>
+        <div class="row"><label class="small" style="cursor:pointer;border:1px solid var(--line);border-radius:4px;padding:4px 8px">📥 Import a Firebase export (.json)<input type="file" id="liveFile" accept=".json,application/json" style="display:none"></label></div>
+      </div>
       <ol class="note" style="margin:6px 0 0 18px;padding:0">
         <li>Upload <b>site.json</b> to your GitHub repository, next to index.html (Add file → Upload files → Commit).</li>
         <li>In Firebase → Realtime Database → <b>Rules</b>: replace everything with the locked rules (button above), then <b>Publish</b>.</li>
@@ -503,7 +508,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 /* =========================================================
    Constantes et utilitaires
    ========================================================= */
-const APP_VERSION = '6.1';            // à augmenter à chaque mise à jour du fichier
+const APP_VERSION = '6.2';            // à augmenter à chaque mise à jour du fichier
 const APP_DATE = '20/11/2026';
 const ESI = 'https://esi.evetech.net/latest';
 const ESI_ROOT = 'https://esi.evetech.net';
@@ -620,7 +625,8 @@ function saveTok(){ if (tok){ store.set(CK.tok + tok.charId, tok); } }
 /* =========================================================
    Stockage : local ou partagé (Firebase Realtime Database, REST + flux)
    ========================================================= */
-const cloudReady = () => !!(cfg.cloud && cfg.cloud.worker && cfg.cloud.db && cfg.cloud.apiKey);
+const cloudReady = () => !!(cfg.cloud && (cfg.cloud.live || (cfg.cloud.worker && cfg.cloud.db && cfg.cloud.apiKey)));
+const liveMode = () => !!(cfg.cloud && cfg.cloud.live);
 let fb = tok ? store.get(CK.fb + tok.charId, null) : null;   // jeton Firebase du personnage de cet onglet
 let myRole = 'owner';                     // owner | edit | view
 const shared = () => cloudReady() && !!fb && !!slot.mapOwner && !demoMode;
@@ -649,6 +655,16 @@ function setAt(obj, parts, val){
 /* ---------- Connexion sécurisée : EVE → serveur Cloudflare → jeton Firebase ---------- */
 async function cloudLogin(){
   if (!cloudReady() || !tok) return false;
+  if (liveMode()){
+    liveClose(); await liveOpen();
+    fb = { live:true, uid:live.uid, name:live.name, exp:Date.now() + 365 * 864e5 };
+    store.set(CK.fb + tok.charId, fb);
+    if (!slot.mapOwner && !SITE_LOCK) slot.mapOwner = fb.uid;
+    saveCfg();
+    fbReq('PUT', `maps/${fb.uid}/ownerName`, fb.name).catch(() => {});
+    $('#btnAccess').hidden = false;
+    return true;
+  }
   await ensureToken();
   let r, j;
   try{ r = await fetch(cfg.cloud.worker.replace(/\/+$/, '') + '/token', { method:'POST', headers:{ Authorization:'Bearer ' + tok.access_token } }); }
@@ -669,6 +685,12 @@ async function cloudLogin(){
 }
 async function ensureFb(){
   if (!fb) throw new Error('Not connected to sharing');
+  if (liveMode()){
+    if (tok && live.uid && live.uid !== 'eve-' + tok.charId) liveClose();
+    await liveOpen();
+    if (live.uid !== fb.uid || !fb.live){ fb = { live:true, uid:live.uid, name:live.name, exp:Date.now() + 365 * 864e5 }; if (tok) store.set(CK.fb + tok.charId, fb); }
+    return;
+  }
   if (Date.now() < fb.exp - 120000) return;
   const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(cfg.cloud.apiKey)}`,
     { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:fb.refresh }) });
@@ -679,10 +701,74 @@ async function ensureFb(){
 }
 async function fbReq(method, path, body){
   await ensureFb();
+  if (liveMode()) return liveCall(method, path, body);
   const r = await fetch(`${dbRoot()}/${path}.json?auth=${encodeURIComponent(fb.idToken)}`,
     { method, headers:{ 'Content-Type':'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!r.ok){ const e = new Error('Firebase ' + r.status); e.status = r.status; throw e; }
   return r.json();
+}
+/* ---------- Live server (Cloudflare Durable Object): one WebSocket per tab, replaces Firebase ---------- */
+const live = { ws:null, ready:null, uid:'', name:'', seq:0, wait:new Map(), sub:null, onEv:null, backoff:1000, byUs:false, pingT:null };
+function liveOpen(){
+  if (live.ready) return live.ready;
+  live.ready = new Promise(async (res, rej) => {
+    let ws, opened = false;
+    try{ await ensureToken(); ws = new WebSocket(cfg.cloud.live.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws'); }
+    catch(e){ live.ready = null; return rej(new Error('Live server unreachable: check its address.')); }
+    live.ws = ws;
+    ws.onopen = async () => {
+      opened = true;
+      try{
+        const a = await liveSend({ op:'auth', token:tok.access_token }, ws);
+        live.uid = a.uid; live.name = a.name; live.backoff = 1000;
+        clearInterval(live.pingT); live.pingT = setInterval(() => { try{ if (ws.readyState === 1) ws.send('ping'); }catch(e){} }, 45000);
+        res();
+        if (live.sub) liveSend({ op:'sub', map:live.sub }).catch(liveSubFail);
+      }catch(e){ if (live.ws === ws){ live.ws = null; live.ready = null; } rej(new Error('Live server refused the login: ' + e.message)); try{ ws.close(); }catch(x){} }
+    };
+    ws.onmessage = ev => {
+      if (ev.data === 'pong') return;
+      let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if (m.id != null){ const w = live.wait.get(m.id); if (w){ live.wait.delete(m.id); m.ok ? w.res(m) : w.rej(Object.assign(new Error(m.error || 'Refused'), { status:m.status })); } return; }
+      if (m.ev && live.onEv) live.onEv(m);
+    };
+    ws.onclose = () => {
+      clearInterval(live.pingT);
+      for (const [id, w] of live.wait){ if (w.ws === ws){ live.wait.delete(id); w.rej(Object.assign(new Error('Connection lost'), { status:0 })); } }
+      if (live.ws === ws){ live.ws = null; live.ready = null; }
+      if (!opened) rej(new Error('Live server unreachable: check its address.'));
+      if (live.byUs === ws) return;
+      if (live.sub && !live.ws){
+        setSync('err', 'Sharing: reconnecting…');
+        const d = live.backoff; live.backoff = Math.min(30000, live.backoff * 2);
+        setTimeout(() => { if (live.sub && !live.ws) liveOpen().catch(() => {}); }, d);
+      }
+    };
+  });
+  return live.ready;
+}
+function liveSend(msg, wsArg){
+  const ws = wsArg || live.ws;
+  return new Promise((res, rej) => {
+    if (!ws || ws.readyState !== 1) return rej(Object.assign(new Error('Not connected'), { status:0 }));
+    const id = ++live.seq; live.wait.set(id, { res, rej, ws });
+    ws.send(JSON.stringify({ ...msg, id }));
+    setTimeout(() => { if (live.wait.has(id)){ live.wait.delete(id); rej(Object.assign(new Error('No answer from the live server'), { status:0 })); } }, 20000);
+  });
+}
+async function liveCall(method, path, body){
+  await liveOpen();
+  const op = method === 'GET' ? 'get' : method === 'PUT' ? 'put' : method === 'PATCH' ? 'patch' : 'del';
+  const r = await liveSend({ op, path, data:body });
+  return op === 'get' ? (r.data ?? null) : (body ?? null);
+}
+function liveSubFail(e){
+  if (e && e.status === 403){ live.sub = null; setSync('err', 'Access removed'); toast('The owner of this map removed your access.', true); }
+}
+function liveClose(){
+  live.sub = null; live.onEv = null;
+  if (live.ws){ live.byUs = live.ws; try{ live.ws.close(); }catch(e){} }
+  live.ws = null; live.ready = null; live.uid = '';
 }
 async function remote(method, path, body){
   if (!shared()) return;
@@ -745,6 +831,17 @@ async function connectShared(){
   renderLock();
   let firstData = true;
   const open = (sub, apply) => {
+    if (liveMode()){
+      live.onEv = m => {
+        if (m.ev === 'put') apply(m.path, m.data);
+        persistLocal(); scheduleRender();
+        if (live.sub) setSync('on', liveLabel());   // not after "Access removed"
+      };
+      live.sub = slot.mapOwner;
+      liveSend({ op:'sub', map:slot.mapOwner }).catch(liveSubFail);
+      streams.push({ close(){ if (live.sub){ live.sub = null; live.onEv = null; liveSend({ op:'unsub' }).catch(() => {}); } } });
+      return;
+    }
     const es = new EventSource(`${mapBase()}${sub ? '/' + sub : ''}.json?auth=${encodeURIComponent(fb.idToken)}`);
     es.addEventListener('put', ev => { const { path, data } = JSON.parse(ev.data); apply(path, data); setSync('on', liveLabel()); persistLocal(); scheduleRender(); });
     es.addEventListener('patch', ev => {
@@ -793,8 +890,8 @@ async function connectShared(){
     };
   }
   // ONE connection per tab when the database rules allow reading the whole map; otherwise the older 2-3 connections
-  let single = false;
-  try{ const r = await fetch(`${mapBase()}.json?shallow=true&auth=${encodeURIComponent(fb.idToken)}`); single = r.ok; }catch(e){}
+  let single = liveMode();
+  if (!single) try{ const r = await fetch(`${mapBase()}.json?shallow=true&auth=${encodeURIComponent(fb.idToken)}`); single = r.ok; }catch(e){}
   streamMode = single ? 'single' : 'legacy';
   if (single){
     open('', (path, data) => {
@@ -810,7 +907,7 @@ async function connectShared(){
     open('data', onData); open('pilots', onPilots); if (onAcl) open(`acl/${fb.uid}`, onAcl);
   }
   // Renouvelle le jeton et les flux avant expiration (jetons Firebase : 1 h)
-  reconnectT = setTimeout(connectShared, Math.max(60000, fb.exp - Date.now() - 180000));
+  if (!liveMode()) reconnectT = setTimeout(connectShared, Math.max(60000, fb.exp - Date.now() - 180000));
   publishPilot(true);
 }
 
@@ -1557,9 +1654,10 @@ function renderLock(){
   $('#lockLogin').textContent = lockState === 'noaccess' ? 'Log in with another character' : 'EVE login';
 }
 async function loadSiteLock(){
-  try{ const r = await fetch('site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j && j.owner && j.clientId && j.worker && j.db && j.apiKey) SITE_LOCK = j; } }catch(e){}
+  try{ const r = await fetch('site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j && j.owner && j.clientId && (j.live || (j.worker && j.db && j.apiKey))) SITE_LOCK = j; } }catch(e){}
   if (!SITE_LOCK) return;
   const nc = { worker:SITE_LOCK.worker, db:SITE_LOCK.db, apiKey:SITE_LOCK.apiKey };
+  if (SITE_LOCK.live) nc.live = SITE_LOCK.live;
   const changed = JSON.stringify(nc) !== JSON.stringify(cfg.cloud) || cfg.clientId !== SITE_LOCK.clientId;
   cfg.clientId = SITE_LOCK.clientId; cfg.cloud = nc;
   if (changed){ fb = null; vaultChars().forEach(c => { store.del(CK.fb + c.charId); store.del(CK.slot + c.charId); }); }
@@ -1695,7 +1793,7 @@ function logout(){
   if (fb && shared() && !(locked() && lockState !== 'ok')) remote('DELETE', `pilots/${fb.uid}`);
   if (tok){ [CK.tok, CK.fb].forEach(k => store.del(k + tok.charId)); if (store.get('whmap.lastChar', null) === tok.charId) store.del('whmap.lastChar'); }
   sess.del('whmap.tabChar');
-  tok = null; fb = null; tabChar = null; slot = { mapOwner:'' }; me = { current:null, alts:{} }; alts = [];
+  liveClose(); tok = null; fb = null; tabChar = null; slot = { mapOwner:'' }; me = { current:null, alts:{} }; alts = [];
   stopTracking(); map = normalize(store.get(K.map, null)); connectShared(); renderAll();
 }
 /* Lie cet onglet à un personnage (déjà connecté dans le navigateur, ou qui vient de se connecter) puis recharge l'état */
@@ -2971,6 +3069,9 @@ function openSetup(){ if (DEMO_ONLY) return;
   $('#lockTitle').textContent = SITE_LOCK ? '🔒 Site locked: database rules' : '🔒 Lock this site to my map';
   $('#btnLock').hidden = !!SITE_LOCK;
   if (streamMode === 'legacy') $('#lockTitle').textContent += ' · update needed (3 connections per tab)';
+  const lm = liveMode();
+  $('#liveBox').hidden = !lm; $('#btnLockRules').hidden = lm; $('#lockBox ol').hidden = lm;
+  if (lm) $('#lockTitle').textContent = '🔒 Site locked · live server';
   $('#cbUrl').textContent = callbackUrl; $('#clientId').value = cfg.clientId || ''; $('#pollSel').value = String(cfg.poll || 5);
   $('#cWorker').value = cfg.cloud.worker || ''; $('#cDb').value = cfg.cloud.db || ''; $('#cKey').value = cfg.cloud.apiKey || '';
   $('#homeName').value = cfg.home ? cfg.home.name : '';
@@ -2987,6 +3088,18 @@ $('#btnLock').addEventListener('click', () => {
   toast('site.json downloaded: upload it to GitHub next to index.html, then publish the locked rules in Firebase.');
 });
 $('#btnLockRules').addEventListener('click', () => { if (!fb){ toast('Log in with EVE first.', true); return; } copyText(lockedRules(fb.uid), 'Locked rules copied: paste them in Firebase → Realtime Database → Rules, then Publish.'); });
+$('#liveFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    const n = Object.keys((data && data.maps) || {}).length, o = Object.keys((data && data.owners) || {}).length;
+    if (!n && !o){ toast('This file has no maps: export the whole database from Firebase.', true); return; }
+    if (!confirm(`Copy ${n} map(s) and ${o} map owner(s) to the live server? Data already there under the same names is replaced.`)) return;
+    await liveOpen();
+    const r = await liveSend({ op:'import', data });
+    toast(`Import done: ${r.rows} records on the live server.`);
+  }catch(x){ toast('Import failed: ' + x.message, true); }
+});
 $('#lockLogin').addEventListener('click', () => { if (lockState === 'noaccess'){ logout(); } login(); });
 $('#closeSetup').addEventListener('click', closeSetup);
 $('#saveSetup').addEventListener('click', async () => {
