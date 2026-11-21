@@ -4,5 +4,6 @@
   "db": "https://petit-poucet-4e74a-default-rtdb.europe-west1.firebasedatabase.app",
   "apiKey": "AIzaSyBXH0_pQj1rila5t8R4A2_AOJJ1zB5TDqQ",
   "owner": "eve-1199302756",
-  "ownerName": "cloporte"
+  "ownerName": "cloporte",
+  "live": "https://anoikis-live.dual-cloporte.workers.dev"
 }
