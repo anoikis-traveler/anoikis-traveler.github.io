@@ -45,11 +45,37 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .toolbar .cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
 .toolbar .cond label{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 .toolbar .cond select{padding:4px 6px;font-size:13px}
-.layout{display:grid;grid-template-columns:minmax(440px,1fr) minmax(540px,1.15fr);gap:12px;align-items:start}
-.layout > section:first-child{position:sticky;top:12px}
+.layout{display:grid;grid-template-columns:var(--bw,minmax(220px,270px)) minmax(340px,1fr) minmax(400px,1.05fr);gap:12px;align-items:start}
+.layout.bc{--bw:38px}
+.layout.bc #browser > :not(h2){display:none}
+.layout.bc #browser h2{writing-mode:vertical-rl;padding:12px 8px;border:0;cursor:pointer;gap:10px}
+.layout.bc #browser h2 .grow{display:none}
+#btnBrowser{padding:0 7px;font-size:13px;line-height:20px}
+.layout > .ringcol,#browser{position:sticky;top:12px}
+#browser{display:flex;flex-direction:column;max-height:calc(100vh - 24px);margin:0}
+#tree,#results{overflow:auto;flex:1;padding:0 4px 8px;min-height:120px}
+.bhint{font-size:11px;color:var(--dim);padding:0 10px 6px}
+.mg{display:flex;align-items:center;gap:4px;padding:4px 6px 4px calc(6px + var(--d) * 12px);cursor:pointer;border-radius:3px;font-size:13px;user-select:none}
+.mg:hover{background:var(--panel-2)}
+.mg .car{display:inline-block;width:10px;color:var(--dim);transition:transform .12s;font-size:11px}
+.mg.open .car{transform:rotate(90deg)}
+.ty{display:flex;align-items:center;gap:6px;padding:2px 4px 2px calc(10px + var(--d) * 12px);border-radius:3px;cursor:grab;font-size:12.5px}
+.ty:hover{background:var(--panel-2)}
+.ty img{width:24px;height:24px;border-radius:2px;flex:none;background:var(--bg)}
+.ty .tn{flex:1;min-width:0;line-height:1.2}
+.ty .tn small{display:block;color:var(--dim);font-size:10.5px}
+.ty .add{padding:0 6px;font-size:13px;line-height:18px;opacity:0}
+.ty:hover .add,.ty:focus-within .add{opacity:1}
+@media (hover:none){.ty .add{opacity:1}}
+#statsCol{container-type:inline-size}
 #statsCol .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;align-items:start}
-@media (max-width:640px){#statsCol .cols{grid-template-columns:1fr}}
-@media (max-width:1100px){.layout{grid-template-columns:1fr}.layout > section:first-child{position:static}}
+@container (max-width:500px){#statsCol .cols{grid-template-columns:1fr}}
+@media (max-width:1050px){.layout{grid-template-columns:var(--bw,minmax(220px,270px)) 1fr}#statsCol{grid-column:1 / -1}}
+@media (max-width:760px){.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
+/* glisser-déposer : les emplacements possibles s'allument */
+#fitCard[data-drag="high"] .slot[data-rack="high"],#fitCard[data-drag="medium"] .slot[data-rack="medium"],
+#fitCard[data-drag="low"] .slot[data-rack="low"],#fitCard[data-drag="rig"] .slot[data-rack="rig"],
+#fitCard[data-drag="subsystem"] .slot[data-rack="subsystem"],#fitCard[data-drag="charge"] button.slot{border-color:var(--accent);border-style:solid;box-shadow:0 0 8px rgba(242,167,75,.6)}
 dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:0;width:min(620px,94vw)}
 dialog::backdrop{background:rgba(3,5,10,.7)}
 dialog .body{padding:12px}
@@ -72,6 +98,11 @@ textarea#eft{width:100%;min-height:340px;resize:vertical;font-family:var(--mono)
 .slotgrp{padding:6px 12px 8px}
 .slotgrp h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:4px 0;font-weight:600;display:flex;gap:6px}
 .slotgrp h3 .c{margin-left:auto;font-family:var(--mono)}
+details.slotgrp summary{list-style:none;cursor:pointer;border-radius:3px}
+details.slotgrp summary::-webkit-details-marker{display:none}
+details.slotgrp summary:hover h3{color:var(--text)}
+details.slotgrp summary h3::before{content:"▸";display:inline-block;width:10px;transition:transform .15s}
+details.slotgrp[open] summary h3::before{transform:rotate(90deg)}
 .item{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:3px}
 .item:hover{background:var(--panel-2)}
 .item img{width:28px;height:28px;flex:none;border-radius:2px;background:var(--bg)}
@@ -175,7 +206,13 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
     </div>
   </div>
   <div class="layout">
-    <section><div class="card" id="fitCard"><div class="body dim">Press “Import EFT”, or copy a fit in EVE and press Ctrl+V here.</div></div></section>
+    <aside class="card" id="browser">
+      <h2><span>Browser</span><span class="grow"></span><button type="button" class="small" id="btnBrowser" title="Hide / show the browser">‹</button></h2>
+      <div class="body" style="padding:8px 8px 4px"><input id="search" type="search" placeholder="Search ships, modules, ammo…" autocomplete="off" style="width:100%"></div>
+      <div class="bhint">Double-click or drag to fit · right-click a fitted module to remove it</div>
+      <div id="tree"></div><div id="results" hidden></div>
+    </aside>
+    <section class="ringcol"><div class="card" id="fitCard"><div class="body dim">Pick a ship in the Browser (Ships), press “Import EFT”, or copy a fit in EVE and press Ctrl+V here.</div></div></section>
     <section id="statsCol"></section>
   </div>
 </main>
@@ -265,7 +302,7 @@ function readSde(buf) {
     for (let k = 0; k < n; k++) { const e = v + 4 + 4 * k; r.push(e + u32(e)); } return r; };
   const root = u32(0);
   const types = new Map(), groups = new Map(), attrByName = {};
-  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4), _t: t });
+  for (const t of tables(root, 1)) types.set(int(t, 0), { id: int(t, 0), name: str(t, 1), group: int(t, 2), category: int(t, 3), published: bool(t, 4), market: int(t, 6), meta: int(t, 7), _t: t });
   // valeur de base d'un attribut dogma d'un type (vecteur de structs {int32 id, float32 valeur})
   const typeAttr = (typeId, attrId) => {
     const t = types.get(typeId)?._t; if (t == null) return undefined;
@@ -276,7 +313,19 @@ function readSde(buf) {
   };
   for (const t of tables(root, 2)) groups.set(int(t, 0), { id: int(t, 0), name: str(t, 1) });
   for (const t of tables(root, 4)) attrByName[str(t, 1)] = int(t, 0);
-  return { build: int(root, 0), release: str(root, 12), types, groups, attrByName, typeAttr };
+  // effets dogma d'un type (vecteur de structs {int32 id, bool défaut}, 8 octets)
+  const typeEffects = typeId => {
+    const t = types.get(typeId)?._t; if (t == null) return [];
+    const o = field(t, 14); if (!o) return [];
+    const v = t + o + u32(t + o), n = u32(v), r = [];
+    for (let k = 0; k < n; k++) r.push(i32(v + 4 + 8 * k));
+    return r;
+  };
+  const ints = (t, i) => { const o = field(t, i); if (!o) return []; const v = t + o + u32(t + o), n = u32(v), r = new Array(n);
+    for (let k = 0; k < n; k++) r[k] = i32(v + 4 + 4 * k); return r; };
+  const marketGroups = new Map();
+  for (const t of tables(root, 8)) marketGroups.set(int(t, 0), { id: int(t, 0), name: str(t, 1), parent: int(t, 2), types: ints(t, 3) });
+  return { build: int(root, 0), release: str(root, 12), types, groups, attrByName, typeAttr, typeEffects, marketGroups };
 }
 
 /* ---------- Chargement ---------- */
@@ -330,7 +379,13 @@ async function boot() {
     const c0 = selectedChar();
     if (c0) { try { await loadCharData(c0); } catch (e) { toast(e.message, true); } }
     const fromHash = loadFromHash();
-    if (!fromHash) { $("eft").value = localStorage.getItem("fit.eft") || EXAMPLE; importEft(); }
+    initBrowser();
+    if (!fromHash) {
+      let ok = false;
+      const link = localStorage.getItem("fit.link");
+      if (link) try { const { incoming, ...l } = E.load_esf_link(link); fit = { ...l, ...conditions() }; recalc(); ok = true; } catch {}
+      if (!ok) { $("eft").value = localStorage.getItem("fit.eft") || EXAMPLE; importEft(); }
+    }
   } catch (err) {
     console.error(err);
     $("pmsg").innerHTML = `<span style="color:var(--bad)">Could not load: ${esc(err.message || err)}</span>`;
@@ -604,6 +659,7 @@ function recalc() {
     $("eftMsg").innerHTML = `<div class="msg err">Calculation failed: ${esc(err.message || err)}</div>`;
     return;
   }
+  try { localStorage.setItem("fit.link", E.save_esf_link(fit)); } catch {}
   renderFit(); renderStats();
 }
 
@@ -624,6 +680,7 @@ const SLOTS = [
   ["implant", "Implants", null], ["booster", "Boosters", null], ["cargo", "Cargo", null],
 ];
 const STATES = ["offline", "online", "active", "overload"];
+let cargoOpen = false;
 const STCOL = { offline: "var(--dim)", online: "var(--text)", active: "var(--ok)", overload: "var(--bad)" };
 
 const RING = [ // rack, attribut du nombre de slots, angle du 1er slot, pas (0° = droite, sens horaire) — disposition du jeu
@@ -655,19 +712,20 @@ function renderFit() {
   for (const [rack, countAttr, start, step] of RING) {
     const items = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === rack)
       .sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
-    const total = Math.round(S(countAttr) || 0), n = Math.max(total, items.length);
+    const total = Math.round(S(countAttr) || 0);
+    const n = Math.max(total, ...items.map(([it]) => (it.slot.index ?? 0) + 1), 0);
     if (!n) continue;
     const last = start + (n - 1) * step;
     svg += `<path d="${arc(R_SLOT, start - 5.5, last + 5.5)}" stroke="#121a2c" stroke-width="10" fill="none" stroke-linecap="round"/>`;
     for (let k = 0; k < n; k++) {
       const [x, y] = pol(R_SLOT, start + k * step), pos = `left:${x.toFixed(2)}%;top:${y.toFixed(2)}%`;
-      const entry = items[k];
-      if (!entry) { slots += `<span class="slot empty" style="${pos}" data-tip="<span class='dim'>Empty ${RACKNAME[rack]} slot</span>"></span>`; continue; }
+      const entry = items.find(([it]) => (it.slot.index ?? 0) === k);
+      if (!entry) { slots += `<span class="slot empty" style="${pos}" data-rack="${rack}" data-idx="${k}" data-tip="<span class='dim'>Empty ${RACKNAME[rack]} slot</span>"></span>`; continue; }
       const [it, i] = entry, r = calc.items[i] || {}, st = r.state || it.state;
       const can = STATES.indexOf(r.max_state || "offline") > 0;
       const tip = `<b>${esc(name(it.type_id))}</b>${it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : ""}<span class="s" style="color:${STCOL[st]}">${st}</span>${can ? ` <span class="dim" style="font-size:11px">· click to change</span>` : ""}`;
       const label = `${name(it.type_id)}${it.charge ? ", " + name(it.charge.type_id) : ""}, ${st}`;
-      slots += `<button type="button" class="slot st ${st} ${k >= total ? "bad" : ""}" style="${pos}" data-i="${i}" ${can ? "" : 'aria-disabled="true"'} data-tip="${esc(tip)}" aria-label="${esc(label)}">
+      slots += `<button type="button" class="slot st ${st} ${k >= total ? "bad" : ""}" style="${pos}" data-i="${i}" data-rack="${rack}" data-idx="${k}" ${can ? "" : 'aria-disabled="true"'} data-tip="${esc(tip)}" aria-label="${esc(label)}">
         <img class="ic" src="${IMG(it.type_id, 64)}" alt="">${it.charge ? `<img class="ch" src="${IMG(it.charge.type_id)}" alt="">` : ""}</button>`;
     }
   }
@@ -692,14 +750,16 @@ function renderFit() {
       ${slots}
     </div>
     <div class="legend"><span><i style="border-color:#2c3a57"></i>offline</span><span><i style="border-color:#7d8aa3"></i>online</span><span><i style="border-color:var(--ok)"></i>active</span><span><i style="border-color:var(--bad)"></i>overheated</span><span>${hp}</span></div>
-    <div class="legend" style="padding-top:0">Click a module to change its state · hover for details</div></div>`;
+    <div class="legend" style="padding-top:0">Click a module to change its state · right-click to remove · hover for details</div></div>`;
 
   for (const [slot, label, countAttr] of SLOTS) {
     if (RING.some(r => r[0] === slot)) continue;
     const rows = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot);
     const total = countAttr ? S(countAttr) : null;
     if (!rows.length) continue;
-    h += `<div class="slotgrp"><h3>${label}${total ? `<span class="c">${rows.length} / ${f0(total)}</span>` : ""}</h3>`;
+    const fold = slot === "cargo"; // la soute est repliée par défaut
+    const head = `${label}${fold ? ` <span class="c">${rows.length} item${rows.length > 1 ? "s" : ""}</span>` : total ? `<span class="c">${rows.length} / ${f0(total)}</span>` : ""}`;
+    h += fold ? `<details class="slotgrp" id="cargoBox" ${cargoOpen ? "open" : ""}><summary><h3>${head}</h3></summary>` : `<div class="slotgrp"><h3>${head}</h3>`;
     rows.sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
     for (const [it, i] of rows) {
       const r = calc.items[i] || {};
@@ -708,11 +768,11 @@ function renderFit() {
       const charge = it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : "";
       const fromChar = i >= fit.items.length; // implant venant du personnage connecté
       const canToggle = !fromChar && STATES.indexOf(max) > 0;
-      h += `<div class="item ${st === "offline" ? "off" : ""}"><img src="${IMG(it.type_id)}" alt="" loading="lazy">
+      h += `<div class="item ${st === "offline" ? "off" : ""}" ${i < fit.items.length ? `data-i="${i}" title="Right-click to remove"` : ""}><img src="${IMG(it.type_id)}" alt="" loading="lazy">
         <div class="nm">${esc(name(it.type_id))}${qty}${charge}${fromChar ? `<small>from ${esc(selectedChar()?.charName || "character")}${st === "offline" ? " · inactive: missing skill" : ""}</small>` : ""}</div>
         ${slot === "cargo" ? "" : `<button type="button" class="st pill small ${st}" data-i="${i}" ${canToggle ? "" : "disabled"}>${slot === "drone_bay" || slot === "fighter_bay" ? (st === "offline" ? "in bay" : "in space") : st}</button>`}</div>`;
     }
-    h += `</div>`;
+    h += fold ? `</details>` : `</div>`;
   }
   $("fitCard").innerHTML = h;
 }
@@ -833,6 +893,219 @@ function describe(v) {
   }
 }
 
+$("fitCard").addEventListener("toggle", ev => { if (ev.target.id === "cargoBox") cargoOpen = ev.target.open; }, true);
+
+/* ---------- Navigateur : arbre du marché, recherche, ajout/retrait de modules ---------- */
+const ROOTS = [4, 9, 11, 157, 955, 24]; // Ships, Ship Equipment, Ammunition & Charges, Drones, Ship and Module Modifications, Implants & Boosters
+const SKIP_GROUPS = new Set(["Mutaplasmids", "Cerebral Accelerators"]);
+const RACKATTR = { high: "hiSlots", medium: "medSlots", low: "lowSlots", rig: "rigSlots", subsystem: "maxSubSystems" };
+const RACKLABEL = { high: "high", medium: "mid", low: "low", rig: "rig", subsystem: "subsystem" };
+let mgKids = null, mgRoot = null, searchable = null;
+
+function buildMarketIndex() {
+  mgKids = new Map(); mgRoot = new Map();
+  for (const g of SDE.marketGroups.values()) {
+    if (!mgKids.has(g.parent)) mgKids.set(g.parent, []);
+    mgKids.get(g.parent).push(g);
+  }
+  for (const list of mgKids.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+  const rootOf = id => {
+    if (mgRoot.has(id)) return mgRoot.get(id);
+    const g = SDE.marketGroups.get(id); let r = 0;
+    if (g) r = !g.parent ? g.id : rootOf(g.parent);
+    mgRoot.set(id, r); return r;
+  };
+  searchable = [];
+  for (const t of SDE.types.values()) {
+    if (!t.published || !t.market) continue;
+    const g = SDE.marketGroups.get(t.market);
+    if (!ROOTS.includes(rootOf(t.market)) || SKIP_GROUPS.has(g?.name)) continue;
+    searchable.push({ t, low: t.name.toLowerCase(), gname: g?.name || "" });
+  }
+}
+
+/* Ce qu'est un objet, et où il va. */
+function kindOf(id) {
+  const t = SDE.types.get(id); if (!t) return null;
+  if (t.category === 6) return { kind: "ship" };
+  if (t.category === 8) return { kind: "charge" };
+  if (t.category === 18) return { kind: "drone" };
+  if (t.category === 87) return { kind: "fighter" };
+  if (t.category === 20) {
+    const imp = SDE.typeAttr(id, A.implantness); if (imp) return { kind: "implant", index: Math.round(imp) };
+    const b = SDE.typeAttr(id, A.boosterness); if (b) return { kind: "booster", index: Math.round(b) };
+    return { kind: "cargo" };
+  }
+  const ef = SDE.typeEffects(id);
+  if (ef.includes(12)) return { kind: "module", rack: "high" };
+  if (ef.includes(13)) return { kind: "module", rack: "medium" };
+  if (ef.includes(11)) return { kind: "module", rack: "low" };
+  if (ef.includes(2663)) return { kind: "module", rack: "rig" };
+  if (ef.includes(3772)) return { kind: "module", rack: "subsystem", index: Math.round((SDE.typeAttr(id, A.subSystemSlot) || 125) - 125) };
+  return { kind: "cargo" };
+}
+const rackCount = rack => rack === "subsystem" ? 4 : Math.round(S(RACKATTR[rack]) || 0);
+
+/* Après chaque modification : recalcul, et le lien de partage n'est plus à jour. */
+function changed() {
+  if (location.hash) history.replaceState(null, "", CALLBACK);
+  recalc();
+}
+
+function addType(id, target) {
+  const k = kindOf(id); if (!k) return;
+  if (k.kind === "ship") return newShip(id);
+  if (!fit) { toast("Choose a ship first (in Ships).", true); return; }
+  const nm = name(id);
+  switch (k.kind) {
+    case "module": {
+      if (target?.rack && target.rack !== k.rack) { toast(`${nm} goes in a ${RACKLABEL[k.rack]} slot.`, true); return; }
+      const count = rackCount(k.rack);
+      let idx = k.rack === "subsystem" ? k.index : target?.index;
+      if (idx == null) {
+        const used = new Set(fit.items.filter(i => i.slot.type === k.rack).map(i => i.slot.index));
+        for (let n = 0; n < count; n++) if (!used.has(n)) { idx = n; break; }
+      }
+      if (idx == null) { toast(count ? `No free ${RACKLABEL[k.rack]} slot. Right-click a module to remove it.` : `This ship has no ${RACKLABEL[k.rack]} slots.`, true); return; }
+      fit.items = fit.items.filter(i => !(i.slot.type === k.rack && i.slot.index === idx));
+      fit.items.push({ type_id: id, slot: { type: k.rack, index: idx }, state: "active" });
+      break;
+    }
+    case "charge": return loadCharge(id, target);
+    case "drone": case "fighter": case "cargo": {
+      const slot = k.kind === "drone" ? "drone_bay" : k.kind === "fighter" ? "fighter_bay" : "cargo";
+      const ex = fit.items.find(i => i.slot.type === slot && i.type_id === id);
+      if (ex) ex.quantity = (ex.quantity || 1) + 1;
+      else fit.items.push({ type_id: id, slot: { type: slot }, quantity: 1, state: "offline" });
+      break;
+    }
+    case "implant": case "booster": {
+      fit.items = fit.items.filter(i => !(i.slot.type === k.kind && i.slot.index === k.index));
+      fit.items.push({ type_id: id, slot: { type: k.kind, index: k.index }, state: "online" });
+      break;
+    }
+  }
+  changed();
+}
+
+function newShip(id) {
+  if (fit && fit.items.some(i => !["implant", "booster"].includes(i.slot.type)) &&
+      !confirm(`Start a new fit on a ${name(id)}?\nThe current fit (${name(fit.ship.type_id)}) will be replaced. Copy it first if you want to keep it.`)) return;
+  const keep = fit ? fit.items.filter(i => ["implant", "booster"].includes(i.slot.type)) : [];
+  fit = E.post_load({ name: name(id), ship: { type_id: id }, items: keep, ...conditions() });
+  changed();
+}
+
+/* Munitions : le module doit accepter ce groupe de munitions (données EVE), puis le moteur vérifie la taille. */
+function acceptsCharge(moduleId, chargeId) {
+  const g = SDE.types.get(chargeId)?.group;
+  for (let n = 1; n <= 5; n++) { const v = SDE.typeAttr(moduleId, A["chargeGroup" + n]); if (v && Math.round(v) === g) return true; }
+  return false;
+}
+function loadCharge(id, target) {
+  const racks = ["high", "medium", "low"];
+  let idxs = target?.itemIndex != null ? [target.itemIndex] : fit.items.map((it, i) => i).filter(i => racks.includes(fit.items[i].slot.type));
+  idxs = idxs.filter(i => fit.items[i] && acceptsCharge(fit.items[i].type_id, id));
+  if (idxs.length) {
+    const trial = fit.items.map((it, i) => idxs.includes(i) ? { ...it, charge: { type_id: id } } : it);
+    const c = E.calculate({ ...fit, items: trial }, { validate: true });
+    const bad = new Set((c.violations || []).filter(v => v.target.type === "charge" && ["charge_size", "charge_group", "resource"].includes(v.rule.type)).map(v => v.target.index));
+    idxs = idxs.filter(i => !bad.has(i));
+  }
+  if (!idxs.length) { toast(target?.itemIndex != null ? `${name(id)} does not fit this module.` : `No module of this fit can use ${name(id)}.`, true); return; }
+  for (const i of idxs) fit.items[i] = { ...fit.items[i], charge: { type_id: id } };
+  changed();
+}
+
+function removeItem(i) {
+  if (!fit.items[i]) return;
+  fit.items.splice(i, 1);
+  changed();
+}
+
+/* --- Affichage de l'arbre --- */
+const rowHtml = (t, depth, extra = "") => `<div class="ty" draggable="true" data-t="${t.id}" style="--d:${depth}" title="${esc(t.name)} — double-click or drag to fit">
+  <img src="${IMG(t.id)}" alt="" loading="lazy"><span class="tn">${esc(t.name)}${extra}</span><button type="button" class="add" tabindex="-1" aria-label="Add ${esc(t.name)}">+</button></div>`;
+function groupHtml(g, depth) {
+  return `<div class="mg" data-g="${g.id}" style="--d:${depth}"><span class="car">▸</span>${esc(g.name)}</div><div class="kids" hidden></div>`;
+}
+function renderTree() {
+  $("tree").innerHTML = ROOTS.map(id => SDE.marketGroups.get(id)).filter(Boolean).map(g => groupHtml(g, 0)).join("");
+}
+function expand(el) {
+  const kids = el.nextElementSibling, open = kids.hidden;
+  kids.hidden = !open; el.classList.toggle("open", open);
+  if (!open || kids.dataset.done) return;
+  const id = +el.dataset.g, depth = +getComputedStyle(el).getPropertyValue("--d") + 1;
+  const g = SDE.marketGroups.get(id);
+  let h = (mgKids.get(id) || []).filter(x => !SKIP_GROUPS.has(x.name)).map(x => groupHtml(x, depth)).join("");
+  const types = (g.types || []).map(t => SDE.types.get(t)).filter(t => t && t.published)
+    .sort((a, b) => (a.meta || 0) - (b.meta || 0) || a.name.localeCompare(b.name));
+  h += types.map(t => rowHtml(t, depth)).join("");
+  kids.innerHTML = h || `<div class="dim" style="padding:4px 8px 4px calc(10px + ${depth} * 12px);font-size:12px">Empty</div>`;
+  kids.dataset.done = "1";
+}
+function runSearch() {
+  const q = $("search").value.trim().toLowerCase();
+  $("tree").hidden = !!q; $("results").hidden = !q;
+  if (!q) return;
+  const words = q.split(/\s+/);
+  const hits = searchable.filter(s => words.every(w => s.low.includes(w)))
+    .sort((a, b) => (b.low.startsWith(q) - a.low.startsWith(q)) || a.t.name.localeCompare(b.t.name)).slice(0, 120);
+  $("results").innerHTML = hits.length ? hits.map(s => rowHtml(s.t, 0, `<small>${esc(s.gname)}</small>`)).join("")
+    : `<div class="dim" style="padding:8px">Nothing found.</div>`;
+}
+
+function setBrowserCollapsed(on) {
+  $("browser").parentElement.classList.toggle("bc", on);
+  $("btnBrowser").textContent = on ? "›" : "‹";
+  store.set("fit.bcollapsed", on);
+}
+function initBrowser() {
+  setBrowserCollapsed(store.get("fit.bcollapsed", false));
+  $("btnBrowser").addEventListener("click", ev => { ev.stopPropagation(); setBrowserCollapsed(!$("browser").parentElement.classList.contains("bc")); });
+  $("browser").querySelector("h2").addEventListener("click", () => { if ($("browser").parentElement.classList.contains("bc")) setBrowserCollapsed(false); });
+  buildMarketIndex(); renderTree();
+  let tmo;
+  $("search").addEventListener("input", () => { clearTimeout(tmo); tmo = setTimeout(runSearch, 120); });
+  $("search").addEventListener("keydown", e => { if (e.key === "Escape") { $("search").value = ""; runSearch(); } });
+  const pane = $("browser");
+  pane.addEventListener("click", ev => {
+    const g = ev.target.closest(".mg"); if (g) return expand(g);
+    const add = ev.target.closest(".add"); if (add) addType(+add.closest(".ty").dataset.t);
+  });
+  pane.addEventListener("dblclick", ev => { const r = ev.target.closest(".ty"); if (r && !ev.target.closest(".add")) addType(+r.dataset.t); });
+  pane.addEventListener("dragstart", ev => {
+    const r = ev.target.closest(".ty"); if (!r) return;
+    ev.dataTransfer.setData("text/x-eve-type", r.dataset.t); ev.dataTransfer.setData("text/plain", name(+r.dataset.t));
+    ev.dataTransfer.effectAllowed = "copy";
+    const k = kindOf(+r.dataset.t);
+    $("fitCard").dataset.drag = k?.kind === "module" ? k.rack : k?.kind || "";
+  });
+  pane.addEventListener("dragend", () => { delete $("fitCard").dataset.drag; });
+
+  // dépôt sur l'anneau
+  const card = $("fitCard");
+  card.addEventListener("dragover", ev => { if ([...ev.dataTransfer.types].includes("text/x-eve-type")) { ev.preventDefault(); ev.dataTransfer.dropEffect = "copy"; } });
+  card.addEventListener("drop", ev => {
+    const id = +ev.dataTransfer.getData("text/x-eve-type"); if (!id) return;
+    ev.preventDefault(); delete card.dataset.drag;
+    const s = ev.target.closest("[data-rack]");
+    const k = kindOf(id);
+    if (k?.kind === "charge") {
+      const i = ev.target.closest("[data-i]")?.dataset.i;
+      return addType(id, i != null && i !== "" ? { itemIndex: +i } : undefined);
+    }
+    addType(id, s ? { rack: s.dataset.rack, index: +s.dataset.idx } : undefined);
+  });
+  // clic droit : retirer
+  card.addEventListener("contextmenu", ev => {
+    const el = ev.target.closest("[data-i]"); if (!el) return;
+    ev.preventDefault(); $("tip").hidden = true;
+    removeItem(+el.dataset.i);
+  });
+}
+
 /* ---------- Infobulle des slots ---------- */
 (() => {
   const tip = $("tip");
@@ -860,7 +1133,7 @@ function describe(v) {
 /* ---------- Actions ---------- */
 $("btnCalc").onclick = importEft;
 $("btnExample").onclick = () => { $("eft").value = EXAMPLE; importEft(); };
-$("btnImport").onclick = () => { $("eftMsg").innerHTML = ""; $("dlg").showModal(); $("eft").focus(); $("eft").select(); };
+$("btnImport").onclick = () => { $("eftMsg").innerHTML = ""; if (fit) $("eft").value = E.save_eft(fit); $("dlg").showModal(); $("eft").focus(); $("eft").select(); };
 $("btnClose").onclick = () => $("dlg").close();
 // Ctrl+V n'importe où (hors champ de saisie) : importe directement un fit copié depuis EVE
 document.addEventListener("paste", ev => {
