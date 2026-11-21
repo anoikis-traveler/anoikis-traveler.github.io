@@ -268,7 +268,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 <body>
 <header>
   <h1>Anoikis <b>Traveler</b></h1>
-  <span class="ver" id="appVersion" title="Map version">v6.2</span>
+  <span class="ver" id="appVersion" title="Map version">v6.3</span>
   <form id="addForm" autocomplete="off">
     <input id="addName" placeholder="Add a system…" aria-label="Name of the system to add">
     <button type="submit">Add</button>
@@ -464,7 +464,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <p class="note">Each map owner gets their own separate map and manages its access. They never see your map, and you never see theirs, unless one invites the other.</p>
       <form id="ownForm" class="row" autocomplete="off">
         <input id="ownName" placeholder="Map owner's in-game name" aria-label="Map owner's name" style="flex:1;min-width:180px">
-        <label class="row" style="gap:4px;font-size:12px">Max <input type="number" id="ownMax" value="3" min="1" max="50" style="width:56px"> chars</label>
+        <label class="row" style="gap:4px;font-size:12px">Max <input type="number" id="ownMax" value="10" min="1" max="50" style="width:56px"> chars</label>
         <button type="submit" class="primary">Allow</button>
       </form>
       <div id="ownList"></div>
@@ -508,7 +508,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 /* =========================================================
    Constantes et utilitaires
    ========================================================= */
-const APP_VERSION = '6.2';            // à augmenter à chaque mise à jour du fichier
+const APP_VERSION = '6.3';            // à augmenter à chaque mise à jour du fichier
 const APP_DATE = '20/11/2026';
 const ESI = 'https://esi.evetech.net/latest';
 const ESI_ROOT = 'https://esi.evetech.net';
@@ -1632,7 +1632,7 @@ function getMapHtml(){
 <li>Log in to EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
 <li>From that character, send a <b>private EVE mail</b> to <b>Sava Yesh</b> with the subject <b>Map request</b>.</li>
 <li>You will get an EVE mail back once it is approved. Then open <b>${esc(location.host)}</b> and log in with that character: your own map opens automatically.</li>
-<li>Invite up to <b>2 more characters</b> from <i>Access</i>.</li></ol>
+<li>Invite your group from <i>Access</i>: up to <b>10 characters</b> per map.</li></ol>
 <p class="gm-note">Free. Each map is private: no one else sees it. Places are limited, so requests are approved by hand.</p>`;
 }
 function fillGetMap(){
@@ -3138,7 +3138,7 @@ function handleConfigLink(){
 }
 
 /* ---------- Panneau Accès ---------- */
-const aclLimit = () => SITE_LOCK && fb && fb.uid !== SITE_LOCK.owner && myOwnerRec ? Math.max(0, Number(myOwnerRec.max || 3) - 1) : 0;
+const aclLimit = () => SITE_LOCK && fb && fb.uid !== SITE_LOCK.owner && myOwnerRec ? Math.max(0, Number(myOwnerRec.max || 10) - 1) : 0;
 async function loadOwners(){
   const box = $('#ownList');
   try{
@@ -3151,7 +3151,7 @@ async function loadOwners(){
       <td class="r"><button type="button" class="small danger" data-odel="${esc(u)}">Remove</button></td></tr>`).join('')}</tbody></table>`;
     box.querySelectorAll('[data-omax]').forEach(x => x.addEventListener('change', async () => {
       const v = Math.max(1, Math.min(50, Number(x.value) || 3));
-      try{ await fbReq('PUT', `owners/${x.dataset.omax}/max`, v); toast('Limit updated'); }catch(e){ toast('Change refused by the database: publish the locked rules first.', true); }
+      try{ await fbReq('PUT', `owners/${x.dataset.omax}/max`, v); toast('Limit updated'); }catch(e){ toast('Change refused: ' + e.message, true); }
     }));
     box.querySelectorAll('[data-odel]').forEach(x => x.addEventListener('click', async () => {
       try{ await fbReq('DELETE', `owners/${x.dataset.odel}`); toast('This player can no longer use their own map.'); loadOwners(); }catch(e){ toast('Removal refused by the database.', true); }
@@ -3212,7 +3212,7 @@ async function loadAcl(){
   }catch(e){ box.innerHTML = '<span class="badline">Cannot read the list: check the Firebase rules (Help).</span>'; }
 }
 $('#btnAccess').addEventListener('click', openAccess);
-$('#ownForm').addEventListener('submit', ev => { ev.preventDefault(); const n = $('#ownName').value.trim(); if (n) addOwner(n, Math.max(1, Math.min(50, Number($('#ownMax').value) || 3))); });
+$('#ownForm').addEventListener('submit', ev => { ev.preventDefault(); const n = $('#ownName').value.trim(); if (n) addOwner(n, Math.max(1, Math.min(50, Number($('#ownMax').value) || 10))); });
 $('#closeAccess').addEventListener('click', () => $('#access').classList.remove('open'));
 $('#btnCopyCfg').addEventListener('click', () => copyText($('#cfgLink').value, 'Link copied'));
 $('#mapSel').addEventListener('change', async e => {
