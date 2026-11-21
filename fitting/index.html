@@ -45,14 +45,15 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .toolbar .cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
 .toolbar .cond label{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 .toolbar .cond select{padding:4px 6px;font-size:13px}
-.layout{display:grid;grid-template-columns:var(--bw,minmax(220px,270px)) minmax(340px,1fr) minmax(400px,1.05fr);gap:12px;align-items:start}
+.layout{display:grid;grid-template-columns:var(--bw,250px) minmax(380px,1fr) 330px;gap:12px;align-items:start}
 .layout.bc{--bw:38px}
 .layout.bc #browser > :not(h2){display:none}
 .layout.bc #browser h2{writing-mode:vertical-rl;padding:12px 8px;border:0;cursor:pointer;gap:10px}
 .layout.bc #browser h2 .grow{display:none}
 #btnBrowser{padding:0 7px;font-size:13px;line-height:20px}
 .layout > .ringcol,#browser{position:sticky;top:12px}
-#browser{display:flex;flex-direction:column;max-height:calc(100vh - 24px);margin:0}
+#browser{display:flex;flex-direction:column;height:calc(100vh - 24px);max-height:calc(100vh - 24px);min-height:420px;margin:0}
+.layout.bc #browser{height:auto;min-height:0}
 #tree,#results{overflow:auto;flex:1;padding:0 4px 8px;min-height:120px}
 .bhint{font-size:11px;color:var(--dim);padding:0 10px 6px}
 .mg{display:flex;align-items:center;gap:4px;padding:4px 6px 4px calc(6px + var(--d) * 12px);cursor:pointer;border-radius:3px;font-size:13px;user-select:none}
@@ -67,10 +68,27 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .ty .add{padding:0 6px;font-size:13px;line-height:18px;opacity:0}
 .ty:hover .add,.ty:focus-within .add{opacity:1}
 @media (hover:none){.ty .add{opacity:1}}
-#statsCol{container-type:inline-size}
-#statsCol .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;align-items:start}
-@container (max-width:500px){#statsCol .cols{grid-template-columns:1fr}}
-@media (max-width:1050px){.layout{grid-template-columns:var(--bw,minmax(220px,270px)) 1fr}#statsCol{grid-column:1 / -1}}
+#statsCol{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.sec{border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.sec summary{display:flex;align-items:baseline;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;user-select:none}
+.sec summary::-webkit-details-marker{display:none}
+.sec summary::before{content:"▸";color:var(--dim);font-size:11px;transition:transform .12s;display:inline-block;width:9px}
+.sec[open] summary::before{transform:rotate(90deg)}
+.sec summary:hover{background:var(--panel-2)}
+.sec .t{font-family:var(--display);font-size:1rem;letter-spacing:.06em;text-transform:uppercase}
+.sec .hv{margin-left:auto;font-family:var(--mono);font-size:14px}
+.sec .hv small,.kv small{color:var(--dim);font-size:11px}
+.sec .sb{padding:2px 12px 10px}
+.sec.bad .t{color:#ffb3b3}
+.kvg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;margin-top:4px}
+.kv{display:flex;justify-content:space-between;gap:6px;font-size:12.5px;padding:2px 0;border-bottom:1px dashed #1b253b}
+.kv span{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .kv b{font-family:var(--mono);font-weight:500;white-space:nowrap}
+.kv.over b{color:var(--bad)}
+.okline{padding:9px 12px;color:var(--ok);border-bottom:1px solid var(--line);font-size:13px}
+.sub{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px}
+#statsCol .problems{font-size:12.5px}
+@media (max-width:1100px){.layout{grid-template-columns:var(--bw,240px) 1fr}#statsCol{grid-column:1 / -1;position:static;max-height:none;columns:2 300px;column-gap:0}#statsCol .sec,#statsCol .okline{break-inside:avoid}}
 @media (max-width:760px){.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
 /* glisser-déposer : les emplacements possibles s'allument */
 #fitCard[data-drag="high"] .slot[data-rack="high"],#fitCard[data-drag="medium"] .slot[data-rack="medium"],
@@ -115,7 +133,7 @@ details.slotgrp[open] summary h3::before{transform:rotate(90deg)}
 .slot[aria-disabled="true"]{cursor:default}
 /* Anneau façon fenêtre de fitting en jeu */
 .ringwrap{padding:22px 18px 4px}
-.ring{position:relative;width:100%;max-width:640px;aspect-ratio:1;margin:0 auto;container-type:inline-size}
+.ring{position:relative;width:100%;max-width:min(720px,calc(100vh - 190px));aspect-ratio:1;margin:0 auto;container-type:inline-size}
 .ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .ring .render{position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;object-fit:cover;
   -webkit-mask:radial-gradient(circle,#000 58%,transparent 71%);mask:radial-gradient(circle,#000 58%,transparent 71%)}
@@ -133,8 +151,8 @@ details.slotgrp[open] summary h3::before{transform:rotate(90deg)}
 .ringname{position:absolute;left:50%;top:83%;transform:translateX(-50%);text-align:center;white-space:nowrap;pointer-events:none}
 .ringname .n{font-family:var(--display);font-size:clamp(1rem,4.2cqw,1.4rem);letter-spacing:.04em}
 .ringname .dim{font-size:12px}
-.gl{font-family:var(--mono);font-size:2.4px;letter-spacing:.08px;fill:#aab6cc;paint-order:stroke;stroke:#070a12;stroke-width:.8px}
-.gv{font-family:var(--mono);font-size:2.9px;fill:var(--text);paint-order:stroke;stroke:#070a12;stroke-width:.8px}
+.gl{font-family:var(--mono);font-size:2.1px;letter-spacing:.08px;fill:#aab6cc;paint-order:stroke;stroke:#070a12;stroke-width:.8px}
+.gv{font-family:var(--mono);font-size:2.5px;fill:var(--text);paint-order:stroke;stroke:#070a12;stroke-width:.8px}
 .legend{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:11px;color:var(--dim);padding:4px 0 8px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid;margin-right:4px;vertical-align:-1px}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:9px 14px;border-radius:4px;z-index:50;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:92vw}
@@ -800,8 +818,16 @@ function resCell(res, color) {
   return `<td><span class="rc"><i style="width:${Math.max(0, p)}%;background:${color}"></i><span>${f1(p)}%</span></span></td>`;
 }
 
+/* Panneau de stats compact, façon fenêtre de fitting du jeu : sections repliables, valeur clé dans le titre. */
+const secOpen = store.get("fit.sections", {});
+function section(key, title, headline, body, cls = "") {
+  const open = secOpen[key] !== false;
+  return `<details class="sec ${cls}" data-k="${key}" ${open ? "open" : ""}><summary><span class="t">${title}</span><span class="hv">${headline}</span></summary><div class="sb">${body}</div></details>`;
+}
+const kv = (l, v, cls = "") => `<div class="kv ${cls}"><span>${l}</span><b>${v}</b></div>`;
+const grid = (...rows) => `<div class="kvg">${rows.join("")}</div>`;
+
 function renderStats() {
-  const C = {};
   const all = calc.violations || [];
   const v = all.filter(x => x.rule.type !== "skill");
   const missing = new Map();
@@ -810,66 +836,69 @@ function renderStats() {
     m.required = Math.max(m.required, x.rule.required); missing.set(x.rule.type_id, m);
   }
   const ROMAN = ["0", "I", "II", "III", "IV", "V"];
+  const who = selectedChar();
+  const nProb = v.length + missing.size;
+  const out = [];
+
+  // Problèmes
   const skillList = [...missing].sort((a, b) => name(a[0]).localeCompare(name(b[0])))
     .map(([id, m]) => `<li>${esc(name(id))} <b>${ROMAN[m.required]}</b> <span class="dim">(have ${ROMAN[m.level] ?? m.level})</span></li>`).join("");
-  const n = v.length + (missing.size ? 1 : 0);
-  const who = selectedChar();
-  C.problems = (card(`Problems${who ? ` <span class="dim" style="font-family:var(--body);text-transform:none;letter-spacing:0;font-size:12px">· ${esc(who.charName)}</span>` : ""}${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
-    !n ? `<span class="ok">✓ ${who ? esc(who.charName) + " can fly this fit." : "This fit can be flown with these skills."}</span>` :
-    (v.length ? `<ul class="problems">${v.map(x => `<li>${esc(describe(x))}</li>`).join("")}</ul>` : "") +
-    (missing.size ? `<div class="dim" style="margin:${v.length ? "8px" : "0"} 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Missing skills (${missing.size})</div><ul class="problems">${skillList}</ul>` : "")));
+  out.push(nProb
+    ? section("problems", "Problems", `<span style="color:var(--bad)">${nProb}</span>`,
+        (who ? `<div class="dim" style="font-size:12px;margin-bottom:4px">For ${esc(who.charName)}</div>` : "") +
+        (v.length ? `<ul class="problems">${v.map(x => `<li>${esc(describe(x))}</li>`).join("")}</ul>` : "") +
+        (missing.size ? `<div class="sub">Missing skills (${missing.size})</div><ul class="problems">${skillList}</ul>` : ""), "bad")
+    : `<div class="okline">✓ ${who ? esc(who.charName) + " can fly this fit." : "This fit can be flown with these skills."}</div>`);
 
-  C.offense = (card("Offense", `<div class="big">
-      <div><small>DPS</small><b>${f1(Z("damagePerSecondWithReload"))}</b></div>
-      <div><small>DPS (no reload)</small><b>${f1(Z("damagePerSecondWithoutReload"))}</b></div>
-      <div><small>Volley</small><b>${f0(Z("damageAlpha"))}</b></div></div>
-    ${stat("Drone DPS", f1(Z("droneDamagePerSecond")))}`));
+  // Attaque
+  out.push(section("offense", "Offense", `${f1(Z("damagePerSecondWithReload") + Z("droneDamagePerSecond"))} <small>dps</small>`, grid(
+    kv("Weapons DPS", f1(Z("damagePerSecondWithReload"))),
+    kv("No reload", f1(Z("damagePerSecondWithoutReload"))),
+    kv("Volley", f0(Z("damageAlpha"))),
+    kv("Drone DPS", f1(Z("droneDamagePerSecond"))))));
 
-  const layers = [["Shield", "shieldEhp", "shieldCapacity", "shield"], ["Armor", "armorEhp", "armorHP", "armor"], ["Hull", "hullEhp", "hp", ""]];
+  // Défense
+  const layers = [["Shield", "shieldEhp", "shield"], ["Armor", "armorEhp", "armor"], ["Hull", "hullEhp", ""]];
   const rname = (pre, d) => pre ? `${pre}${d[0].toUpperCase()}${d.slice(1)}DamageResonance` : `${d}DamageResonance`;
-  const dtypes = [["em", "var(--em)"], ["thermal", "var(--th)"], ["kinetic", "var(--ki)"], ["explosive", "var(--ex)"]];
-  C.defense = (card("Defense", `<div class="big">
-      <div><small>Effective HP</small><b>${f0(S("ehp"))}</b></div>
-      <div><small>Shield regen</small><b>${f1(S("passiveShieldEffectiveRechargeRate"))}</b></div></div>
-    <table class="res"><col class="l"><col class="e"><col><col><col><col><tr><th></th><th>EHP</th>${dtypes.map(([d, c]) => `<th style="color:${c}">${d === "explosive" ? "Exp" : d === "kinetic" ? "Kin" : d === "thermal" ? "Th" : "EM"}</th>`).join("")}</tr>
-    ${layers.map(([l, ehp, hp, pre]) => `<tr><td title="${f0(S(hp))} HP">${l}</td><td>${f0(S(ehp))}</td>${dtypes.map(([d, c]) => resCell(S(rname(pre, d)), c)).join("")}</tr>`).join("")}
-    </table>
-    <div style="margin-top:8px">
-    ${stat("Shield boost (EHP/s)", f1(Z("shieldEffectiveBoostRate")))}
-    ${stat("Armor repair (EHP/s)", f1(Z("armorEffectiveRepairRate")))}
-    ${stat("Hull repair (EHP/s)", f1(Z("hullEffectiveRepairRate")))}</div>`));
+  const dtypes = [["em", "var(--em)", "EM"], ["thermal", "var(--th)", "Th"], ["kinetic", "var(--ki)", "Kin"], ["explosive", "var(--ex)", "Exp"]];
+  const rep = [["Shield boost", "shieldEffectiveBoostRate"], ["Armor rep", "armorEffectiveRepairRate"], ["Hull rep", "hullEffectiveRepairRate"]]
+    .filter(([, n]) => Z(n) > 0).map(([l, n]) => kv(l, f1(Z(n)) + " <small>EHP/s</small>"));
+  out.push(section("defense", "Defense", `${f0(S("ehp"))} <small>ehp</small>`,
+    `<table class="res"><col class="l"><col class="e"><col><col><col><col><tr><th></th><th>EHP</th>${dtypes.map(([, c, l]) => `<th style="color:${c}">${l}</th>`).join("")}</tr>
+    ${layers.map(([l, ehp, pre]) => `<tr><td>${l}</td><td>${f0(S(ehp))}</td>${dtypes.map(([d, c]) => resCell(S(rname(pre, d)), c)).join("")}</tr>`).join("")}
+    </table>` + grid(kv("Shield regen", f1(S("passiveShieldEffectiveRechargeRate")) + " <small>EHP/s</small>"), ...rep)));
 
+  // Capaciteur
   const depletes = S("capacitorDepletesIn"), stable = S("capacitorStablePercentage");
-  C.capacitor = (card("Capacitor", `<div class="big">
-      <div><small>Capacity</small><b>${f0(S("capacitorCapacity"))} GJ</b></div>
-      <div><small>${depletes != null && depletes >= 0 ? "Lasts" : "Stable at"}</small><b style="color:${depletes != null && depletes >= 0 ? "var(--warn)" : "var(--ok)"}">${depletes != null && depletes >= 0 ? dur(depletes) : f1(stable) + "%"}</b></div></div>
-    ${stat("Recharge time", dur(S("rechargeRate") / 1000))}
-    ${stat("Peak recharge", f1(S("capacitorPeakRecharge")) + " GJ/s")}
-    ${stat("Peak usage", f1(Z("capacitorPeakLoad")) + " GJ/s")}`));
+  const lasts = depletes != null && depletes >= 0;
+  out.push(section("capacitor", "Capacitor", lasts ? `<span style="color:var(--warn)">lasts ${dur(depletes)}</span>` : `<span style="color:var(--ok)">stable ${f1(stable)}%</span>`, grid(
+    kv("Capacity", f0(S("capacitorCapacity")) + " <small>GJ</small>"),
+    kv("Recharge", dur(S("rechargeRate") / 1000)),
+    kv("Peak regen", f1(S("capacitorPeakRecharge")) + " <small>GJ/s</small>"),
+    kv("Peak use", f1(Z("capacitorPeakLoad")) + " <small>GJ/s</small>"))));
 
+  // Ciblage
+  out.push(section("targeting", "Targeting", `${f1(S("maxTargetRange") / 1000)} <small>km</small>`, grid(
+    kv("Lock range", f1(S("maxTargetRange") / 1000) + " <small>km</small>"),
+    kv("Scan res", f0(S("scanResolution")) + " <small>mm</small>"),
+    kv("Max targets", f0(S("maxTargets"))),
+    kv("Sensor str", f1(S("scanStrength"))))));
+
+  // Navigation
   const warp = S("warpSpeedMultiplier") * (S("baseWarpSpeed") || 1);
-  C.navigation = (card("Navigation", `<div class="big">
-      <div><small>Max speed</small><b>${f0(S("maxVelocity"))} m/s</b></div>
-      <div><small>Align time</small><b>${f2(S("alignTime"))} s</b></div></div>
-    ${stat("Warp speed", f2(warp) + " AU/s")}
-    ${stat("Mass", f0(S("mass")) + " kg")}
-    ${stat("Signature radius", f0(S("signatureRadius")) + " m")}`));
+  out.push(section("navigation", "Navigation", `${f0(S("maxVelocity"))} <small>m/s</small>`, grid(
+    kv("Max speed", f0(S("maxVelocity")) + " <small>m/s</small>"),
+    kv("Align time", f2(S("alignTime")) + " <small>s</small>"),
+    kv("Warp speed", f2(warp) + " <small>AU/s</small>"),
+    kv("Signature", f0(S("signatureRadius")) + " <small>m</small>"),
+    kv("Mass", f0(S("mass") / 1000) + " <small>t</small>"))));
 
-  C.targeting = (card("Targeting", `${stat("Lock range", f1(S("maxTargetRange") / 1000) + " km")}
-    ${stat("Scan resolution", f0(S("scanResolution")) + " mm")}
-    ${stat("Max locked targets", f0(S("maxTargets")))}
-    ${stat("Sensor strength", f1(S("scanStrength")))}`));
+  // Drones (seulement si le vaisseau en prend)
+  if (S("droneCapacity") || S("droneBandwidth")) out.push(section("drones", "Drones", `${f1(Z("droneDamagePerSecond"))} <small>dps</small>`, grid(
+    kv("Bandwidth", `${f0(Z("droneBandwidthLoad"))} / ${f0(S("droneBandwidth"))} <small>Mbit/s</small>`, Z("droneBandwidthLoad") > S("droneBandwidth") ? "over" : ""),
+    kv("Drone bay", `${f0(Z("droneCapacityLoad"))} / ${f0(S("droneCapacity"))} <small>m³</small>`, Z("droneCapacityLoad") > S("droneCapacity") ? "over" : ""))));
 
-  C.fitting = (card("Fitting", `${bar("CPU", Z("cpuLoad"), S("cpuOutput"), "tf")}
-    ${bar("Powergrid", Z("powerLoad"), S("powerOutput"), "MW")}
-    ${bar("Calibration", Z("upgradeLoad"), S("upgradeCapacity"))}
-    ${S("droneBandwidth") ? bar("Drone bandwidth", Z("droneBandwidthLoad"), S("droneBandwidth"), "Mbit/s") : ""}
-    ${S("droneCapacity") ? bar("Drone bay", Z("droneCapacityLoad"), S("droneCapacity"), "m³") : ""}
-    ${stat("Free turret / launcher hardpoints", `${f0(S("turretSlotsLeft"))} / ${f0(S("launcherSlotsLeft"))}`)}`));
-
-  $("statsCol").innerHTML = C.problems + `<div class="cols">
-    <div>${C.offense}${C.defense}${C.targeting}</div>
-    <div>${C.capacitor}${C.navigation}${C.fitting}</div></div>`;
+  $("statsCol").innerHTML = out.join("");
 }
 
 const RES = { cpu: "CPU", powergrid: "Powergrid", calibration: "Calibration", drone_bay: "Drone bay", drone_bandwidth: "Drone bandwidth", launched_drones: "Launched drones",
@@ -893,6 +922,10 @@ function describe(v) {
   }
 }
 
+$("statsCol").addEventListener("toggle", ev => {
+  const k = ev.target.dataset?.k; if (!k) return;
+  secOpen[k] = ev.target.open; store.set("fit.sections", secOpen);
+}, true);
 $("fitCard").addEventListener("toggle", ev => { if (ev.target.id === "cargoBox") cargoOpen = ev.target.open; }, true);
 
 /* ---------- Navigateur : arbre du marché, recherche, ajout/retrait de modules ---------- */
