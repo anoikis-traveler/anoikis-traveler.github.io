@@ -35,14 +35,30 @@ header h1{font-family:var(--display);font-size:1.5rem;margin:0;letter-spacing:.0
 header h1 b{color:var(--accent)}
 .ver{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 6px;white-space:nowrap}
 header .grow{flex:1}
-main{display:grid;grid-template-columns:minmax(260px,330px) minmax(300px,1fr) minmax(320px,420px);gap:12px;padding:12px;align-items:start}
-@media (max-width:1100px){main{grid-template-columns:minmax(260px,1fr) minmax(300px,1.3fr)} #statsCol{grid-column:1 / -1}}
-@media (max-width:720px){main{grid-template-columns:1fr}}
+main{padding:12px;max-width:1600px;margin:0 auto}
+.toolbar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 12px;margin-bottom:12px}
+.toolbar .ship{display:flex;align-items:center;gap:10px;min-width:180px}
+.toolbar .ship img{width:40px;height:40px;border-radius:3px;background:var(--bg)}
+.toolbar .ship .n{font-family:var(--display);font-size:1.3rem;letter-spacing:.03em;line-height:1.1}
+.toolbar .ship .dim{font-size:12px}
+.toolbar .sep{width:1px;align-self:stretch;background:var(--line)}
+.toolbar .cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.toolbar .cond label{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.toolbar .cond select{padding:4px 6px;font-size:13px}
+.layout{display:grid;grid-template-columns:minmax(440px,1fr) minmax(540px,1.15fr);gap:12px;align-items:start}
+.layout > section:first-child{position:sticky;top:12px}
+#statsCol .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;align-items:start}
+@media (max-width:640px){#statsCol .cols{grid-template-columns:1fr}}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}.layout > section:first-child{position:static}}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:0;width:min(620px,94vw)}
+dialog::backdrop{background:rgba(3,5,10,.7)}
+dialog .body{padding:12px}
+.hint{font-size:12px;color:var(--dim);margin-top:6px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:4px;margin-bottom:12px}
 .card h2{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;margin:0;padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .card h2 .grow{flex:1}
 .card .body{padding:10px 12px}
-textarea#eft{width:100%;min-height:260px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.45}
+textarea#eft{width:100%;min-height:340px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.45}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .field{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .field label{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -68,7 +84,7 @@ textarea#eft{width:100%;min-height:260px;resize:vertical;font-family:var(--mono)
 .slot:disabled{cursor:default}
 /* Anneau façon fenêtre de fitting en jeu */
 .ringwrap{padding:22px 18px 4px}
-.ring{position:relative;width:100%;max-width:520px;aspect-ratio:1;margin:0 auto;container-type:inline-size}
+.ring{position:relative;width:100%;max-width:640px;aspect-ratio:1;margin:0 auto;container-type:inline-size}
 .ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .ring .render{position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;object-fit:cover;
   -webkit-mask:radial-gradient(circle,#000 58%,transparent 71%);mask:radial-gradient(circle,#000 58%,transparent 71%)}
@@ -95,7 +111,7 @@ textarea#eft{width:100%;min-height:260px;resize:vertical;font-family:var(--mono)
 .stat:last-child{border-bottom:0}
 .stat span:first-child{color:var(--dim)}
 .stat b{font-weight:500;font-family:var(--mono);font-size:13px}
-.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:8px}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:8px;margin-bottom:8px}
 .big div{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:6px 8px}
 .big small{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .big b{font-family:var(--mono);font-size:1.15rem;font-weight:500}
@@ -103,10 +119,12 @@ textarea#eft{width:100%;min-height:260px;resize:vertical;font-family:var(--mono)
 .bar i{position:absolute;inset:0 auto 0 0;background:#2a4a7a}
 .bar.over i{background:#7a2a2a}
 .bar span{position:relative;font-family:var(--mono);font-size:11px;padding:0 6px;line-height:16px;display:flex;justify-content:space-between}
-table.res{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+table.res{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;table-layout:fixed}
 table.res th{font-family:var(--body);font-weight:500;color:var(--dim);font-size:11px;text-align:right;padding:2px 4px}
 table.res th:first-child,table.res td:first-child{text-align:left}
-table.res td{padding:2px 4px;text-align:right}
+table.res td{padding:2px 2px;text-align:right}
+table.res th{padding:2px 2px}
+table.res col.l{width:17%} table.res col.e{width:19%}
 .rc{position:relative;display:block;padding:1px 4px;border-radius:2px;overflow:hidden}
 .rc i{position:absolute;inset:0 auto 0 0;opacity:.28}
 .rc span{position:relative}
@@ -130,40 +148,36 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
 <div id="loading"><div>Loading the fitting engine and EVE data…</div><div class="pb"><i id="pbar"></i></div><div id="pmsg" class="mono" style="font-size:12px"></div></div>
 
 <main id="app" hidden>
-  <section>
-    <div class="card">
-      <h2>EFT fit <span class="grow"></span><button type="button" class="small" id="btnExample">Example</button></h2>
-      <div class="body">
-        <textarea id="eft" spellcheck="false" wrap="off" placeholder="Paste a fit here (in EVE: Fitting window → Save as / Copy to clipboard)"></textarea>
-        <div class="row" style="margin-top:8px">
-          <button type="button" class="primary" id="btnCalc">Calculate</button>
-          <button type="button" id="btnCopy">Copy EFT</button>
-          <button type="button" id="btnLink">Share link</button>
-        </div>
-        <div id="eftMsg"></div>
-      </div>
+  <div class="toolbar">
+    <div class="ship" id="shipBox"><div class="dim">No fit loaded</div></div>
+    <div class="row">
+      <button type="button" class="primary" id="btnImport">Import EFT</button>
+      <button type="button" id="btnCopy">Copy EFT</button>
+      <button type="button" id="btnLink">Share link</button>
     </div>
-    <div class="card">
-      <h2>Conditions</h2>
-      <div class="body">
-        <div class="field"><label for="skills">Skills</label>
-          <select id="skills"><option value="5">All skills V</option><option value="4">All skills IV</option><option value="3">All skills III</option><option value="0">No skills</option></select></div>
-        <div class="field"><label for="dmg">Incoming damage</label>
-          <select id="dmg"><option value="uniform">Uniform</option><option value="em">EM</option><option value="thermal">Thermal</option><option value="kinetic">Kinetic</option><option value="explosive">Explosive</option></select></div>
-        <div class="field"><label for="sec">Space</label>
-          <select id="sec"><option value="high_sec">High-sec</option><option value="low_sec">Low-sec</option><option value="null_sec">Null-sec</option><option value="wormhole">Wormhole</option></select></div>
-        <div class="field"><label for="beacon">WH effect</label><select id="beacon"><option value="">None</option></select></div>
-        <div class="dim" style="font-size:12px">Character skills from EVE login come in a later version.</div>
-      </div>
+    <div class="cond">
+      <label>Skills<select id="skills"><option value="5">All V</option><option value="4">All IV</option><option value="3">All III</option><option value="0">None</option></select></label>
+      <label>Incoming damage<select id="dmg"><option value="uniform">Uniform</option><option value="em">EM</option><option value="thermal">Thermal</option><option value="kinetic">Kinetic</option><option value="explosive">Explosive</option></select></label>
+      <label>Space<select id="sec"><option value="high_sec">High-sec</option><option value="low_sec">Low-sec</option><option value="null_sec">Null-sec</option><option value="wormhole">Wormhole</option></select></label>
+      <label>WH effect<select id="beacon"><option value="">None</option></select></label>
     </div>
-  </section>
-
-  <section>
-    <div class="card" id="fitCard"><div class="body dim">Paste a fit and press Calculate.</div></div>
-  </section>
-
-  <section id="statsCol"></section>
+  </div>
+  <div class="layout">
+    <section><div class="card" id="fitCard"><div class="body dim">Press “Import EFT”, or copy a fit in EVE and press Ctrl+V here.</div></div></section>
+    <section id="statsCol"></section>
+  </div>
 </main>
+
+<dialog id="dlg">
+  <div class="card" style="margin:0;border:0">
+    <h2>Import EFT fit <span class="grow"></span><button type="button" class="small" id="btnExample">Example</button><button type="button" class="small" id="btnClose" aria-label="Close">✕</button></h2>
+    <div class="body">
+      <textarea id="eft" spellcheck="false" wrap="off" placeholder="Paste a fit here (in EVE: Fitting window → Browse → Import &amp; Export → Copy to clipboard)"></textarea>
+      <div class="row" style="margin-top:8px"><button type="button" class="primary" id="btnCalc">Import</button><span class="hint">Ctrl+Enter to import · Tip: Ctrl+V anywhere on the page imports a copied fit directly.</span></div>
+      <div id="eftMsg"></div>
+    </div>
+  </div>
+</dialog>
 
 <footer>
   <span id="dataInfo"></span><br>
@@ -291,6 +305,7 @@ function importEft() {
     fit = E.post_load({ ...loaded, ...conditions() });
     localStorage.setItem("fit.eft", text);
     recalc();
+    if ($("dlg").open) $("dlg").close();
   } catch (err) {
     $("eftMsg").innerHTML = `<div class="msg err">${esc(String(err.message || err).replace(/^Error: /, ""))}</div>`;
   }
@@ -325,6 +340,7 @@ function recalc() {
 const name = id => SDE.types.get(id)?.name ?? `#${id}`;
 const val = (attrs, n) => attrs.get(typeof n === "number" ? n : A[n])?.value;
 const S = n => val(calc.ship.attributes, n);
+const Z = n => S(n) ?? 0; // valeur absente = 0 (ex. aucune arme, aucun rig)
 const f0 = v => v == null || isNaN(v) ? "–" : Math.round(v).toLocaleString("en-US");
 const f1 = v => v == null || isNaN(v) ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const f2 = v => v == null || isNaN(v) ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -383,18 +399,18 @@ function renderFit() {
   }
   // PG (rouge) puis CPU (bleu) en bas à droite, calibration (gris) en haut à gauche près des rigs — comme en jeu
   svg += `<circle cx="50" cy="50" r="${R_GAUGE}" stroke="#141c2e" stroke-width=".5" fill="none"/>`;
-  svg += gauge(S("powerLoad"), S("powerOutput"), 52, 96, "#c8342c");
-  svg += gauge(S("cpuLoad"), S("cpuOutput"), 49, 5, "#2fa7b4");
-  svg += gtext("POWERGRID", S("powerLoad"), S("powerOutput"), 101, 97, "end", "#e0574f");
-  svg += gtext("CPU", S("cpuLoad"), S("cpuOutput"), 101, 89.5, "end", "#4fc3cf");
+  svg += gauge(Z("powerLoad"), S("powerOutput"), 52, 96, "#c8342c");
+  svg += gauge(Z("cpuLoad"), S("cpuOutput"), 49, 5, "#2fa7b4");
+  svg += gtext("POWERGRID", Z("powerLoad"), S("powerOutput"), 101, 97, "end", "#e0574f");
+  svg += gtext("CPU", Z("cpuLoad"), S("cpuOutput"), 101, 89.5, "end", "#4fc3cf");
   if (S("upgradeCapacity")) {
-    svg += gauge(S("upgradeLoad"), S("upgradeCapacity"), 188, 248, "#9aa6b8");
-    svg += gtext("CALIBRATION", S("upgradeLoad"), S("upgradeCapacity"), -1, 3, "start", "#aab6cc");
+    svg += gauge(Z("upgradeLoad"), S("upgradeCapacity"), 188, 248, "#9aa6b8");
+    svg += gtext("CALIBRATION", Z("upgradeLoad"), S("upgradeCapacity"), -1, 3, "start", "#aab6cc");
   }
   const hp = `turrets ${f0(S("turretSlotsLeft"))} free · launchers ${f0(S("launcherSlotsLeft"))} free`;
 
-  let h = `<div class="shiphead"><img src="${IMG(ship, 64)}" alt=""><div><div class="n">${esc(name(ship))}</div><div class="dim">${esc(fit.name || "")}</div></div></div>
-    <div class="ringwrap"><div class="ring">
+  $("shipBox").innerHTML = `<img src="${IMG(ship, 64)}" alt=""><div><div class="n">${esc(name(ship))}</div><div class="dim">${esc(fit.name || "")}</div></div>`;
+  let h = `<div class="ringwrap"><div class="ring">
       <img class="render" src="https://images.evetech.net/types/${ship}/render?size=512" alt="">
       <svg viewBox="0 0 100 100" aria-hidden="true">${svg}</svg>
       ${slots}
@@ -447,7 +463,7 @@ function resCell(res, color) {
 }
 
 function renderStats() {
-  const out = [];
+  const C = {};
   const all = calc.violations || [];
   const v = all.filter(x => x.rule.type !== "skill");
   const missing = new Map();
@@ -459,60 +475,62 @@ function renderStats() {
   const skillList = [...missing].sort((a, b) => name(a[0]).localeCompare(name(b[0])))
     .map(([id, m]) => `<li>${esc(name(id))} <b>${ROMAN[m.required]}</b> <span class="dim">(have ${ROMAN[m.level] ?? m.level})</span></li>`).join("");
   const n = v.length + (missing.size ? 1 : 0);
-  out.push(card(`Problems${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
+  C.problems = (card(`Problems${n ? ` <span style="color:var(--bad)">(${v.length + missing.size})</span>` : ""}`,
     !n ? `<span class="ok">✓ This fit can be flown with these skills.</span>` :
     (v.length ? `<ul class="problems">${v.map(x => `<li>${esc(describe(x))}</li>`).join("")}</ul>` : "") +
     (missing.size ? `<div class="dim" style="margin:${v.length ? "8px" : "0"} 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Missing skills (${missing.size})</div><ul class="problems">${skillList}</ul>` : "")));
 
-  out.push(card("Offense", `<div class="big">
-      <div><small>DPS</small><b>${f1(S("damagePerSecondWithReload"))}</b></div>
-      <div><small>DPS (no reload)</small><b>${f1(S("damagePerSecondWithoutReload"))}</b></div>
-      <div><small>Volley</small><b>${f0(S("damageAlpha"))}</b></div></div>
-    ${stat("Drone DPS", f1(S("droneDamagePerSecond")))}`));
+  C.offense = (card("Offense", `<div class="big">
+      <div><small>DPS</small><b>${f1(Z("damagePerSecondWithReload"))}</b></div>
+      <div><small>DPS (no reload)</small><b>${f1(Z("damagePerSecondWithoutReload"))}</b></div>
+      <div><small>Volley</small><b>${f0(Z("damageAlpha"))}</b></div></div>
+    ${stat("Drone DPS", f1(Z("droneDamagePerSecond")))}`));
 
   const layers = [["Shield", "shieldEhp", "shieldCapacity", "shield"], ["Armor", "armorEhp", "armorHP", "armor"], ["Hull", "hullEhp", "hp", ""]];
   const rname = (pre, d) => pre ? `${pre}${d[0].toUpperCase()}${d.slice(1)}DamageResonance` : `${d}DamageResonance`;
   const dtypes = [["em", "var(--em)"], ["thermal", "var(--th)"], ["kinetic", "var(--ki)"], ["explosive", "var(--ex)"]];
-  out.push(card("Defense", `<div class="big">
+  C.defense = (card("Defense", `<div class="big">
       <div><small>Effective HP</small><b>${f0(S("ehp"))}</b></div>
       <div><small>Shield regen</small><b>${f1(S("passiveShieldEffectiveRechargeRate"))}</b></div></div>
-    <table class="res"><tr><th></th><th>HP</th><th>EHP</th>${dtypes.map(([d, c]) => `<th style="color:${c}">${d === "explosive" ? "Exp" : d === "kinetic" ? "Kin" : d === "thermal" ? "Th" : "EM"}</th>`).join("")}</tr>
-    ${layers.map(([l, ehp, hp, pre]) => `<tr><td>${l}</td><td>${f0(S(hp))}</td><td>${f0(S(ehp))}</td>${dtypes.map(([d, c]) => resCell(S(rname(pre, d)), c)).join("")}</tr>`).join("")}
+    <table class="res"><col class="l"><col class="e"><col><col><col><col><tr><th></th><th>EHP</th>${dtypes.map(([d, c]) => `<th style="color:${c}">${d === "explosive" ? "Exp" : d === "kinetic" ? "Kin" : d === "thermal" ? "Th" : "EM"}</th>`).join("")}</tr>
+    ${layers.map(([l, ehp, hp, pre]) => `<tr><td title="${f0(S(hp))} HP">${l}</td><td>${f0(S(ehp))}</td>${dtypes.map(([d, c]) => resCell(S(rname(pre, d)), c)).join("")}</tr>`).join("")}
     </table>
     <div style="margin-top:8px">
-    ${stat("Shield boost (EHP/s)", f1(S("shieldEffectiveBoostRate")))}
-    ${stat("Armor repair (EHP/s)", f1(S("armorEffectiveRepairRate")))}
-    ${stat("Hull repair (EHP/s)", f1(S("hullEffectiveRepairRate")))}</div>`));
+    ${stat("Shield boost (EHP/s)", f1(Z("shieldEffectiveBoostRate")))}
+    ${stat("Armor repair (EHP/s)", f1(Z("armorEffectiveRepairRate")))}
+    ${stat("Hull repair (EHP/s)", f1(Z("hullEffectiveRepairRate")))}</div>`));
 
   const depletes = S("capacitorDepletesIn"), stable = S("capacitorStablePercentage");
-  out.push(card("Capacitor", `<div class="big">
+  C.capacitor = (card("Capacitor", `<div class="big">
       <div><small>Capacity</small><b>${f0(S("capacitorCapacity"))} GJ</b></div>
       <div><small>${depletes != null && depletes >= 0 ? "Lasts" : "Stable at"}</small><b style="color:${depletes != null && depletes >= 0 ? "var(--warn)" : "var(--ok)"}">${depletes != null && depletes >= 0 ? dur(depletes) : f1(stable) + "%"}</b></div></div>
     ${stat("Recharge time", dur(S("rechargeRate") / 1000))}
     ${stat("Peak recharge", f1(S("capacitorPeakRecharge")) + " GJ/s")}
-    ${stat("Peak usage", f1(S("capacitorPeakLoad")) + " GJ/s")}`));
+    ${stat("Peak usage", f1(Z("capacitorPeakLoad")) + " GJ/s")}`));
 
   const warp = S("warpSpeedMultiplier") * (S("baseWarpSpeed") || 1);
-  out.push(card("Navigation", `<div class="big">
+  C.navigation = (card("Navigation", `<div class="big">
       <div><small>Max speed</small><b>${f0(S("maxVelocity"))} m/s</b></div>
       <div><small>Align time</small><b>${f2(S("alignTime"))} s</b></div></div>
     ${stat("Warp speed", f2(warp) + " AU/s")}
     ${stat("Mass", f0(S("mass")) + " kg")}
     ${stat("Signature radius", f0(S("signatureRadius")) + " m")}`));
 
-  out.push(card("Targeting", `${stat("Lock range", f1(S("maxTargetRange") / 1000) + " km")}
+  C.targeting = (card("Targeting", `${stat("Lock range", f1(S("maxTargetRange") / 1000) + " km")}
     ${stat("Scan resolution", f0(S("scanResolution")) + " mm")}
     ${stat("Max locked targets", f0(S("maxTargets")))}
     ${stat("Sensor strength", f1(S("scanStrength")))}`));
 
-  out.push(card("Fitting", `${bar("CPU", S("cpuLoad"), S("cpuOutput"), "tf")}
-    ${bar("Powergrid", S("powerLoad"), S("powerOutput"), "MW")}
-    ${bar("Calibration", S("upgradeLoad"), S("upgradeCapacity"))}
-    ${S("droneBandwidth") ? bar("Drone bandwidth", S("droneBandwidthLoad"), S("droneBandwidth"), "Mbit/s") : ""}
-    ${S("droneCapacity") ? bar("Drone bay", S("droneCapacityLoad"), S("droneCapacity"), "m³") : ""}
+  C.fitting = (card("Fitting", `${bar("CPU", Z("cpuLoad"), S("cpuOutput"), "tf")}
+    ${bar("Powergrid", Z("powerLoad"), S("powerOutput"), "MW")}
+    ${bar("Calibration", Z("upgradeLoad"), S("upgradeCapacity"))}
+    ${S("droneBandwidth") ? bar("Drone bandwidth", Z("droneBandwidthLoad"), S("droneBandwidth"), "Mbit/s") : ""}
+    ${S("droneCapacity") ? bar("Drone bay", Z("droneCapacityLoad"), S("droneCapacity"), "m³") : ""}
     ${stat("Free turret / launcher hardpoints", `${f0(S("turretSlotsLeft"))} / ${f0(S("launcherSlotsLeft"))}`)}`));
 
-  $("statsCol").innerHTML = out.join("");
+  $("statsCol").innerHTML = C.problems + `<div class="cols">
+    <div>${C.offense}${C.defense}${C.targeting}</div>
+    <div>${C.capacitor}${C.navigation}${C.fitting}</div></div>`;
 }
 
 const RES = { cpu: "CPU", powergrid: "Powergrid", calibration: "Calibration", drone_bay: "Drone bay", drone_bandwidth: "Drone bandwidth", launched_drones: "Launched drones",
@@ -539,6 +557,18 @@ function describe(v) {
 /* ---------- Actions ---------- */
 $("btnCalc").onclick = importEft;
 $("btnExample").onclick = () => { $("eft").value = EXAMPLE; importEft(); };
+$("btnImport").onclick = () => { $("eftMsg").innerHTML = ""; $("dlg").showModal(); $("eft").focus(); $("eft").select(); };
+$("btnClose").onclick = () => $("dlg").close();
+// Ctrl+V n'importe où (hors champ de saisie) : importe directement un fit copié depuis EVE
+document.addEventListener("paste", ev => {
+  if (!E || ev.target.closest("textarea,input,select")) return;
+  const text = ev.clipboardData?.getData("text") || "";
+  if (!/^\s*\[[^\]]+,/.test(text)) return;
+  ev.preventDefault();
+  $("eft").value = text.trim();
+  importEft();
+  if ($("eftMsg").innerHTML) $("dlg").showModal();
+});
 $("eft").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) importEft(); });
 for (const id of ["skills", "dmg", "sec", "beacon"]) $(id).addEventListener("change", recalc);
 async function copy(text, btn) {
