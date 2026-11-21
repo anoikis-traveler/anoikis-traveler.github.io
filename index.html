@@ -268,7 +268,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 <body>
 <header>
   <h1>Anoikis <b>Traveler</b></h1>
-  <span class="ver" id="appVersion" title="Map version">v6.3</span>
+  <span class="ver" id="appVersion" title="Map version">v6.4</span>
   <form id="addForm" autocomplete="off">
     <input id="addName" placeholder="Add a system…" aria-label="Name of the system to add">
     <button type="submit">Add</button>
@@ -508,7 +508,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 /* =========================================================
    Constantes et utilitaires
    ========================================================= */
-const APP_VERSION = '6.3';            // à augmenter à chaque mise à jour du fichier
+const APP_VERSION = '6.4';            // à augmenter à chaque mise à jour du fichier
 const APP_DATE = '20/11/2026';
 const ESI = 'https://esi.evetech.net/latest';
 const ESI_ROOT = 'https://esi.evetech.net';
@@ -551,7 +551,7 @@ const parseKg = s => { const v = Number(String(s || '').replace(/[\s  ,.]/g, 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const callbackUrl = location.origin + location.pathname.replace(/index\.html$/, '');
 
-let cfg = Object.assign({ clientId:'', poll:5, home:null, ships:[], cloud:{ worker:'', db:'', apiKey:'' } }, DEMO_ONLY ? {} : store.get(K.cfg, {}));
+let cfg = Object.assign({ clientId:'', poll:5, home:null, ships:[], view:'vol', cloud:{ worker:'', db:'', apiKey:'' } }, DEMO_ONLY ? {} : store.get(K.cfg, {}));
 if (!cfg.cloud) cfg.cloud = { worker:'', db:'', apiKey:'' };
 /* ---------- Un personnage par onglet ----------
    Chaque onglet retient « son » personnage (sessionStorage). Les jetons de tous les personnages connectés
