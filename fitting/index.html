@@ -45,7 +45,14 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .toolbar .cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
 .toolbar .cond label{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 .toolbar .cond select{padding:4px 6px;font-size:13px}
-.layout{display:grid;grid-template-columns:var(--bw,330px) minmax(380px,1fr) 330px;gap:12px;align-items:start}
+.layout{display:grid;grid-template-columns:var(--bw,330px) minmax(380px,1fr) 330px;grid-template-areas:"browser ring stats" "browser bays bays";gap:12px;align-items:start;--bayh:190px}
+#browser{grid-area:browser} .ringcol{grid-area:ring} #statsCol{grid-area:stats} .bays{grid-area:bays}
+.bays{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.bay{margin:0;height:var(--bayh);display:flex;flex-direction:column}
+.bay h2{font-size:.9rem;padding:6px 10px;white-space:nowrap;overflow:hidden}
+.bay .bh{font-family:var(--mono);font-size:11px;color:var(--dim);text-transform:none;letter-spacing:0}
+.bay .bb{overflow-y:auto;flex:1;padding:4px 6px}
+.bay .empty{color:var(--dim);font-size:12.5px;padding:6px 4px;line-height:1.4}
 .layout.bc{--bw:38px}
 .layout.bc #browser > :not(h2){display:none}
 .layout.bc #browser h2{writing-mode:vertical-rl;padding:12px 8px;border:0;cursor:pointer;gap:10px}
@@ -54,7 +61,7 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .layout > .ringcol,#browser{position:sticky;top:12px}
 /* les trois colonnes ont la même hauteur (celle de l'écran sous la barre d'outils) et défilent à l'intérieur */
 #browser{display:flex;flex-direction:column;height:var(--colh,80vh);margin:0}
-.ringcol #fitCard{height:var(--colh,80vh);overflow-y:auto;margin:0}
+.ringcol #fitCard{height:calc(var(--colh,80vh) - var(--bayh) - 12px);overflow:hidden;margin:0;display:flex;flex-direction:column;justify-content:center}
 .layout.bc #browser{height:auto;min-height:0}
 #tree,#results{overflow:auto;flex:1;padding:0 4px 8px;min-height:120px}
 .bhint{font-size:11px;color:var(--dim);padding:0 10px 6px}
@@ -71,7 +78,7 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .ty .add{position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:0 6px;font-size:13px;line-height:18px;opacity:0}
 .ty:hover .add,.ty:focus-within .add{opacity:1}
 @media (hover:none){.ty .add{opacity:1}}
-#statsCol{position:sticky;top:12px;height:var(--colh,80vh);overflow-y:auto;overflow-x:hidden;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+#statsCol{position:sticky;top:12px;height:calc(var(--colh,80vh) - var(--bayh) - 12px);overflow-y:auto;overflow-x:hidden;background:var(--panel);border:1px solid var(--line);border-radius:4px}
 .sec{border-bottom:1px solid var(--line)}
 .sec:last-child{border-bottom:0}
 .sec summary{display:flex;align-items:baseline;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;user-select:none}
@@ -91,8 +98,8 @@ main{padding:12px;max-width:1600px;margin:0 auto}
 .okline{padding:9px 12px;color:var(--ok);border-bottom:1px solid var(--line);font-size:13px}
 .sub{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px}
 #statsCol .problems{font-size:12.5px}
-@media (max-width:1100px){.layout{grid-template-columns:var(--bw,240px) 1fr}#statsCol{grid-column:1 / -1;position:static;height:auto;columns:2 300px;column-gap:0}#statsCol .sec,#statsCol .okline{break-inside:avoid}}
-@media (max-width:760px){.ringcol #fitCard{height:auto}#browser{height:50vh}.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
+@media (max-width:1100px){.layout{grid-template-columns:var(--bw,240px) 1fr;grid-template-areas:"browser ring" "browser bays" "stats stats"}.bays{grid-template-columns:1fr}.bay{height:auto;max-height:240px}#statsCol{position:static;height:auto;columns:2 300px;column-gap:0}#statsCol .sec,#statsCol .okline{break-inside:avoid}}
+@media (max-width:760px){.layout,.layout.bc{grid-template-areas:"browser" "ring" "bays" "stats"}.ringcol #fitCard{height:auto}#browser{height:50vh}.layout,.layout.bc{grid-template-columns:1fr}.layout.bc #browser h2{writing-mode:horizontal-tb}.layout > .ringcol,#browser{position:static}#browser{max-height:50vh}}
 /* glisser-déposer : les emplacements possibles s'allument */
 #fitCard[data-drag="high"] .slot[data-rack="high"],#fitCard[data-drag="medium"] .slot[data-rack="medium"],
 #fitCard[data-drag="low"] .slot[data-rack="low"],#fitCard[data-drag="rig"] .slot[data-rack="rig"],
@@ -136,7 +143,7 @@ details.slotgrp[open] summary h3::before{transform:rotate(90deg)}
 .slot[aria-disabled="true"]{cursor:default}
 /* Anneau façon fenêtre de fitting en jeu */
 .ringwrap{padding:22px 18px 4px}
-.ring{position:relative;width:100%;max-width:min(760px,calc(var(--colh,80vh) - 90px));aspect-ratio:1;margin:0 auto;container-type:inline-size}
+.ring{position:relative;width:100%;max-width:min(760px,calc(var(--colh,80vh) - var(--bayh) - 100px));aspect-ratio:1;margin:0 auto;container-type:inline-size}
 .ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .ring .render{position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;object-fit:cover;
   -webkit-mask:radial-gradient(circle,#000 58%,transparent 71%);mask:radial-gradient(circle,#000 58%,transparent 71%)}
@@ -233,7 +240,14 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
       <div class="bhint">Double-click or drag to fit · right-click a fitted module to remove it</div>
       <div id="tree"></div><div id="results" hidden></div>
     </aside>
+    <div id="fitArea" style="display:contents">
     <section class="ringcol"><div class="card" id="fitCard"><div class="body dim">Pick a ship in the Browser (Ships), press “Import EFT”, or copy a fit in EVE and press Ctrl+V here.</div></div></section>
+    <div class="bays">
+      <div class="card bay" id="bayDrones"><h2>Drones <span class="grow"></span><span class="bh" id="bhDrones"></span></h2><div class="bb" id="bbDrones"></div></div>
+      <div class="card bay" id="bayImplants"><h2>Implants <span class="grow"></span><span class="bh" id="bhImplants"></span></h2><div class="bb" id="bbImplants"></div></div>
+      <div class="card bay" id="bayCargo"><h2>Cargo <span class="grow"></span><span class="bh" id="bhCargo"></span></h2><div class="bb" id="bbCargo"></div></div>
+    </div>
+    </div>
     <section id="statsCol"></section>
   </div>
 </main>
@@ -781,32 +795,50 @@ function renderFit() {
     <div class="legend"><span><i style="border-color:#2c3a57"></i>offline</span><span><i style="border-color:#7d8aa3"></i>online</span><span><i style="border-color:var(--ok)"></i>active</span><span><i style="border-color:var(--bad)"></i>overheated</span><span>${hp}</span></div>
     <div class="legend" style="padding-top:0">Click a module to change its state · right-click to remove · hover for details</div></div>`;
 
-  for (const [slot, label, countAttr] of SLOTS) {
-    if (RING.some(r => r[0] === slot)) continue;
-    const rows = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot);
-    const total = countAttr ? S(countAttr) : null;
-    if (!rows.length) continue;
-    const fold = slot === "cargo"; // la soute est repliée par défaut
-    const head = `${label}${fold ? ` <span class="c">${rows.length} item${rows.length > 1 ? "s" : ""}</span>` : total ? `<span class="c">${rows.length} / ${f0(total)}</span>` : ""}`;
-    h += fold ? `<details class="slotgrp" id="cargoBox" ${cargoOpen ? "open" : ""}><summary><h3>${head}</h3></summary>` : `<div class="slotgrp"><h3>${head}</h3>`;
-    rows.sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
+  $("fitCard").innerHTML = h;
+  renderBays();
+}
+
+/* Fenêtres sous l'anneau : drones, implants, soute */
+function bayRows(slots) {
+  let h = "";
+  for (const slot of slots) {
+    const rows = cur.items.map((it, i) => [it, i]).filter(([it]) => it.slot.type === slot)
+      .sort((a, b) => (a[0].slot.index ?? 0) - (b[0].slot.index ?? 0));
     for (const [it, i] of rows) {
       const r = calc.items[i] || {};
       const st = r.state || it.state, max = r.max_state || "offline";
       const qty = it.quantity > 1 ? ` <span class="dim">×${it.quantity}</span>` : "";
-      const charge = it.charge ? `<small>${esc(name(it.charge.type_id))}</small>` : "";
       const fromChar = i >= fit.items.length; // implant venant du personnage connecté
       const canToggle = !fromChar && STATES.indexOf(max) > 0;
-      h += `<div class="item ${st === "offline" ? "off" : ""}" ${i < fit.items.length ? `data-i="${i}" title="Right-click to remove"` : ""}><img src="${IMG(it.type_id)}" alt="" loading="lazy">
-        <div class="nm">${esc(name(it.type_id))}${qty}${charge}${fromChar ? `<small>from ${esc(selectedChar()?.charName || "character")}${st === "offline" ? " · inactive: missing skill" : ""}</small>` : ""}</div>
-        ${slot === "cargo" ? "" : `<button type="button" class="st pill small ${st}" data-i="${i}" ${canToggle ? "" : "disabled"}>${slot === "drone_bay" || slot === "fighter_bay" ? (st === "offline" ? "in bay" : "in space") : st}</button>`}</div>`;
+      const sub = slot === "implant" || slot === "booster" ? `slot ${it.slot.index}` : slot === "fighter_tube" ? "fighter tube" : "";
+      const note = fromChar ? `from ${esc(selectedChar()?.charName || "character")}${st === "offline" ? " · inactive: missing skill" : ""}` : "";
+      const small = [sub, note].filter(Boolean).join(" · ");
+      h += `<div class="item ${st === "offline" && ["drone_bay", "fighter_bay", "fighter_tube", "service"].includes(slot) ? "off" : ""}" ${i < fit.items.length ? `data-i="${i}" title="Right-click to remove"` : ""}><img src="${IMG(it.type_id)}" alt="" loading="lazy">
+        <div class="nm">${esc(name(it.type_id))}${qty}${small ? `<small>${small}</small>` : ""}</div>
+        ${slot === "cargo" || slot === "implant" || slot === "booster" ? "" : `<button type="button" class="st pill small ${st}" data-i="${i}" ${canToggle ? "" : "disabled"}>${slot === "drone_bay" || slot === "fighter_bay" ? (st === "offline" ? "in bay" : "in space") : st}</button>`}</div>`;
     }
-    h += fold ? `</details>` : `</div>`;
   }
-  $("fitCard").innerHTML = h;
+  return h;
+}
+function renderBays() {
+  const hasDrones = S("droneCapacity") || S("droneBandwidth"), hasFighters = S("fighterCapacity") || S("fighterTubes");
+  const d = bayRows(["drone_bay", "fighter_tube", "fighter_bay", "service"]);
+  $("bayDrones").querySelector("h2").firstChild.textContent = hasFighters ? "Fighters " : "Drones ";
+  $("bhDrones").innerHTML = hasDrones ? `<span title="Bandwidth (Mbit/s)" ${Z("droneBandwidthLoad") > S("droneBandwidth") ? 'style="color:var(--bad)"' : ""}>${f0(Z("droneBandwidthLoad"))}/${f0(S("droneBandwidth"))} Mb</span> · <span title="Drone bay (m³)" ${Z("droneCapacityLoad") > S("droneCapacity") ? 'style="color:var(--bad)"' : ""}>${f0(Z("droneCapacityLoad"))}/${f0(S("droneCapacity"))} m³</span>` : "";
+  $("bbDrones").innerHTML = d || `<div class="empty">${hasDrones || hasFighters ? "No drones. Double-click a drone in the browser to add it." : "This ship has no drone bay."}</div>`;
+  const im = bayRows(["implant", "booster"]);
+  const nImp = cur.items.filter(i => i.slot.type === "implant" || i.slot.type === "booster").length;
+  $("bhImplants").textContent = nImp ? String(nImp) : "";
+  $("bbImplants").innerHTML = im || `<div class="empty">No implants or boosters.<br>Double-click one in the browser${chars.length ? ", or pick a character in Skills to use theirs" : ""}.</div>`;
+  const cg = bayRows(["cargo"]);
+  const nC = cur.items.filter(i => i.slot.type === "cargo").length;
+  $("bhCargo").textContent = nC ? `${nC} item${nC > 1 ? "s" : ""}` : "";
+  $("bbCargo").innerHTML = cg || `<div class="empty">Cargo is empty.</div>`;
 }
 
-$("fitCard").addEventListener("click", ev => {
+
+$("fitArea").addEventListener("click", ev => {
   const b = ev.target.closest("button.st"); if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return;
   const i = +b.dataset.i, it = fit.items[i], r = calc.items[i];
   if (!it) return; // implant du personnage : pas d'état à changer
@@ -974,11 +1006,6 @@ function renderStats() {
     kv("Signature", f0(S("signatureRadius")) + " <small>m</small>"),
     kv("Mass", f0(S("mass") / 1000) + " <small>t</small>"))));
 
-  // Drones (seulement si le vaisseau en prend)
-  if (S("droneCapacity") || S("droneBandwidth")) out.push(section("drones", "Drones", `${f1(Z("droneDamagePerSecond"))} <small>dps</small>`, grid(
-    kv("Bandwidth", `${f0(Z("droneBandwidthLoad"))} / ${f0(S("droneBandwidth"))} <small>Mbit/s</small>`, Z("droneBandwidthLoad") > S("droneBandwidth") ? "over" : ""),
-    kv("Drone bay", `${f0(Z("droneCapacityLoad"))} / ${f0(S("droneCapacity"))} <small>m³</small>`, Z("droneCapacityLoad") > S("droneCapacity") ? "over" : ""))));
-
   out.push(priceSection());
   $("statsCol").innerHTML = out.join("");
 }
@@ -1008,7 +1035,7 @@ $("statsCol").addEventListener("toggle", ev => {
   const k = ev.target.dataset?.k; if (!k) return;
   secOpen[k] = ev.target.open; store.set("fit.sections", secOpen);
 }, true);
-$("fitCard").addEventListener("toggle", ev => { if (ev.target.id === "cargoBox") cargoOpen = ev.target.open; }, true);
+$("fitArea").addEventListener("toggle", ev => { if (ev.target.id === "cargoBox") cargoOpen = ev.target.open; }, true);
 
 /* ---------- Navigateur : arbre du marché, recherche, ajout/retrait de modules ---------- */
 const ROOTS = [4, 9, 11, 157, 955, 24]; // Ships, Ship Equipment, Ammunition & Charges, Drones, Ship and Module Modifications, Implants & Boosters
@@ -1244,11 +1271,11 @@ function initBrowser() {
   pane.addEventListener("dragend", () => { delete $("fitCard").dataset.drag; });
 
   // dépôt sur l'anneau
-  const card = $("fitCard");
+  const card = $("fitArea");
   card.addEventListener("dragover", ev => { if ([...ev.dataTransfer.types].includes("text/x-eve-type")) { ev.preventDefault(); ev.dataTransfer.dropEffect = "copy"; } });
   card.addEventListener("drop", ev => {
     const id = +ev.dataTransfer.getData("text/x-eve-type"); if (!id) return;
-    ev.preventDefault(); delete card.dataset.drag;
+    ev.preventDefault(); delete $("fitCard").dataset.drag;
     const s = ev.target.closest("[data-rack]");
     const k = kindOf(id);
     if (k?.kind === "charge") {
@@ -1275,17 +1302,17 @@ function initBrowser() {
     if (y + h > innerHeight - 6) y = ev.clientY - h - 12;
     tip.style.left = x + "px"; tip.style.top = y + "px";
   };
-  $("fitCard").addEventListener("pointerover", ev => {
+  $("fitArea").addEventListener("pointerover", ev => {
     const el = ev.target.closest("[data-tip]"); if (!el) return;
     tip.innerHTML = el.dataset.tip; tip.hidden = false; place(ev);
   });
-  $("fitCard").addEventListener("pointermove", ev => { if (!tip.hidden) place(ev); });
-  $("fitCard").addEventListener("pointerout", ev => {
+  $("fitArea").addEventListener("pointermove", ev => { if (!tip.hidden) place(ev); });
+  $("fitArea").addEventListener("pointerout", ev => {
     const el = ev.target.closest("[data-tip]");
     if (el && !el.contains(ev.relatedTarget)) tip.hidden = true;
   });
-  $("fitCard").addEventListener("click", () => { // après un clic, le contenu change : on le met à jour
-    requestAnimationFrame(() => { const el = $("fitCard").querySelector("[data-tip]:hover"); if (el) tip.innerHTML = el.dataset.tip; else tip.hidden = true; });
+  $("fitArea").addEventListener("click", () => { // après un clic, le contenu change : on le met à jour
+    requestAnimationFrame(() => { const el = $("fitArea").querySelector("[data-tip]:hover"); if (el) tip.innerHTML = el.dataset.tip; else tip.hidden = true; });
   });
 })();
 
