@@ -2657,7 +2657,13 @@ function renderVolume(){
 }
 (() => {
   const vs = $('#vol'); let vd = null;
+  const vnodeAt = ev => { let g = ev.target.closest && ev.target.closest('.vnode');
+    if (!g && document.elementsFromPoint) g = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest && x.closest('.vnode')).find(Boolean) || null;
+    return g; };
+  // right-click on a system in the 3D view: same menu as the flat view
+  vs.addEventListener('contextmenu', ev => { const g = vnodeAt(ev); const n = g && map.nodes[g.dataset.node]; if (!n) return; ev.preventDefault(); openCtx(ev, n); });
   vs.addEventListener('pointerdown', ev => {
+    if (ev.button === 2) return;   // right button: context menu, not a rotation
     let g = ev.target.closest && ev.target.closest('.vnode');
     if (!g && document.elementsFromPoint) g = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest && x.closest('.vnode')).find(Boolean) || null;
     const linkId = !g && ev.target.dataset && ev.target.dataset.link;
