@@ -2818,14 +2818,14 @@ function essHtml(n){
       const lvl = r.npcHeld ? '' : r.npc >= 300 ? ' style="color:var(--ok);font-weight:600"' : r.npc >= 100 ? ' style="color:var(--warn)"' : '';
       return `<tr><td><a href="https://evemaps.dotlan.net/system/${encodeURIComponent(r.name)}" target="_blank" rel="noopener">${esc(r.name)}</a></td><td class="r mono">${r.jumps}</td><td class="r mono"${lvl}>${fmtInt(r.npc)}</td><td class="r mono">${est}</td></tr>`;
     }).join('');
-    body = `<table class="htable"><thead><tr><th>System</th><th class="r">J</th><th class="r" title="NPCs killed in the last hour (CCP data)">NPC/h</th><th class="r" title="Rough estimate of the ISK added to the Main Bank per hour">≈ ISK/h</th></tr></thead><tbody>${rows}</tbody></table>
+    body = `<table class="htable"><thead><tr><th>System</th><th class="r">J</th><th class="r" title="NPCs killed in the last hour (CCP data)">NPC/h</th><th class="r" title="Rough estimate of the ISK added to the ESS Main Bank per hour: average bounty ${essIsk(ESS_BOUNTY[0])}–${essIsk(ESS_BOUNTY[1])} ISK per NPC, ${ESS_SHARE[0] * 100}–${ESS_SHARE[1] * 100} % kept in the Main Bank. NPC-held space has no ESS.">≈ ISK/h</th></tr></thead><tbody>${rows}</tbody></table>
       ${sc.rows.length > 40 ? `<p class="note">${sc.rows.length - 40} quieter system(s) not shown.</p>` : ''}`;
   }
   return `<h3>ESS estimate (nullsec)</h3>
     <div class="row"><label class="row" style="gap:6px;font-size:12.5px">Range <select id="essRange">${[1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === essRange ? ' selected' : ''}>${v} jump${v > 1 ? 's' : ''}</option>`).join('')}</select> from ${esc(n.name)}</label>
       <button type="button" class="small" id="essGo"${sc && sc.busy ? ' disabled' : ''}>${sc && sc.rows ? 'Refresh' : 'Estimate'}</button></div>
     ${body}
-    <p class="note"><b>Estimate only.</b> EVE does not publish what an ESS holds. This uses the NPCs killed in each system during the last hour (CCP data, updated hourly) with an assumed average bounty (${essIsk(ESS_BOUNTY[0])}–${essIsk(ESS_BOUNTY[1])} ISK) and Main Bank share (${ESS_SHARE[0] * 100}–${ESS_SHARE[1] * 100} %). The Main Bank pays out about every 3 hours, so it can hold up to about 3 times the hourly figure. NPC-held space has no ESS. Check in game before you commit.</p>`;
+    <p class="note"><b>Estimate only</b>, from NPCs killed in the last hour (CCP data). The Main Bank pays out every ~3 h. Check in game.</p>`;
 }
 function routeHtml(n){
   const who = tok ? tok.charName : (demoMode ? 'you' : '');
