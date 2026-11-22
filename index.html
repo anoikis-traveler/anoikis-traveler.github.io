@@ -395,7 +395,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <h2>Jump log</h2>
       <div id="log"><span class="empty">No jumps yet.</span></div>
     </section>
-    <p class="note" style="padding:10px 16px 16px;margin:0">© 2026 cloporte · Anoikis Traveler · All rights reserved · <a href="guide/" style="color:var(--accent)">Guide &amp; tutorial</a><br>EVE Online © CCP hf. Not affiliated with CCP.</p>
+    <p class="note" style="padding:10px 16px 16px;margin:0">© 2026 Anoikis Traveler · All rights reserved · <a href="guide/" style="color:var(--accent)">Guide &amp; tutorial</a><br>EVE Online © CCP hf. Not affiliated with CCP.</p>
 </aside>
 </div>
 
@@ -500,7 +500,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
         <li><b>📦 Assets</b> shows where your characters have assets; after each wormhole jump, a window lists the ones within your chosen range.</li>
         <li><b>Set destination</b> (system panel) sends the route straight to your EVE client.</li>
       </ol>
-      <p class="note"><a href="guide/" style="color:var(--accent)">Full guide &amp; tutorial (EN · FR · DE · ES)</a><br>© 2026 cloporte · Anoikis Traveler · All rights reserved, copying or redistribution not allowed.<br>EVE Online and all related names and images are the property of CCP hf. This tool is not affiliated with or endorsed by CCP.</p>
+      <p class="note"><a href="guide/" style="color:var(--accent)">Full guide &amp; tutorial (EN · FR · DE · ES)</a><br>© 2026 Anoikis Traveler · All rights reserved, copying or redistribution not allowed.<br>EVE Online and all related names and images are the property of CCP hf. This tool is not affiliated with or endorsed by CCP.</p>
     </div>
     <div class="row"><button type="button" id="closeHelp">Close</button></div>
   </div>
@@ -1705,9 +1705,9 @@ function renderLock(){
   box.hidden = !show; if (!show) return;
   const owner = SITE_LOCK.ownerName || 'the owner';
   $('#lockText').innerHTML = lockState === 'noaccess'
-    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (your corporation's map owner, or <b>${esc(owner)}</b>) to add this character in <i>Access</i>, then reload the page.`
+    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (for example your corporation's) to add this character in <i>Access</i>, then reload the page. Or request your own map: the first week is free.`
     : lockState === 'pending' ? 'Checking your access…'
-    : `This map belongs to <b>${esc(owner)}</b>'s group.<br>Log in with EVE if you have been given access.`;
+    : `This site hosts private wormhole maps.<br>Log in with EVE if you have been given access.`;
   $('#lockLogin').hidden = lockState === 'pending';
   $('#lockLogin').textContent = lockState === 'noaccess' ? 'Log in with another character' : 'EVE login';
 }
