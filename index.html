@@ -112,6 +112,17 @@ svg#vol.panning{cursor:grabbing}
 .getmap .gm-note{color:var(--dim);font-size:11.5px;margin:8px 0 0}
 #getMapSide{margin:12px 16px 2px;border:1px solid var(--line);border-radius:6px;padding:8px 10px 10px}
 #getMapSide .getmap{margin:0;padding:0;border:0}
+#subBox{margin:12px 16px 2px;border:1px solid #2c4166;background:linear-gradient(135deg,#0f1626,#121722);border-radius:6px;padding:8px 10px 10px;font-size:12.5px}
+#subBox.end{border-color:#5a2a2a;background:linear-gradient(135deg,#1d0f12,#121722)}
+#subBox .tag{display:block;font:600 9px var(--mono);letter-spacing:.12em;color:#7f97c4;text-transform:uppercase;margin-bottom:6px}
+#subBox .left{font:600 18px var(--mono);color:var(--text);display:block}
+#subBox.end .left{color:#ffb3b3;font-size:14px}
+#subBox small{color:var(--dim);font-size:11.5px;line-height:1.4;display:block;margin-top:3px}
+#subBox .pay{color:var(--ok)}
+#subBox code{background:rgba(255,255,255,.08);padding:0 5px;border-radius:3px;user-select:all}
+#subBox button{margin-top:6px}
+#subBox .prices{margin-top:6px;font-size:12px;line-height:1.5}
+#subBox table{border-collapse:collapse}#subBox td,#subBox th{padding:1px 10px 1px 0;text-align:left}
 #support{margin:12px 16px 2px;border:1px solid #24533a;background:linear-gradient(135deg,#0f1d16,#121722);border-radius:6px;padding:8px 10px 10px}
 #support .tag{display:block;font:600 9px var(--mono);letter-spacing:.12em;color:#6f9a80;text-transform:uppercase;margin-bottom:6px}
 #support .sp{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center}
@@ -354,7 +365,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   </div>
 
   <aside>
-    <div id="getMapSide" hidden></div><div id="support">
+    <div id="getMapSide" hidden></div><div id="subBox" hidden aria-live="polite"></div><div id="support">
       <span class="tag">Your own map</span>
       <div class="sp"><span class="ic" aria-hidden="true">☕</span>
         <span><b>Free for a week, then from 50 M ISK / week</b><small>Payments and donations go to <b class="who">Sava Yesh</b> in game. Put your map code, your name or your corporation's name in the reason.</small></span>
@@ -808,7 +819,34 @@ let subInfo = null, subSkew = 0, subTick = null, subPricesOpen = false;
 const subFreeOrNone = () => !subInfo || subInfo.free || subInfo.until == null;
 function subLeft(){ return subFreeOrNone() ? Infinity : subInfo.until - (Date.now() + subSkew); }
 function subExpired(){ return subLeft() <= 0; }
+const fmtSpan = ms => { ms = Math.max(0, ms); const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60;
+  return d ? `${d} d ${h} h` : h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`; };
+const fmtDays = days => fmtSpan(days * 864e5);
+let subBoxOpen = false;
+function renderSubBox(){
+  const box = $('#subBox'); if (!box) return;
+  const show = !!subInfo && !subInfo.free && lockState === 'ok' && (subInfo.until != null || subInfo.pending);
+  box.hidden = !show; if (!show) return;
+  const left = subLeft(), end = left <= 0;
+  const when = subInfo.until ? new Date(subInfo.until).toLocaleString(undefined, { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+  const p = subInfo.lastPay;
+  const html = `<span class="tag">Map subscription</span>`
+    + (subInfo.pending ? `<span class="left">Free week</span><small>Starts the first time the map is opened.</small>`
+      : end ? `<span class="left">Ended · read-only</span>`
+      : `<span class="left">${fmtSpan(left)} left</span><small>${subInfo.trial ? 'Free week' : 'Paid'} until ${esc(when)}</small>`)
+    + `<small>Plan: ${esc(PLAN_NAME[subInfo.plan] || '–')}, renewed by ${subInfo.period === 'month' ? '4 weeks' : '1 week'} · code <code>${esc(subInfo.code || '–')}</code></small>`
+    + (p ? `<small class="pay">Last payment: <b>+${fmtDays(p.days)}</b>${p.date ? ' on ' + esc(new Date(p.date).toLocaleDateString(undefined, { day:'2-digit', month:'2-digit' })) : ''} (${fmtM(Math.round(p.amount / 1e5) / 10)} ISK${p.from ? ' from ' + esc(p.from) : ''}${p.exact ? '' : ', turned into days'})</small>` : '')
+    + `<small>Renew: ${renewAmounts(subInfo)} to <b>${esc(SUB_PAYEE)}</b>. Any other amount is turned into days on this plan.</small>`
+    + `<button type="button" class="small" data-subbox>${subBoxOpen ? 'Hide prices' : 'All prices'}</button>`
+    + (subBoxOpen ? `<div class="prices">${subPricesHtml()}</div>` : '');
+  box.classList.toggle('end', end);
+  if (box.dataset.h !== html){ box.innerHTML = html; box.dataset.h = html; }
+}
+document.addEventListener('click', ev => { if (ev.target.closest('[data-subbox]')){ subBoxOpen = !subBoxOpen; renderSubBox(); } });
 function setSub(info){
+  const prev = subInfo;
+  if (prev && info && prev.lastPay !== undefined && info.lastPay && (!prev.lastPay || prev.lastPay.id !== info.lastPay.id) && prev.code === info.code)
+    toast(`💳 Payment received: +${fmtDays(info.lastPay.days)} added to this map (${fmtM(Math.round(info.lastPay.amount / 1e5) / 10)} ISK${info.lastPay.from ? ' from ' + info.lastPay.from : ''}).`);
   subInfo = info && typeof info === 'object' ? info : null;
   subSkew = subInfo && subInfo.now ? subInfo.now - Date.now() : 0;
   clearInterval(subTick); subTick = setInterval(renderSubBar, 1000);
@@ -831,14 +869,15 @@ function subPricesHtml(){
     + `<table class="subprices"><tr><th>Plan</th><th>1 week</th><th>4 weeks (−10 %)</th></tr>`
     + [['2 characters', '50 M', '180 M'], ['6 characters', '100 M', '360 M'], ['Corporation up to 50 members', '250 M', '900 M'], ['Corporation 51 to 100 members', '400 M', '1 440 M'], ['Corporation over 100 members', '500 M', '1 800 M']]
         .map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')
-    + `</table>Send exactly one of these amounts to choose the plan; any other amount adds time to the current plan. Payments are seen within 15 minutes.`;
+    + `</table>Send exactly one of these amounts to choose the plan and length. Any other amount is not lost: it is turned into days on the current plan (for example 50 M on the 6-character plan = 3½ days). Payments are seen within 15 minutes.`;
 }
 function renderSubBar(){
+  renderSubBox();
   const bar = $('#subBar'); if (!bar) return;
   const left = subLeft();
   const show = !!subInfo && !subInfo.free && left < 24 * 3600e3 && lockState === 'ok';
   bar.hidden = !show;
-  if (!show){ if (subInfo && left === Infinity) clearInterval(subTick); return; }
+  if (!show) return;
   const expired = left <= 0;
   bar.classList.toggle('expired', expired);
   const t = Math.max(0, Math.floor(left / 1000)), hh = String(Math.floor(t / 3600)).padStart(2, '0'), mm = String(Math.floor(t / 60) % 60).padStart(2, '0'), ss = String(t % 60).padStart(2, '0');
