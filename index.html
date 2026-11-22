@@ -2848,20 +2848,20 @@ async function essRun(id){
   essScan = { id, range, busy:true, done:0, rows:null, err:'' }; renderEss();
   try{
     await Promise.all([ loadActivity(), essLoadSov() ]);
-    const dist = await jumpsAround(id, range, info => Math.round(info[1] * 10) / 10 <= 0,   // nullsec only: the ESS does not exist elsewhere
+    const dist = await jumpsAround(id, range, info => Math.round(info[1] * 10) / 10 < 0.5,   // low-sec and nullsec (high-sec left out)
       () => { essScan.done = Object.keys(essNgb).length; renderEss(); });
     const kills = activity.kills || {};
     essScan.rows = Object.keys(dist).map(sid => { const info = essNgb[sid] || ['?', 0, []]; const sv = essSov[sid] || {};
       const npc = (kills[sid] || {}).npc_kills || 0;
-      return { id:sid, name:info[0], sec:info[1], jumps:dist[sid], npc, npcHeld:!!sv.faction_id && !sv.alliance_id,
+      return { id:sid, name:info[0], sec:info[1], jumps:dist[sid], npc, npcHeld:!!sv.faction_id && !sv.alliance_id, ls:Math.round(info[1] * 10) / 10 > 0,
         owner:sv.alliance_id || sv.corporation_id || null };
-    }).sort((a, b) => (Number(b.npcHeld === false) - Number(a.npcHeld === false)) || (b.npc - a.npc) || (a.jumps - b.jumps));
+    }).sort((a, b) =>  (b.npc - a.npc) || (a.jumps - b.jumps));
   }catch(e){ essScan.err = 'Could not reach EVE servers (' + (e.message || e) + '). Try again in a minute.'; }
   essScan.busy = false; renderEss();
 }
 const essIsk = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' B' : n >= 1e6 ? Math.round(n / 1e6) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' k' : '0';
 let essWin = null;   // { id, name } of the system the ESS window is about
-function openEss(id, name){ essWin = { id, name, cls:'NS' }; renderEss(); $('#essModal').classList.add('open'); }
+function openEss(id, name, cls){ essWin = { id, name, cls:cls || 'NS' }; renderEss(); $('#essModal').classList.add('open'); }
 function renderEss(){
   const box = $('#essBody'); if (!box || !essWin) return;
   $('#essTitle').textContent = 'Activity (NPC kills) around ' + essWin.name;
@@ -2871,17 +2871,17 @@ function renderEss(){
   if (eG) eG.addEventListener('click', () => { if (eR) essRange = Number(eR.value) || essRange; essRun(essWin.id); });
 }
 function essHtml(n){
-  if (n.cls !== 'NS' || !isRealId(n.id)) return '';
+  if (!['NS', 'LS'].includes(n.cls) || !isRealId(n.id)) return '';
   const sc = essScan && String(essScan.id) === String(n.id) ? essScan : null;
   let body = '';
-  if (sc && sc.busy) body = `<p class="note">Looking for nullsec systems within ${sc.range} jump${sc.range > 1 ? 's' : ''}… ${sc.done} system(s) read.</p>`;
+  if (sc && sc.busy) body = `<p class="note">Looking for low-sec and nullsec systems within ${sc.range} jump${sc.range > 1 ? 's' : ''}… ${sc.done} system(s) read.</p>`;
   else if (sc && sc.err) body = `<p class="note" style="color:var(--bad)">${esc(sc.err)}</p>`;
   else if (sc && sc.rows){
     const rows = sc.rows.slice(0, 40).map(r => {
       const lo = r.npc * ESS_BOUNTY[0] * ESS_SHARE[0], hi = r.npc * ESS_BOUNTY[1] * ESS_SHARE[1];
-      const est = r.npcHeld ? '<span class="dim">no ESS</span>' : r.npc ? `${essIsk(lo)}–${essIsk(hi)}` : '<span class="dim">≈ 0</span>';
-      const lvl = r.npcHeld ? '' : r.npc >= 300 ? ' style="color:var(--ok);font-weight:600"' : r.npc >= 100 ? ' style="color:var(--warn)"' : '';
-      return `<tr><td><a href="https://evemaps.dotlan.net/system/${encodeURIComponent(r.name)}" target="_blank" rel="noopener">${esc(r.name)}</a></td><td class="r mono">${r.jumps}</td><td class="r mono"${lvl}>${fmtInt(r.npc)}</td><td class="r mono">${est}</td></tr>`;
+      const est = r.ls || r.npcHeld ? '<span class="dim">no ESS</span>' : r.npc ? `${essIsk(lo)}–${essIsk(hi)}` : '<span class="dim">≈ 0</span>';
+      const lvl = r.npc >= 300 ? ' style="color:var(--ok);font-weight:600"' : r.npc >= 100 ? ' style="color:var(--warn)"' : '';
+      return `<tr><td><a href="https://evemaps.dotlan.net/system/${encodeURIComponent(r.name)}" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="mono" style="font-size:11px;color:${r.ls ? 'var(--ls)' : 'var(--ns)'}">${(Math.round(r.sec * 10) / 10).toFixed(1)}</span></td><td class="r mono">${r.jumps}</td><td class="r mono"${lvl}>${fmtInt(r.npc)}</td><td class="r mono">${est}</td></tr>`;
     }).join('');
     body = `<table class="htable"><thead><tr><th>System</th><th class="r">J</th><th class="r" title="NPCs killed in the last hour (CCP data)">NPC/h</th><th class="r" title="Rough estimate of the ISK added to the ESS Main Bank per hour: average bounty ${essIsk(ESS_BOUNTY[0])}–${essIsk(ESS_BOUNTY[1])} ISK per NPC, ${ESS_SHARE[0] * 100}–${ESS_SHARE[1] * 100} % kept in the Main Bank. NPC-held space has no ESS.">≈ ISK/h</th></tr></thead><tbody>${rows}</tbody></table>
       ${sc.rows.length > 40 ? `<p class="note">${sc.rows.length - 40} quieter system(s) not shown.</p>` : ''}`;
@@ -2890,7 +2890,7 @@ function essHtml(n){
     <div class="row"><label class="row" style="gap:6px;font-size:12.5px">Range <select id="essRange">${[1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === essRange ? ' selected' : ''}>${v} jump${v > 1 ? 's' : ''}</option>`).join('')}</select> from ${esc(n.name)}</label>
       <button type="button" class="small" id="essGo"${sc && sc.busy ? ' disabled' : ''}>${sc && sc.rows ? 'Refresh' : 'Estimate'}</button></div>
     ${body}
-    <p class="note"><b>Estimate only</b>, from NPCs killed in the last hour (CCP data). The Main Bank pays out every ~3 h. Check in game.</p>`;
+    <p class="note">NPCs killed in the last hour (CCP data). ISK: <b>estimate only</b>, nullsec ESS (none in low-sec or NPC space); the Main Bank pays out every ~3 h. Check in game.</p>`;
 }
 /* =========================================================
    Market nearby: best sell and buy prices around a k-space system (public regional orders from ESI)
@@ -3662,7 +3662,7 @@ function closeCtx(){ const m = $('#ctxMenu'); if (m) m.hidden = true; }
 function openCtx(ev, n){
   const m = $('#ctxMenu'), real = isRealId(n.id), items = [];
   if (isK(n.cls) && real) items.push(['mkt', '🛒 Market nearby']);
-  if (n.cls === 'NS' && real) items.push(['ess', '💰 Activity (NPC kills)']);
+  if ((n.cls === 'NS' || n.cls === 'LS') && real) items.push(['ess', '💰 Activity (NPC kills)']);
   items.push(['sel', 'Show details']);
   m.innerHTML = `<div class="ctxh">${esc(n.name)}</div>` + items.map(([k, t]) => `<button type="button" data-ctx="${k}">${t}</button>`).join('');
   m.hidden = false;
@@ -3672,7 +3672,7 @@ function openCtx(ev, n){
   m.querySelectorAll('[data-ctx]').forEach(b => b.addEventListener('click', () => {
     closeCtx();
     if (b.dataset.ctx === 'mkt') openMarket(n.id, n.name);
-    else if (b.dataset.ctx === 'ess') openEss(n.id, n.name);
+    else if (b.dataset.ctx === 'ess') openEss(n.id, n.name, n.cls);
     else select('node', n.id);
   }));
 }
