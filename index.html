@@ -1319,7 +1319,7 @@ function layoutHub(hubId){
     ls.some(l => (l.a == hubId && l.b == n.id) || (l.b == hubId && l.a == n.id)) &&
     ls.every(l => !(l.a == n.id || l.b == n.id) || l.a == hubId || l.b == hubId));
   if (!own.length) return;
-  own.sort((a, b) => ((HUB_ORDER[a.cls] ?? 9) - (HUB_ORDER[b.cls] ?? 9)) || String(a.cls).localeCompare(String(b.cls)) || a.name.localeCompare(b.name));
+  own.sort((a, b) => ((HUB_ORDER[a.cls] ?? 9) - (HUB_ORDER[b.cls] ?? 9)) || String(a.cls).localeCompare(String(b.cls)) || String(a.name).localeCompare(String(b.name)));
   const N = own.length, two = N > 14;
   const r0 = Math.max(470, (two ? N / 2 : N) * (NW + 60) / (2 * Math.PI));
   own.forEach((n, k) => {
@@ -2755,6 +2755,78 @@ function renderSel(){
   box.className = '';
   if (sel.kind === 'node' && sel.second != null) renderPairPanel(box); else if (sel.kind === 'node') renderNodePanel(box); else renderLinkPanel(box);
 }
+/* =========================================================
+   ESS estimate (nullsec): CCP gives no ESS bank amount, only NPC kills per system over the last hour.
+   Systems within N stargate jumps are found through ESI (neighbours cached for good: the gates never move).
+   ========================================================= */
+const ESS_BOUNTY = [150e3, 500e3];   // assumed average bounty per NPC killed (low, high)
+const ESS_SHARE = [0.30, 0.40];      // assumed share of bounties kept in the Main Bank (low, high)
+let essNgb = store.get('whmap.ngb', {});   // systemId -> [name, security, [neighbour ids]]
+let essSov = null, essSovT = 0;
+let essScan = null;                        // { id, range, busy, done, total, rows, err }
+let essRange = Math.min(5, Math.max(1, Number(store.get('whmap.essRange', 2)) || 2));
+async function essSystem(id){
+  if (essNgb[id]) return essNgb[id];
+  const s = await esi(`/universe/systems/${id}/`);
+  const ngb = [];
+  for (const g of (s.stargates || [])){ const st = await esi(`/universe/stargates/${g}/`); if (st && st.destination) ngb.push(st.destination.system_id); }
+  return essNgb[id] = [s.name, s.security_status, ngb];
+}
+async function essLoadSov(){
+  if (essSov && Date.now() - essSovT < 3600e3) return essSov;
+  const list = await esi('/sovereignty/map/'); cache.delete('/sovereignty/map/');
+  essSov = {}; for (const x of list) essSov[x.system_id] = x; essSovT = Date.now();
+  return essSov;
+}
+async function essRun(id){
+  if (essScan && essScan.busy) return;
+  const range = essRange;
+  essScan = { id, range, busy:true, done:0, rows:null, err:'' }; lastSelKey = ''; renderSel();
+  try{
+    await Promise.all([ loadActivity(), essLoadSov() ]);
+    const dist = { [id]:0 }; let front = [id];
+    const batch = async ids => { for (let i = 0; i < ids.length; i += 8){ await Promise.all(ids.slice(i, i + 8).map(x => essSystem(x).catch(() => null))); essScan.done = Object.keys(essNgb).length; lastSelKey = ''; renderSel(); } };
+    await batch([id]);
+    for (let d = 0; d < range && front.length; d++){
+      const cand = [...new Set(front.flatMap(x => (essNgb[x] || [0, 0, []])[2]))].filter(x => !(x in dist));
+      await batch(cand);   // a few systems at a time, to stay gentle with CCP's servers
+      front = cand.filter(x => essNgb[x] && Math.round(essNgb[x][1] * 10) / 10 <= 0);   // nullsec only: the ESS does not exist elsewhere
+      for (const x of front) dist[x] = d + 1;
+      if (Object.keys(dist).length > 400) break;
+    }
+    store.set('whmap.ngb', essNgb);
+    const kills = activity.kills || {};
+    essScan.rows = Object.keys(dist).map(sid => { const info = essNgb[sid] || ['?', 0, []]; const sv = essSov[sid] || {};
+      const npc = (kills[sid] || {}).npc_kills || 0;
+      return { id:sid, name:info[0], sec:info[1], jumps:dist[sid], npc, npcHeld:!!sv.faction_id && !sv.alliance_id,
+        owner:sv.alliance_id || sv.corporation_id || null };
+    }).sort((a, b) => (Number(b.npcHeld === false) - Number(a.npcHeld === false)) || (b.npc - a.npc) || (a.jumps - b.jumps));
+  }catch(e){ essScan.err = 'Could not reach EVE servers (' + (e.message || e) + '). Try again in a minute.'; }
+  essScan.busy = false; lastSelKey = ''; renderSel();
+}
+const essIsk = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' B' : n >= 1e6 ? Math.round(n / 1e6) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' k' : '0';
+function essHtml(n){
+  if (n.cls !== 'NS' || !isRealId(n.id)) return '';
+  const sc = essScan && String(essScan.id) === String(n.id) ? essScan : null;
+  let body = '';
+  if (sc && sc.busy) body = `<p class="note">Looking for nullsec systems within ${sc.range} jump${sc.range > 1 ? 's' : ''}… ${sc.done} system(s) read.</p>`;
+  else if (sc && sc.err) body = `<p class="note" style="color:var(--bad)">${esc(sc.err)}</p>`;
+  else if (sc && sc.rows){
+    const rows = sc.rows.slice(0, 40).map(r => {
+      const lo = r.npc * ESS_BOUNTY[0] * ESS_SHARE[0], hi = r.npc * ESS_BOUNTY[1] * ESS_SHARE[1];
+      const est = r.npcHeld ? '<span class="dim">no ESS</span>' : r.npc ? `${essIsk(lo)}–${essIsk(hi)}` : '<span class="dim">≈ 0</span>';
+      const lvl = r.npcHeld ? '' : r.npc >= 300 ? ' style="color:var(--ok);font-weight:600"' : r.npc >= 100 ? ' style="color:var(--warn)"' : '';
+      return `<tr><td><a href="https://evemaps.dotlan.net/system/${encodeURIComponent(r.name)}" target="_blank" rel="noopener">${esc(r.name)}</a></td><td class="r mono">${r.jumps}</td><td class="r mono"${lvl}>${fmtInt(r.npc)}</td><td class="r mono">${est}</td></tr>`;
+    }).join('');
+    body = `<table class="htable"><thead><tr><th>System</th><th class="r">J</th><th class="r" title="NPCs killed in the last hour (CCP data)">NPC/h</th><th class="r" title="Rough estimate of the ISK added to the Main Bank per hour">≈ ISK/h</th></tr></thead><tbody>${rows}</tbody></table>
+      ${sc.rows.length > 40 ? `<p class="note">${sc.rows.length - 40} quieter system(s) not shown.</p>` : ''}`;
+  }
+  return `<h3>ESS estimate (nullsec)</h3>
+    <div class="row"><label class="row" style="gap:6px;font-size:12.5px">Range <select id="essRange">${[1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === essRange ? ' selected' : ''}>${v} jump${v > 1 ? 's' : ''}</option>`).join('')}</select> from ${esc(n.name)}</label>
+      <button type="button" class="small" id="essGo"${sc && sc.busy ? ' disabled' : ''}>${sc && sc.rows ? 'Refresh' : 'Estimate'}</button></div>
+    ${body}
+    <p class="note"><b>Estimate only.</b> EVE does not publish what an ESS holds. This uses the NPCs killed in each system during the last hour (CCP data, updated hourly) with an assumed average bounty (${essIsk(ESS_BOUNTY[0])}–${essIsk(ESS_BOUNTY[1])} ISK) and Main Bank share (${ESS_SHARE[0] * 100}–${ESS_SHARE[1] * 100} %). The Main Bank pays out about every 3 hours, so it can hold up to about 3 times the hourly figure. NPC-held space has no ESS. Check in game before you commit.</p>`;
+}
 function routeHtml(n){
   const who = tok ? tok.charName : (demoMode ? 'you' : '');
   if (me.current == null || !map.nodes[me.current] || !who) return '';
@@ -2790,6 +2862,7 @@ function renderNodePanel(box){
     ${(() => { const ks = (killFeed[n.id] || []); if (!ks.length) return ''; const st = killState(n.id); const now = Date.now();
       return `<div class="${st === 'alarm' ? 'kbanner' : 'routebox'}" style="${st === 'alarm' ? 'cursor:default;animation:none' : 'border-left-color:var(--bad)'}">${st === 'alarm' ? '⚠ Alarm: repeated kills' : 'Kills in the last hour'}</div>
       <div class="klist">${ks.slice(0, 8).map(k => `<a href="https://zkillboard.com/kill/${k.id}/" target="_blank" rel="noopener"><span class="ago">${fmtDur((now - k.time) / 60000)} ago</span><span>${esc(k.ship || 'unknown ship')}</span></a>`).join('')}</div>`; })()}
+    ${essHtml(n)}
     <label class="f">Shared notes (residents, structures, dangers…)<textarea id="nNotes">${esc(n.notes)}</textarea></label>
     <h3>Signatures</h3>
     <label class="f">In the in-game scanner: Ctrl+A, Ctrl+C, then paste here
@@ -2813,6 +2886,9 @@ function renderNodePanel(box){
     ${linkPick ? `<div class="box res"><b>Now click the 2nd system</b> on the map.<br><span class="dim">Esc to cancel.</span></div>` : ''}
     <div class="row"><button type="button" id="nPick"${linkPick ? ' disabled' : ''}>Select a 2nd system</button><span class="note">or Ctrl + click the other system</span></div>
     <div class="row"><button type="button" class="danger" id="nDel">Remove this system</button></div>`;
+  const eR = $('#essRange'), eG = $('#essGo');
+  if (eR) eR.addEventListener('change', () => { essRange = Number(eR.value) || 2; store.set('whmap.essRange', essRange); });
+  if (eG) eG.addEventListener('click', () => { if (eR) essRange = Number(eR.value) || essRange; essRun(n.id); });
   const bD = $('#nDest'), bW = $('#nWp');
   if (bD) bD.addEventListener('click', () => setDestination(n.id, false));
   if (bW) bW.addEventListener('click', () => setDestination(n.id, true));
