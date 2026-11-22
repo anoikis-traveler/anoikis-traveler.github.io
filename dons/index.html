@@ -184,7 +184,7 @@ function render(){
   $('#demandes').hidden = true; renderMaps(); renderVisits();
   $('#list').innerHTML = ds.length ? ds.map(d => `<div class="don"><b>${esc(d.from || 'Pilote')}</b><span class="amt">+${isk(d.amount)}</span>
     <span class="when">${new Date(d.date).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span><span></span>
-    ${d.reason ? `<span class="why">« ${esc(d.reason)} »</span>` : ''}${d.map ? `<span class="why">💳 carte de ${esc(d.mapName || d.map)} · ${d.days >= 1 ? Math.round(d.days * 10) / 10 + ' j' : Math.round((d.days || 0) * 24) + ' h'}</span>` : d.check ? '<span class="why bad">⚠️ paiement à rattacher à la main</span>' : ''}</div>`).join('') : '<span class="note">Aucun don reçu pour l\'instant.</span>';
+    ${d.reason ? `<span class="why">« ${esc(d.reason)} »</span>` : ''}${d.map ? `<span class="why">💳 carte de ${esc(d.mapName || d.map)} · ${d.days >= 1 ? Math.round(d.days * 10) / 10 + ' j' : Math.round((d.days || 0) * 24) + ' h'}</span>` : ''}</div>`).join('') : '<span class="note">Aucun don reçu pour l\'instant.</span>';
 }
 /* ---------- Guide visits ---------- */
 function renderVisits(){
@@ -210,44 +210,23 @@ function renderVisits(){
   box.hidden = false;
 }
 /* ---------- Récapitulatif des cartes prises ---------- */
-const PLAN = { p2:'2 persos', p6:'6 persos', corp:'corporation' };
-const PERIOD = { week:'1 semaine', month:'4 semaines' };
 function renderMaps(){
   const box = $('#cartes');
   if (!subs || !subs.maps){ box.hidden = true; return; }
-  const now = subs.now || Date.now();
-  const left = m => m.free || m.pending || m.until == null ? Infinity : m.until - now;
-  const fmtLeft = ms => ms <= 0 ? 'expirée' : ms < 864e5 ? Math.floor(ms / 36e5) + ' h' : Math.floor(ms / 864e5) + ' j';
-  const maps = subs.maps.slice().sort((a, b) => left(a) - left(b));
-  const paidSum = m => (m.pays || []).reduce((t, p) => t + (p.amount || 0), 0);
-  const month = now - 30 * 864e5;
-  const income30 = maps.reduce((t, m) => t + (m.pays || []).filter(p => Date.parse(p.date) > month).reduce((u, p) => u + p.amount, 0), 0);
-  const n = { paid:maps.filter(m => !m.free && !m.trial && !m.pending && left(m) > 0 && m.until).length, trial:maps.filter(m => m.trial && left(m) > 0).length,
-    pending:maps.filter(m => m.pending).length, expired:maps.filter(m => left(m) <= 0).length };
-  const state = m => m.free ? '<span class="pill">gratuite</span>' : m.pending ? '<span class="pill wait">pas encore ouverte</span>'
-    : left(m) <= 0 ? '<span class="pill off">expirée</span>' : m.trial ? '<span class="pill wait">semaine gratuite</span>' : m.until ? '<span class="pill">payée</span>' : '<span class="pill">ancienne</span>';
-  box.innerHTML = `<h3>💳 Cartes prises</h3>
-    <div class="kpis"><div class="kpi"><b>${n.paid}</b><span>payées</span></div><div class="kpi"><b>${n.trial}</b><span>en essai</span></div><div class="kpi"><b>${n.pending}</b><span>pas ouvertes</span></div><div class="kpi"><b>${n.expired}</b><span>expirées</span></div></div>
-    <p class="note" style="margin:6px 0 10px">Reçu pour les cartes sur 30 jours : <b>${isk(income30)} ISK</b></p>` + (maps.length ? maps.map(m => {
-    const l = left(m), pays = m.pays || [];
-    return `<div class="req"><div class="nm">${esc(m.name || m.uid)} ${state(m)}</div>
-      <div class="co">${esc(m.corp || 'corporation inconnue')}${m.corpSize ? ' · ' + m.corpSize + ' membres' : ''} · code ${esc(m.code || '–')}</div>
-      <div class="co">Formule : <b>${PLAN[m.plan] || m.plan || '—'}</b>, renouvelée par <b>${PERIOD[m.period] || '1 semaine'}</b>${m.created ? ' · créée le ' + when(m.created) : ''}${m.started ? ' · ouverte le ' + when(m.started) : ''}</div>
-      <div class="co ${l <= 0 ? 'bad' : ''}">${m.free ? 'Sans échéance' : m.pending ? 'La semaine gratuite démarrera à la première ouverture' : m.until ? `Jusqu'au ${when(m.until)} (${fmtLeft(l)})` : 'Ancienne carte, sans échéance'}</div>
-      ${pays.length ? `<div class="co">Paiements : ${pays.length} · ${isk(paidSum(m))} ISK · dernier ${isk(pays[0].amount)} le ${when(pays[0].date)} (${pays[0].days} j${pays[0].from ? ', de ' + esc(pays[0].from) : ''})</div>` : ''}
-      <div class="row"><button data-days="7" data-uid="${esc(m.uid)}">+7 j offerts</button><button data-free="${m.free ? '0' : '1'}" data-uid="${esc(m.uid)}">${m.free ? 'Rendre payante' : 'Rendre gratuite'}</button></div></div>`;
-  }).join('') : '<p class="note">Aucune carte pour l\'instant.</p>');
+  const now = subs.now || Date.now(), d7 = now - 7 * 864e5, d30 = now - 30 * 864e5;
+  const born = m => Number(m.created) || 0;
+  const maps = subs.maps.slice().sort((a, b) => born(b) - born(a));
+  const n7 = maps.filter(m => born(m) > d7).length, n30 = maps.filter(m => born(m) > d30).length;
+  const gifts = (data && data.donations) || [], g30 = gifts.filter(d => Date.parse(d.date) > d30);
+  box.innerHTML = `<h3>🗺️ Cartes créées</h3>
+    <div class="kpis"><div class="kpi"><b>${maps.length}</b><span>au total</span></div><div class="kpi"><b>${n7}</b><span>7 derniers jours</span></div><div class="kpi"><b>${n30}</b><span>30 derniers jours</span></div><div class="kpi"><b>${g30.length}</b><span>dons sur 30 j</span></div></div>
+    <p class="note" style="margin:6px 0 10px">Le site est gratuit (20 personnages par carte). Dons reçus sur 30 jours : <b>${isk(g30.reduce((t, d) => t + d.amount, 0))} ISK</b></p>` + (maps.length ? maps.slice(0, 40).map(m =>
+    `<div class="req"><div class="nm">${esc(m.name || m.uid)}</div>
+      <div class="co">${esc(m.corp || 'corporation inconnue')}${m.code ? ' · code ' + esc(m.code) : ''}</div>
+      <div class="co">${m.created ? 'Créée le ' + when(m.created) : 'Carte ancienne'}</div></div>`).join('')
+    + (maps.length > 40 ? `<p class="note">… et ${maps.length - 40} carte(s) plus ancienne(s).</p>` : '') : '<p class="note">Aucune carte pour l\'instant.</p>');
   box.hidden = false;
 }
-$('#cartes').addEventListener('click', async e => {
-  const b = e.target.closest('button[data-uid]'); if (!b) return;
-  const m = (subs.maps || []).find(x => x.uid === b.dataset.uid); if (!m) return;
-  const body = { appKey:dev.appKey, uid:m.uid };
-  if (b.dataset.days){ if (!confirm(`Offrir 7 jours à la carte de ${m.name} ?`)) return; body.days = 7; }
-  else { const free = b.dataset.free === '1'; if (!confirm(free ? `Rendre la carte de ${m.name} gratuite, sans échéance ?` : `Remettre la carte de ${m.name} en payant ?`)) return; body.free = free; }
-  err(''); b.disabled = true;
-  try{ await api('/grant', body); await refreshList(); render(); }catch(x){ err(x.message); b.disabled = false; }
-});
 /* ---------- Map requests ---------- */
 const when = d => new Date(d).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
 function renderRequests(){
