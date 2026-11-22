@@ -220,13 +220,23 @@ function renderMaps(){
   const gifts = (data && data.donations) || [], g30 = gifts.filter(d => Date.parse(d.date) > d30);
   box.innerHTML = `<h3>🗺️ Cartes créées</h3>
     <div class="kpis"><div class="kpi"><b>${maps.length}</b><span>au total</span></div><div class="kpi"><b>${n7}</b><span>7 derniers jours</span></div><div class="kpi"><b>${n30}</b><span>30 derniers jours</span></div><div class="kpi"><b>${g30.length}</b><span>dons sur 30 j</span></div></div>
-    <p class="note" style="margin:6px 0 10px">Le site est gratuit (20 personnages par carte). Dons reçus sur 30 jours : <b>${isk(g30.reduce((t, d) => t + d.amount, 0))} ISK</b></p>` + (maps.length ? maps.slice(0, 40).map(m =>
+    <p class="note" style="margin:6px 0 10px">Le site est gratuit (10 personnages par carte). Dons reçus sur 30 jours : <b>${isk(g30.reduce((t, d) => t + d.amount, 0))} ISK</b></p>` + (maps.length ? maps.slice(0, 40).map(m =>
     `<div class="req"><div class="nm">${esc(m.name || m.uid)}</div>
       <div class="co">${esc(m.corp || 'corporation inconnue')}${m.code ? ' · code ' + esc(m.code) : ''}</div>
-      <div class="co">${m.created ? 'Créée le ' + when(m.created) : 'Carte ancienne'}</div></div>`).join('')
+      <div class="co">${m.created ? 'Créée le ' + when(m.created) : 'Carte ancienne'} · limite : <b>${Number(m.maxOverride) > 10 ? m.maxOverride + ' persos (sur devis)' : '10 persos'}</b></div>
+      <div class="row"><button data-max="${esc(m.uid)}">Changer la limite (devis)</button></div></div>`).join('')
     + (maps.length > 40 ? `<p class="note">… et ${maps.length - 40} carte(s) plus ancienne(s).</p>` : '') : '<p class="note">Aucune carte pour l\'instant.</p>');
   box.hidden = false;
 }
+$('#cartes').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-max]'); if (!b) return;
+  const m = (subs.maps || []).find(x => x.uid === b.dataset.max); if (!m) return;
+  const v = prompt(`Nombre de personnages autorisés sur la carte de ${m.name || m.uid} (10 = gratuit, plus = sur devis) :`, String(Number(m.maxOverride) || 10));
+  if (v === null) return;
+  const n = Math.round(Number(v)); if (!(n >= 1 && n <= 500)){ err('Nombre invalide (1 à 500).'); return; }
+  err(''); b.disabled = true;
+  try{ await api('/grant', { appKey:dev.appKey, uid:m.uid, maxOverride:n > 10 ? n : 0 }); await refreshList(); render(); }catch(x){ err(x.message); b.disabled = false; }
+});
 /* ---------- Map requests ---------- */
 const when = d => new Date(d).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
 function renderRequests(){
