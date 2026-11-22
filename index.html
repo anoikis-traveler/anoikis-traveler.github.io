@@ -15,6 +15,9 @@
 #subBar code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:3px;font-size:14px;user-select:all}
 #subBar button{padding:3px 9px;font-size:12px}
 #subBar .prices{flex-basis:100%;font-size:13px;line-height:1.55;opacity:.95}
+#subBar table.subprices{border-collapse:collapse;margin:4px 0}
+#subBar table.subprices th,#subBar table.subprices td{padding:2px 14px 2px 0;text-align:left}
+#subBar table.subprices td:nth-child(n+2),#subBar table.subprices th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
 :root{
   --bg:#070a12; --panel:#0e1424; --panel-2:#141c30; --line:#24314c; --text:#e2e8f3; --dim:#8b98b0;
   --accent:#f2a74b; --ok:#5fd68a; --warn:#f2c94b; --bad:#ef5a5a; --eol:#c07cff;
@@ -803,8 +806,10 @@ function setSub(info){
 function subPricesHtml(){
   const c = subInfo && subInfo.code ? `<code>${esc(subInfo.code)}</code>` : 'the map owner\'s name';
   return `Send ISK to <b>${esc(SUB_PAYEE)}</b> with ${c} in the reason (the owner's name or corporation name also works). Anyone can pay.<br>`
-    + `• 50 M / week: 2 characters · 100 M / week: 6 characters · Corporation (every member): 250 M / week up to 50 members, 400 M up to 100, 500 M above<br>`
-    + `• 4 weeks at once: 10 % off (180 M · 360 M · 900 M / 1 440 M / 1 800 M). Payments are seen within 15 minutes.`;
+    + `<table class="subprices"><tr><th>Plan</th><th>1 week</th><th>4 weeks (−10 %)</th></tr>`
+    + [['2 characters', '50 M', '180 M'], ['6 characters', '100 M', '360 M'], ['Corporation up to 50 members', '250 M', '900 M'], ['Corporation 51 to 100 members', '400 M', '1 440 M'], ['Corporation over 100 members', '500 M', '1 800 M']]
+        .map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')
+    + `</table>Send exactly one of these amounts to choose the plan; any other amount adds time to the current plan. Payments are seen within 15 minutes.`;
 }
 function renderSubBar(){
   const bar = $('#subBar'); if (!bar) return;
@@ -1686,13 +1691,29 @@ async function toggleAssets(){
   else toast(`Assets found in ${total} system${total > 1 ? 's' : ''}. Only systems on the map show a 📦 badge.`);
 }
 function getMapHtml(){
+  const canCreate = !!tok && liveMode() && !isMapOwner;
   return `<h4>🗺️ Want your own map?</h4><ol>
-<li>Log in to EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
-<li>From that character, send a <b>private EVE mail</b> to <b>Sava Yesh</b> with the subject <b>Map request</b>.</li>
-<li>You will get an EVE mail back once it is approved. Then open <b>${esc(location.host)}</b> and log in with that character: your own map opens automatically.</li>
-<li>Invite your group from <i>Access</i>: up to <b>10 characters</b> per map.</li></ol>
-<p class="gm-note">Free. Each map is private: no one else sees it. Places are limited, so requests are approved by hand.</p>`;
+<li>Log in with EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
+<li>Click <b>Create my map</b>. Your <b>free week</b> starts the first time you open it.</li>
+<li>Invite your group from <i>Access</i>: 2 or 6 characters, or your whole corporation.</li>
+<li>To keep it afterwards, send ISK in game to <b>Sava Yesh</b> with your map code (shown in <i>Access</i>): from 50 M ISK a week.</li></ol>
+${canCreate ? '<p><button type="button" class="primary" data-createmap>Create my map: first week free</button></p>' : ''}
+<p class="gm-note">Each map is private: no one else sees it.</p>`;
 }
+async function createMyMap(btn){
+  if (!tok){ login(); return; }
+  if (btn) btn.disabled = true;
+  try{
+    await ensureFb();
+    const r = await liveSend({ op:'createMap' });
+    isMapOwner = true;
+    toast(r.existed ? 'You already own a map: opening it.' : 'Your map is ready. Your free week starts now.');
+    slot.mapOwner = fb.uid; saveCfg();
+    $('#access').classList.remove('open');
+    await connectShared();
+  }catch(e){ toast(e.message || 'Could not create the map.', true); if (btn) btn.disabled = false; }
+}
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-createmap]'); if (b) createMyMap(b); });
 function fillGetMap(){
   const h = getMapHtml();
   const a = $('#getMapLock'); if (a){ a.innerHTML = h; a.hidden = lockState === 'pending'; }
@@ -1705,7 +1726,7 @@ function renderLock(){
   box.hidden = !show; if (!show) return;
   const owner = SITE_LOCK.ownerName || 'the owner';
   $('#lockText').innerHTML = lockState === 'noaccess'
-    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (for example your corporation's) to add this character in <i>Access</i>, then reload the page. Or request your own map: the first week is free.`
+    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (for example your corporation's) to add this character in <i>Access</i>, then reload the page.<br>Or create your own map below: the first week is free.`
     : lockState === 'pending' ? 'Checking your access…'
     : `This site hosts private wormhole maps.<br>Log in with EVE if you have been given access.`;
   $('#lockLogin').hidden = lockState === 'pending';
@@ -3239,6 +3260,8 @@ async function openAccess(){
   const mine = sel.value === fb.uid;
   $('#aclBox').hidden = !mine;
   const lim = aclLimit();
+  const cm = $('#createMapBox'); if (cm) cm.remove();
+  if (SITE_LOCK && !isMapOwner && liveMode()) $('#mapRoleNote').insertAdjacentHTML('afterend', '<p id="createMapBox"><button type="button" class="small primary" data-createmap>Create my own map (first week free)</button></p>');
   $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
   $('#ownersBox').hidden = !(SITE_LOCK && fb.uid === SITE_LOCK.owner && mine);
   $('#cfgLinkBox').hidden = !!SITE_LOCK;

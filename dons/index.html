@@ -223,7 +223,7 @@ function renderMaps(){
     const l = left(m);
     return `<div class="req"><div class="nm">${esc(m.name || m.uid)} <small style="opacity:.7">${esc(m.code || '')}</small></div>
       <div class="co">${esc(m.corp || '')}${m.corpSize ? ' · ' + m.corpSize + ' membres' : ''} · ${m.free ? 'gratuite' : (PLAN[m.plan] || m.plan || '—') + (m.trial ? ' · essai' : '')}</div>
-      <div class="co ${l <= 0 ? 'bad' : ''}">${m.free ? 'sans échéance' : m.until ? `jusqu'au ${when(m.until)} (${fmtLeft(l)})` : 'ancienne carte, sans échéance'}</div>
+      <div class="co ${l <= 0 ? 'bad' : ''}">${m.free ? 'sans échéance' : m.pending ? 'pas encore ouverte : la semaine gratuite démarrera à la première ouverture' : m.until ? `jusqu'au ${when(m.until)} (${fmtLeft(l)})` : 'ancienne carte, sans échéance'}</div>
       <div class="row"><button data-days="7" data-uid="${esc(m.uid)}">+7 j offerts</button><button data-free="${m.free ? '0' : '1'}" data-uid="${esc(m.uid)}">${m.free ? 'Rendre payante' : 'Rendre gratuite'}</button></div></div>`;
   }).join('') : '<p class="note">Aucune carte.</p>');
   box.hidden = false;
