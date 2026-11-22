@@ -570,7 +570,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 
 <div class="modal" id="essModal" role="dialog" aria-modal="true" aria-labelledby="essTitle">
   <div class="mbox" style="max-width:620px">
-    <h2 id="essTitle">ESS estimate</h2>
+    <h2 id="essTitle">Activity (NPC kills)</h2>
     <div id="essBody"></div>
     <div class="row"><button type="button" id="closeEss">Close</button></div>
   </div>
@@ -2864,7 +2864,7 @@ let essWin = null;   // { id, name } of the system the ESS window is about
 function openEss(id, name){ essWin = { id, name, cls:'NS' }; renderEss(); $('#essModal').classList.add('open'); }
 function renderEss(){
   const box = $('#essBody'); if (!box || !essWin) return;
-  $('#essTitle').textContent = 'ESS estimate around ' + essWin.name;
+  $('#essTitle').textContent = 'Activity (NPC kills) around ' + essWin.name;
   box.innerHTML = essHtml(essWin);
   const eR = $('#essRange'), eG = $('#essGo');
   if (eR) eR.addEventListener('change', () => { essRange = Number(eR.value) || 2; store.set('whmap.essRange', essRange); });
@@ -3662,7 +3662,7 @@ function closeCtx(){ const m = $('#ctxMenu'); if (m) m.hidden = true; }
 function openCtx(ev, n){
   const m = $('#ctxMenu'), real = isRealId(n.id), items = [];
   if (isK(n.cls) && real) items.push(['mkt', '🛒 Market nearby']);
-  if (n.cls === 'NS' && real) items.push(['ess', '💰 ESS estimate (NPC kills)']);
+  if (n.cls === 'NS' && real) items.push(['ess', '💰 Activity (NPC kills)']);
   items.push(['sel', 'Show details']);
   m.innerHTML = `<div class="ctxh">${esc(n.name)}</div>` + items.map(([k, t]) => `<button type="button" data-ctx="${k}">${t}</button>`).join('');
   m.hidden = false;
