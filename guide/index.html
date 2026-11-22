@@ -21,6 +21,7 @@ header.top .wrap{display:flex;align-items:center;gap:18px;height:60px}
 .brand b{color:var(--accent)}
 nav.links{display:flex;gap:16px;margin-left:auto;font-size:14px}
 nav.links a{color:var(--dim);text-decoration:none}nav.links a:hover{color:var(--text)}
+.soon{margin-top:22px;border:1px dashed var(--accent);border-radius:10px;padding:16px 20px;background:var(--panel)}.soon h3{margin:0 0 6px;color:var(--accent)}.soon p{margin:0 0 8px;color:var(--dim)}.soon ul{margin:0;padding-left:20px}.soon li{margin:4px 0}
 .langs{margin:-6px 0 18px;font-size:14px;color:var(--dim)}
 .lang{display:flex;gap:2px;border:1px solid var(--line);border-radius:7px;padding:2px}
 .lang button{font:600 12px var(--mono);background:none;border:0;color:var(--dim);padding:5px 8px;border-radius:5px;cursor:pointer}
@@ -141,6 +142,8 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
     <div class="card"><div class="ic">🪐</div><h3 data-i18n="f7_t"></h3><p data-i18n="f7_p"></p></div>
     <div class="card"><div class="ic">📦</div><h3 data-i18n="f8_t"></h3><p data-i18n="f8_p"></p></div>
   </div>
+  <div class="soon"><h3 data-i18n="soon_t"></h3><p data-i18n="soon_p"></p><ul>
+    <li data-i18n="soon_1"></li><li data-i18n="soon_2"></li><li data-i18n="soon_3"></li></ul></div>
 </div></section>
 
 <section id="screens"><div class="wrap">
@@ -225,7 +228,7 @@ hero_tag:'A shared wormhole mapper for EVE Online that follows your trail throug
 hero_sub:'Log in with EVE and fly: every jump is added to your group\'s map in real time. Thera and Turnur connections, routes to trade hubs and a 3D view are built in. Private, nothing to install, first week free.',
 btn_demo:'Try the demo',btn_open:'Open the map',btn_request:'Get your own map',
 alt_overview:'Anoikis Traveler showing a wormhole chain with pilots, connections and the Thera panel',
-feat_title:'Features',feat_langs:'🌐 This guide: English · Français · Deutsch · Español. The map and the fitting tool are in English for now.',feat_lead:'Everything a wormhole group needs to scout, roll and get home, on one screen.',
+feat_title:'Features',feat_langs:'🌐 This guide: English · Français · Deutsch · Español. The map is in English for now.',soon_t:'🚧 Coming soon',soon_p:'More tools are being prepared and will open here soon:',soon_1:'<b>Ship fitting tool</b>: build and check your fits outside the game, with your skills, prices and fits sent to EVE.',soon_2:'<b>Trade routes</b>: find good buy-here, sell-there deals between markets.',soon_3:'And more to come, shaped by what pilots ask for.',feat_lead:'Everything a wormhole group needs to scout, roll and get home, on one screen.',
 f1_t:'Automatic tracking',f1_p:'The map follows your character: each system you jump into is added with its connection, live.',
 f2_t:'Shared with your group',f2_p:'Everyone on the map sees the same chain and where every pilot is. Green means the map is open, the EVE badge means in game.',
 f3_t:'Connection details',f3_p:'Wormhole type, mass state, end of life, a mass calculator and a log of passes shared with the whole group.',
@@ -286,7 +289,7 @@ hero_tag:'Une carte de wormholes partagée pour EVE Online, qui suit votre trace
 hero_sub:'Connectez-vous avec EVE et volez : chaque saut s\'ajoute en direct à la carte de votre groupe. Connexions Thera et Turnur, routes vers les hubs de commerce et vue 3D sont incluses. Privé, rien à installer, première semaine gratuite.',
 btn_demo:'Essayer la démo',btn_open:'Ouvrir la carte',btn_request:'Avoir sa propre carte',
 alt_overview:'Anoikis Traveler affichant une chaîne de wormholes avec les pilotes, les connexions et le panneau Thera',
-feat_title:'Fonctions',feat_langs:'🌐 Ce guide : English · Français · Deutsch · Español. La carte et l\'outil de fitting sont en anglais pour le moment.',feat_lead:'Tout ce qu\'un groupe wormhole utilise pour scanner, fermer des trous et rentrer, sur un seul écran.',
+feat_title:'Fonctions',feat_langs:'🌐 Ce guide : English · Français · Deutsch · Español. La carte est en anglais pour le moment.',soon_t:'🚧 Bientôt disponible',soon_p:'D\'autres outils sont en préparation et seront bientôt accessibles ici :',soon_1:'<b>Outil de fitting</b> : préparer et vérifier ses fits hors du jeu, avec ses compétences, les prix et l\'envoi des fits dans EVE.',soon_2:'<b>Routes commerciales</b> : trouver les bonnes affaires à acheter ici et revendre là-bas, entre les marchés.',soon_3:'Et d\'autres à venir, selon les besoins des pilotes.',feat_lead:'Tout ce qu\'un groupe wormhole utilise pour scanner, fermer des trous et rentrer, sur un seul écran.',
 f1_t:'Suivi automatique',f1_p:'La carte suit votre personnage : chaque système où vous sautez est ajouté avec sa connexion, en direct.',
 f2_t:'Partagée avec le groupe',f2_p:'Tout le monde voit la même chaîne et la position de chaque pilote. Vert : carte ouverte ; badge EVE : en jeu.',
 f3_t:'Détail des connexions',f3_p:'Type de trou, état de masse, fin de vie, calculateur de masse et journal des passages partagé avec tout le groupe.',
@@ -347,7 +350,7 @@ hero_tag:'Ein gemeinsamer Wurmloch-Mapper für EVE Online, der deiner Spur durch
 hero_sub:'Mit EVE einloggen und losfliegen: Jeder Sprung landet live auf der Karte deiner Gruppe. Thera- und Turnur-Verbindungen, Routen zu den Handelszentren und eine 3D-Ansicht sind eingebaut. Privat, keine Installation, erste Woche kostenlos.',
 btn_demo:'Demo ausprobieren',btn_open:'Karte öffnen',btn_request:'Eigene Karte anfragen',
 alt_overview:'Anoikis Traveler mit einer Wurmlochkette, Piloten, Verbindungen und dem Thera-Bereich',
-feat_langs:'🌐 Dieser Guide: English · Français · Deutsch · Español. Die Karte und das Fitting-Tool sind vorerst auf Englisch.',feat_title:'Funktionen',feat_lead:'Alles, was eine Wurmloch-Gruppe zum Scannen, Rollen und Heimkommen braucht, auf einem Bildschirm.',
+feat_langs:'🌐 Dieser Guide: English · Français · Deutsch · Español. Die Karte ist vorerst auf Englisch.',soon_t:'🚧 Demnächst',soon_p:'Weitere Werkzeuge sind in Vorbereitung und bald hier verfügbar:',soon_1:'<b>Fitting-Tool</b>: Fits außerhalb des Spiels bauen und prüfen, mit deinen Skills, Preisen und Übertragung der Fits ins Spiel.',soon_2:'<b>Handelsrouten</b>: gute Geschäfte finden, hier kaufen und dort verkaufen, zwischen den Märkten.',soon_3:'Und mehr folgt, je nach Wünschen der Piloten.',feat_title:'Funktionen',feat_lead:'Alles, was eine Wurmloch-Gruppe zum Scannen, Rollen und Heimkommen braucht, auf einem Bildschirm.',
 f1_t:'Automatisches Tracking',f1_p:'Die Karte folgt deinem Charakter: Jedes System, in das du springst, wird samt Verbindung live hinzugefügt.',
 f2_t:'Mit der Gruppe geteilt',f2_p:'Alle sehen dieselbe Kette und wo jeder Pilot ist. Grün heißt Karte offen, das EVE-Abzeichen heißt im Spiel.',
 f3_t:'Verbindungsdetails',f3_p:'Wurmlochtyp, Massezustand, Lebensende, Masserechner und ein Protokoll der Durchflüge für die ganze Gruppe.',
@@ -408,7 +411,7 @@ hero_tag:'Un mapa de agujeros de gusano compartido para EVE Online que sigue tu 
 hero_sub:'Inicia sesión con EVE y vuela: cada salto se añade en directo al mapa de tu grupo. Conexiones de Thera y Turnur, rutas a los centros comerciales y vista 3D incluidas. Privado, sin instalar nada y la primera semana gratis.',
 btn_demo:'Probar la demo',btn_open:'Abrir el mapa',btn_request:'Pedir tu propio mapa',
 alt_overview:'Anoikis Traveler mostrando una cadena de agujeros de gusano con pilotos, conexiones y el panel de Thera',
-feat_langs:'🌐 Esta guía: English · Français · Deutsch · Español. El mapa y la herramienta de fitting están en inglés por ahora.',feat_title:'Funciones',feat_lead:'Todo lo que un grupo de agujeros de gusano necesita para explorar, cerrar agujeros y volver a casa, en una sola pantalla.',
+feat_langs:'🌐 Esta guía: English · Français · Deutsch · Español. El mapa está en inglés por ahora.',soon_t:'🚧 Próximamente',soon_p:'Otras herramientas están en preparación y pronto estarán disponibles aquí:',soon_1:'<b>Herramienta de fitting</b>: preparar y comprobar tus fits fuera del juego, con tus habilidades, los precios y el envío de los fits a EVE.',soon_2:'<b>Rutas comerciales</b>: encontrar buenas ofertas para comprar aquí y vender allá, entre mercados.',soon_3:'Y más por venir, según lo que pidan los pilotos.',feat_title:'Funciones',feat_lead:'Todo lo que un grupo de agujeros de gusano necesita para explorar, cerrar agujeros y volver a casa, en una sola pantalla.',
 f1_t:'Seguimiento automático',f1_p:'El mapa sigue a tu personaje: cada sistema al que saltas se añade con su conexión, en directo.',
 f2_t:'Compartido con tu grupo',f2_p:'Todos ven la misma cadena y dónde está cada piloto. Verde: mapa abierto; insignia EVE: en el juego.',
 f3_t:'Detalle de conexiones',f3_p:'Tipo de agujero, estado de masa, fin de vida, calculadora de masa y registro de pasos compartido con todo el grupo.',
