@@ -220,7 +220,7 @@ function renderMaps(){
   const gifts = (data && data.donations) || [], g30 = gifts.filter(d => Date.parse(d.date) > d30);
   box.innerHTML = `<h3>🗺️ Cartes créées</h3>
     <div class="kpis"><div class="kpi"><b>${maps.length}</b><span>au total</span></div><div class="kpi"><b>${n7}</b><span>7 derniers jours</span></div><div class="kpi"><b>${n30}</b><span>30 derniers jours</span></div><div class="kpi"><b>${g30.length}</b><span>dons sur 30 j</span></div></div>
-    <p class="note" style="margin:6px 0 10px">Le site est gratuit (20 personnages par carte). Dons reçus sur 30 jours : <b>${isk(g30.reduce((t, d) => t + d.amount, 0))} ISK</b></p>` + (maps.length ? maps.slice(0, 40).map(m =>
+    <p class="note" style="margin:6px 0 10px">Le site est gratuit (10 personnages par carte). Dons reçus sur 30 jours : <b>${isk(g30.reduce((t, d) => t + d.amount, 0))} ISK</b></p>` + (maps.length ? maps.slice(0, 40).map(m =>
     `<div class="req"><div class="nm">${esc(m.name || m.uid)}</div>
       <div class="co">${esc(m.corp || 'corporation inconnue')}${m.code ? ' · code ' + esc(m.code) : ''}</div>
       <div class="co">${m.created ? 'Créée le ' + when(m.created) : 'Carte ancienne'}</div></div>`).join('')

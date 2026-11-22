@@ -1828,7 +1828,7 @@ function getMapHtml(){
   return `<h4>🗺️ Want your own map?</h4><ol>
 <li>Log in with EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
 <li>Click <b>Create my map</b>. It is <b>free</b>.</li>
-<li>Invite your group from <i>Access</i>: up to 20 characters per map.</li>
+<li>Invite your group from <i>Access</i>: up to 10 characters per map.</li>
 <li>If you like it, a donation in ISK to <b>Sava Yesh</b> helps keep the site online.</li></ol>
 ${canCreate ? '<p><button type="button" class="primary" data-createmap>Create my map (free)</button></p>' : ''}
 <p class="gm-note">Each map is private: no one else sees it.</p>`;
@@ -1837,7 +1837,7 @@ function createMapDialog(){
   return new Promise(res => {
     const d = document.createElement('div'); d.className = 'cm-overlay';
     d.innerHTML = `<div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cmT"><h3 id="cmT">🗺️ Create my map</h3>
-      <p class="cm-lead">Your map is <b>free</b> and private. You can invite up to <b>20 characters</b> (you included) from <i>Access</i>.</p>
+      <p class="cm-lead">Your map is <b>free</b> and private. You can invite up to <b>10 characters</b> (you included) from <i>Access</i>.</p>
       <p class="cm-note">Anoikis Traveler runs on donations: if it helps your group, ISK sent in game to <b>${esc(SUB_PAYEE)}</b> keeps it online.</p>
       <div class="cm-row"><button type="button" class="primary" data-cm="ok">Create my map</button><button type="button" data-cm="no">Cancel</button></div></div>`;
     document.body.appendChild(d);
