@@ -284,6 +284,8 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 #toast.err{border-color:var(--bad)}
 .modal{position:fixed;inset:0;background:rgba(3,5,10,.8);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
 .modal.open{display:flex}
+.mktItems{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 12px;margin:8px 0;font-size:13px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
 .modal .mbox{background:var(--panel);border:1px solid var(--line);max-width:680px;width:100%;padding:22px;display:grid;gap:12px;max-height:92vh;overflow:auto;border-radius:4px}
 .modal h2{font-family:var(--display);font-size:1.8rem;margin:0}
 .modal h3{font-family:var(--display);font-size:1.25rem;margin:8px 0 0;color:var(--accent);letter-spacing:.03em}
@@ -528,6 +530,14 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <p class="note"><a href="guide/" style="color:var(--accent)">Full guide &amp; tutorial (EN · FR · DE · ES)</a><br>© 2026 Anoikis Traveler · All rights reserved, copying or redistribution not allowed.<br>EVE Online and all related names and images are the property of CCP hf. This tool is not affiliated with or endorsed by CCP.</p>
     </div>
     <div class="row"><button type="button" id="closeHelp">Close</button></div>
+  </div>
+</div>
+
+<div class="modal" id="market" role="dialog" aria-modal="true" aria-labelledby="marketTitle">
+  <div class="mbox" style="max-width:860px">
+    <h2 id="marketTitle">Market</h2>
+    <div id="mktBody"></div>
+    <div class="row"><button type="button" id="closeMarket">Close</button></div>
   </div>
 </div>
 
@@ -1858,8 +1868,8 @@ async function lockResolve(){
 function wpHelp(){
   toast('"Set destination" is not allowed by your EVE app yet. On developers.eveonline.com, open your app, tick esi-ui.write_waypoint.v1, save, then log out and log in again with EVE.', true);
 }
-async function setDestination(id, add){
-  const n = map.nodes[id], name = (n && n.name) || nm(id);
+async function setDestination(id, add, label){
+  const n = map.nodes[id], name = (n && n.name) || label || nm(id);
   if (!tok){ toast('Log in with EVE first.', true); return; }
   if (!isRealId(id)){ toast('This system cannot be sent to the game.', true); return; }
   if (!hasScope(tok, WP_SCOPE)){
@@ -2766,11 +2776,27 @@ let essSov = null, essSovT = 0;
 let essScan = null;                        // { id, range, busy, done, total, rows, err }
 let essRange = Math.min(5, Math.max(1, Number(store.get('whmap.essRange', 2)) || 2));
 async function essSystem(id){
-  if (essNgb[id]) return essNgb[id];
+  const c = essNgb[id]; if (c && c[3]) return c;
   const s = await esi(`/universe/systems/${id}/`);
-  const ngb = [];
-  for (const g of (s.stargates || [])){ const st = await esi(`/universe/stargates/${g}/`); if (st && st.destination) ngb.push(st.destination.system_id); }
-  return essNgb[id] = [s.name, s.security_status, ngb];
+  let ngb = c ? c[2] : null;
+  if (!ngb){ ngb = []; for (const g of (s.stargates || [])){ const st = await esi(`/universe/stargates/${g}/`); if (st && st.destination) ngb.push(st.destination.system_id); } }
+  const con = await esi(`/universe/constellations/${s.constellation_id}/`);
+  return essNgb[id] = [s.name, s.security_status, ngb, con.region_id];
+}
+/* systems within `range` stargate jumps of `id` (keep(info) decides which systems are entered); returns { systemId: jumps } */
+async function jumpsAround(id, range, keep, progress){
+  const dist = { [id]:0 }; let front = [id];
+  const batch = async ids => { for (let i = 0; i < ids.length; i += 8){ await Promise.all(ids.slice(i, i + 8).map(x => essSystem(x).catch(() => null))); if (progress) progress(); } };
+  await batch([id]);
+  for (let d = 0; d < range && front.length; d++){
+    const cand = [...new Set(front.flatMap(x => (essNgb[x] || [0, 0, []])[2]))].filter(x => !(x in dist));
+    await batch(cand);   // a few systems at a time, to stay gentle with CCP's servers
+    front = cand.filter(x => essNgb[x] && (!keep || keep(essNgb[x])));
+    for (const x of front) dist[x] = d + 1;
+    if (Object.keys(dist).length > 400) break;
+  }
+  store.set('whmap.ngb', essNgb);
+  return dist;
 }
 async function essLoadSov(){
   if (essSov && Date.now() - essSovT < 3600e3) return essSov;
@@ -2784,17 +2810,8 @@ async function essRun(id){
   essScan = { id, range, busy:true, done:0, rows:null, err:'' }; lastSelKey = ''; renderSel();
   try{
     await Promise.all([ loadActivity(), essLoadSov() ]);
-    const dist = { [id]:0 }; let front = [id];
-    const batch = async ids => { for (let i = 0; i < ids.length; i += 8){ await Promise.all(ids.slice(i, i + 8).map(x => essSystem(x).catch(() => null))); essScan.done = Object.keys(essNgb).length; lastSelKey = ''; renderSel(); } };
-    await batch([id]);
-    for (let d = 0; d < range && front.length; d++){
-      const cand = [...new Set(front.flatMap(x => (essNgb[x] || [0, 0, []])[2]))].filter(x => !(x in dist));
-      await batch(cand);   // a few systems at a time, to stay gentle with CCP's servers
-      front = cand.filter(x => essNgb[x] && Math.round(essNgb[x][1] * 10) / 10 <= 0);   // nullsec only: the ESS does not exist elsewhere
-      for (const x of front) dist[x] = d + 1;
-      if (Object.keys(dist).length > 400) break;
-    }
-    store.set('whmap.ngb', essNgb);
+    const dist = await jumpsAround(id, range, info => Math.round(info[1] * 10) / 10 <= 0,   // nullsec only: the ESS does not exist elsewhere
+      () => { essScan.done = Object.keys(essNgb).length; lastSelKey = ''; renderSel(); });
     const kills = activity.kills || {};
     essScan.rows = Object.keys(dist).map(sid => { const info = essNgb[sid] || ['?', 0, []]; const sv = essSov[sid] || {};
       const npc = (kills[sid] || {}).npc_kills || 0;
@@ -2826,6 +2843,109 @@ function essHtml(n){
       <button type="button" class="small" id="essGo"${sc && sc.busy ? ' disabled' : ''}>${sc && sc.rows ? 'Refresh' : 'Estimate'}</button></div>
     ${body}
     <p class="note"><b>Estimate only</b>, from NPCs killed in the last hour (CCP data). The Main Bank pays out every ~3 h. Check in game.</p>`;
+}
+/* =========================================================
+   Market nearby: best sell and buy prices around a k-space system (public regional orders from ESI)
+   ========================================================= */
+const MKT_DEFAULT = ['Nanite Repair Paste', 'Core Scanner Probe I', 'Sisters Core Scanner Probe', 'Sisters Combat Scanner Probe', 'Mobile Depot', 'Mobile Tractor Unit',
+  'Cap Booster 800', 'Navy Cap Booster 800', 'Liquid Ozone', 'Helium Isotopes', 'Hydrogen Isotopes', 'Nitrogen Isotopes', 'Oxygen Isotopes', 'Strontium Clathrates'];
+let mkt = Object.assign({ items:MKT_DEFAULT.slice(), on:MKT_DEFAULT.slice(0, 6), range:3, ids:{} }, store.get('whmap.mkt', {}));
+mkt.ids = Object.assign({ 'Nanite Repair Paste':28668, 'Core Scanner Probe I':30013, 'Sisters Core Scanner Probe':30488, 'Sisters Combat Scanner Probe':30486, 'Mobile Depot':33474,
+  'Mobile Tractor Unit':33475, 'Cap Booster 800':11289, 'Navy Cap Booster 800':32014, 'Liquid Ozone':16273, 'Helium Isotopes':16274, 'Hydrogen Isotopes':17889,
+  'Nitrogen Isotopes':17888, 'Oxygen Isotopes':17887, 'Strontium Clathrates':16275 }, mkt.ids || {});
+let mktState = { sys:null, busy:false, rows:null, err:'', msg:'' };
+const mktOrders = new Map();   // "region:type" -> { t, list }
+const mktSave = () => store.set('whmap.mkt', { items:mkt.items, on:mkt.on, range:mkt.range, ids:mkt.ids });
+const mktIsk = v => v >= 1e9 ? (v / 1e9).toFixed(2) + ' B' : v >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : v >= 1e3 ? (v / 1e3).toFixed(1) + ' k' : v.toFixed(2);
+async function mktResolve(names){
+  const miss = names.filter(x => !mkt.ids[x]);
+  if (miss.length){
+    const r = await fetch(`${ESI}/universe/ids/?language=en`, { method:'POST', headers:{ 'Content-Type':'application/json', 'Accept-Language':'en' }, body:JSON.stringify(miss) });   // English names, whatever the browser language
+    if (!r.ok) throw new Error('ESI ' + r.status);
+    const j = await r.json();
+    for (const t of (j.inventory_types || [])){ mkt.ids[t.name] = t.id; const k = miss.find(x => x.toLowerCase() === String(t.name).toLowerCase()); if (k) mkt.ids[k] = t.id; }
+    mktSave();
+  }
+  return names.filter(x => mkt.ids[x]);
+}
+/* official spelling of a product name (as EVE writes it) */
+const mktOfficial = v => Object.keys(mkt.ids).find(k => k.toLowerCase() === v.toLowerCase() && k !== v && mkt.ids[k] === mkt.ids[v]) || v;
+async function mktRegionOrders(region, type){
+  const key = region + ':' + type, c = mktOrders.get(key);
+  if (c && Date.now() - c.t < 5 * 60e3) return c.list;
+  let list = [];
+  for (let page = 1; page <= 5; page++){
+    const r = await fetch(`${ESI}/markets/${region}/orders/?order_type=all&type_id=${type}&page=${page}`);
+    if (!r.ok){ if (page > 1) break; throw new Error('ESI ' + r.status); }
+    list = list.concat(await r.json());
+    if (page >= Number(r.headers.get('X-Pages') || 1)) break;
+  }
+  mktOrders.set(key, { t:Date.now(), list });
+  return list;
+}
+function openMarket(id, name){
+  mktState = { sys:id, sysName:name || nm(id), busy:false, rows:null, err:'', msg:'' };
+  renderMarket(); $('#market').classList.add('open');
+}
+async function runMarket(){
+  const id = mktState.sys; if (!id || mktState.busy) return;
+  mktState.busy = true; mktState.err = ''; mktState.msg = 'Finding the systems in range…'; renderMarket();
+  try{
+    const dist = await jumpsAround(id, mkt.range, null, () => { mktState.msg = `Finding the systems in range… ${Object.keys(essNgb).length} known`; renderMarket(); });
+    const wanted = mkt.on.slice(), names = await mktResolve(wanted);
+    mktState.unknown = wanted.filter(x => !names.includes(x));
+    const regions = [...new Set(Object.keys(dist).map(x => (essNgb[x] || [])[3]).filter(Boolean))];
+    const rows = [];
+    let i = 0;
+    for (const name of names){
+      mktState.msg = `Reading prices… ${++i}/${names.length}`; renderMarket();
+      const type = mkt.ids[name];
+      const lists = await Promise.all(regions.map(r => mktRegionOrders(r, type).catch(() => [])));
+      const near = lists.flat().filter(o => String(o.system_id) in dist);
+      const pick = (buy) => { const os = near.filter(o => !!o.is_buy_order === buy); if (!os.length) return null;
+        const best = os.reduce((a, b) => (buy ? b.price > a.price : b.price < a.price) ? b : a);
+        return { price:best.price, sys:best.system_id, name:(essNgb[best.system_id] || [String(best.system_id)])[0], jumps:dist[best.system_id], vol:best.volume_remain,
+          structure:best.location_id > 1e12, range:best.range }; };
+      rows.push({ name, type, sell:pick(false), buy:pick(true) });
+    }
+    mktState.rows = rows; mktState.msg = '';
+    mktState.systems = Object.keys(dist).length;
+  }catch(e){ mktState.err = 'Could not read the market from EVE servers (' + (e.message || e) + '). Try again in a minute.'; mktState.msg = ''; }
+  mktState.busy = false; renderMarket();
+}
+function renderMarket(){
+  const box = $('#mktBody'); if (!box) return;
+  const id = mktState.sys, sysName = mktState.sysName || '';
+  $('#marketTitle').textContent = 'Market near ' + sysName;
+  const cell = (o) => o ? `<td class="r mono">${mktIsk(o.price)}</td><td><button type="button" class="linkbtn" data-mdest="${o.sys}" data-mname="${esc(o.name)}" title="Set destination in game">${esc(o.name)}</button>
+      <span class="dim">${o.jumps} j · ${fmtInt(o.vol)}${o.structure ? ' · structure' : ''}</span></td>` : '<td class="r dim">–</td><td class="dim">none in range</td>';
+  const sel = new Set(mkt.on);
+  box.innerHTML = `
+    <div class="row"><label class="row" style="gap:6px">Range <select id="mktRange">${[0, 1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === mkt.range ? ' selected' : ''}>${v ? v + ' jump' + (v > 1 ? 's' : '') : 'this system only'}</option>`).join('')}</select></label>
+      <button type="button" class="primary" id="mktGo"${mktState.busy || !sel.size ? ' disabled' : ''}>${mktState.busy ? 'Searching…' : 'Search prices'}</button></div>
+    <details${mktState.rows ? '' : ' open'}><summary>Products (${sel.size} selected)</summary>
+      <div class="mktItems">${mkt.items.map(x => `<label><input type="checkbox" data-mitem="${esc(x)}"${sel.has(x) ? ' checked' : ''}> ${esc(x)}${MKT_DEFAULT.includes(x) ? '' : ` <button type="button" class="linkbtn" data-mdel="${esc(x)}" title="Remove from the list">✕</button>`}</label>`).join('')}</div>
+      <div class="row"><input id="mktAdd" placeholder="Add a product: exact in-game name" style="flex:1"><button type="button" class="small" id="mktAddBtn">Add</button></div>
+    </details>
+    ${mktState.msg ? `<p class="note">${esc(mktState.msg)}</p>` : ''}
+    ${mktState.err ? `<p class="note" style="color:var(--bad)">${esc(mktState.err)}</p>` : ''}
+    ${mktState.rows ? `<table class="htable"><thead><tr><th>Product</th><th class="r">Best sell</th><th>Where</th><th class="r">Best buy</th><th>Where</th></tr></thead><tbody>
+      ${mktState.rows.map(r => `<tr><td><b>${esc(r.name)}</b></td>${cell(r.sell)}${cell(r.buy)}</tr>`).join('')}</tbody></table>
+      ${mktState.unknown && mktState.unknown.length ? `<p class="note" style="color:var(--warn)">Not found in EVE: ${esc(mktState.unknown.join(', '))}</p>` : ''}<p class="note">${mktState.systems} system(s) within ${mkt.range} jump(s). Best sell = cheapest price to buy from; best buy = highest price you can sell at (check the order range). Click a system to set it as destination in game. Prices from CCP, refreshed every 5 minutes.</p>` : ''}`;
+  $('#mktRange').addEventListener('change', e => { mkt.range = Number(e.target.value) || 0; mktSave(); });
+  $('#mktGo').addEventListener('click', runMarket);
+  box.querySelectorAll('[data-mitem]').forEach(c => c.addEventListener('change', () => {
+    const x = c.dataset.mitem; mkt.on = mkt.on.filter(y => y !== x); if (c.checked) mkt.on.push(x); mktSave(); renderMarket(); }));
+  box.querySelectorAll('[data-mdel]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); const x = b.dataset.mdel;
+    mkt.items = mkt.items.filter(y => y !== x); mkt.on = mkt.on.filter(y => y !== x); mktSave(); renderMarket(); }));
+  const add = async () => { const v = $('#mktAdd').value.trim(); if (!v) return;
+    try{ const ok = await mktResolve([v]); if (!ok.length){ toast('Unknown product: type its exact in-game name.', true); return; }
+      const name = mktOfficial(v), have = mkt.items.find(x => x.toLowerCase() === name.toLowerCase()) || name;
+      if (!mkt.items.includes(have)) mkt.items.push(have); if (!mkt.on.includes(have)) mkt.on.push(have); mktSave(); renderMarket(); }
+    catch(e){ toast('Could not check the name with EVE servers.', true); } };
+  $('#mktAddBtn').addEventListener('click', add);
+  $('#mktAdd').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  box.querySelectorAll('[data-mdest]').forEach(b => b.addEventListener('click', () => setDestination(Number(b.dataset.mdest), false, b.dataset.mname)));
 }
 function routeHtml(n){
   const who = tok ? tok.charName : (demoMode ? 'you' : '');
@@ -2874,6 +2994,7 @@ function renderNodePanel(box){
     </div>
     ${sigRows ? `<table><thead><tr><th>ID</th><th>Group</th><th>Type</th><th class="r">%</th></tr></thead><tbody>${sigRows}</tbody></table>` : '<span class="empty">No signatures saved.</span>'}
     ${(() => { const as = assetsAt(n.id); return as.length ? `<h3>Your assets here</h3><div class="row" style="gap:6px">${as.map(a => `<span class="chip">📦 ${esc(a.name)} · ${a.n} item${a.n > 1 ? 's' : ''}</span>`).join('')}</div>` : ''; })()}
+    ${isK(n.cls) && isRealId(n.id) ? `<h3>Market</h3><div class="row"><button type="button" id="nMarket">🛒 Market nearby</button><span class="note">Best prices around this system</span></div>` : ''}
     <h3>Autopilot (in game)</h3>
     <div class="row">${isJ(n.cls) || !isRealId(n.id)
       ? '<span class="note">Wormhole systems cannot be an in-game destination (the autopilot only follows stargates).</span>'
@@ -2886,6 +3007,7 @@ function renderNodePanel(box){
     ${linkPick ? `<div class="box res"><b>Now click the 2nd system</b> on the map.<br><span class="dim">Esc to cancel.</span></div>` : ''}
     <div class="row"><button type="button" id="nPick"${linkPick ? ' disabled' : ''}>Select a 2nd system</button><span class="note">or Ctrl + click the other system</span></div>
     <div class="row"><button type="button" class="danger" id="nDel">Remove this system</button></div>`;
+  const bM = $('#nMarket'); if (bM) bM.addEventListener('click', () => openMarket(n.id, n.name));
   const eR = $('#essRange'), eG = $('#essGo');
   if (eR) eR.addEventListener('change', () => { essRange = Number(eR.value) || 2; store.set('whmap.essRange', essRange); });
   if (eG) eG.addEventListener('click', () => { if (eR) essRange = Number(eR.value) || essRange; essRun(n.id); });
@@ -3508,11 +3630,12 @@ window.addEventListener('storage', e => {
 /* Aide */
 $('#btnHelp').addEventListener('click', () => $('#help').classList.add('open'));
 $('#closeHelp').addEventListener('click', () => $('#help').classList.remove('open'));
+$('#closeMarket').addEventListener('click', () => $('#market').classList.remove('open'));
 document.querySelectorAll('#help [role=tab]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#help [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('#help .tabpane').forEach(p => p.hidden = p.id !== b.dataset.tab);
 }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); $('#market').classList.remove('open'); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
 
 /* =========================================================
    Démarrage
