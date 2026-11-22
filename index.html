@@ -2368,7 +2368,7 @@ function whoSpans(textEl, items, prefix){
     const t = document.createElementNS(svgNS, 'tspan'); t.setAttribute('class', it.live ? 'live' : 'dead'); t.textContent = it.name; textEl.appendChild(t);
   });
 }
-/* Pilots shown above a system: the first two, then "+N"; hovering the system shows everyone (3 names per line) */
+/* Pilots shown above a system: the first two, then "+N"; hovering the system shows everyone (one name per line) */
 function whoLabel(parent, x, y, mine, others, fs){
   const all = [...(mine || []), ...(others || [])]; if (!all.length) return;
   const pre = mine && mine.length ? '▼ ' : '', more = all.length - 2;
@@ -2376,7 +2376,7 @@ function whoLabel(parent, x, y, mine, others, fs){
   whoSpans(short, all.slice(0, 2), pre);
   if (more <= 0) return;
   const m = document.createElementNS(svgNS, 'tspan'); m.setAttribute('class', 'more'); m.textContent = `  +${more}`; short.appendChild(m);
-  const lines = []; for (let i = 0; i < all.length; i += 3) lines.push(all.slice(i, i + 3));
+  const lines = all.map(x => [x]);   // one name per line, in a single column
   lines.forEach((line, i) => { const t = el('text', { x, y:y - (lines.length - 1 - i) * (fs + 3), 'text-anchor':'middle', class:'who whofull', 'font-size':fs }, parent); whoSpans(t, line, i === 0 ? pre : ''); });
 }
 let hubSyncT = null;
