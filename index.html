@@ -284,7 +284,8 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 #toast.err{border-color:var(--bad)}
 .modal{position:fixed;inset:0;background:rgba(3,5,10,.8);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
 .modal.open{display:flex}
-.mktItems{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 12px;margin:8px 0;font-size:13px}
+.mktItems{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0;font-size:13px}
+#mktFold summary{cursor:pointer;list-style-position:inside}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
 .modal .mbox{background:var(--panel);border:1px solid var(--line);max-width:680px;width:100%;padding:22px;display:grid;gap:12px;max-height:92vh;overflow:auto;border-radius:4px}
 .modal h2{font-family:var(--display);font-size:1.8rem;margin:0}
@@ -417,6 +418,14 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <p class="note">Connections published by EVE-Scout (Signal Cartel), refreshed every 5 minutes.</p>
     </section>
 
+
+    <section class="card" id="mktCard">
+      <details id="mktFold"><summary><h2 style="display:inline">🛒 My market products</h2> <span class="dim" id="mktCount"></span></summary>
+        <div id="mktList" class="mktItems"></div>
+        <div class="row"><input id="mktAdd" placeholder="Exact in-game name (English)" style="flex:1"><button type="button" class="small" id="mktAddBtn">Add</button></div>
+        <p class="note">Products searched by <b>🛒 Market nearby</b> (panel of a k-space system). No limit; kept in this browser until you change them.</p>
+      </details>
+    </section>
 
     <section class="card">
       <h2>Jump log</h2>
@@ -2847,15 +2856,10 @@ function essHtml(n){
 /* =========================================================
    Market nearby: best sell and buy prices around a k-space system (public regional orders from ESI)
    ========================================================= */
-const MKT_DEFAULT = ['Nanite Repair Paste', 'Core Scanner Probe I', 'Sisters Core Scanner Probe', 'Sisters Combat Scanner Probe', 'Mobile Depot', 'Mobile Tractor Unit',
-  'Cap Booster 800', 'Navy Cap Booster 800', 'Liquid Ozone', 'Helium Isotopes', 'Hydrogen Isotopes', 'Nitrogen Isotopes', 'Oxygen Isotopes', 'Strontium Clathrates'];
-let mkt = Object.assign({ items:MKT_DEFAULT.slice(), on:MKT_DEFAULT.slice(0, 6), range:3, ids:{} }, store.get('whmap.mkt', {}));
-mkt.ids = Object.assign({ 'Nanite Repair Paste':28668, 'Core Scanner Probe I':30013, 'Sisters Core Scanner Probe':30488, 'Sisters Combat Scanner Probe':30486, 'Mobile Depot':33474,
-  'Mobile Tractor Unit':33475, 'Cap Booster 800':11289, 'Navy Cap Booster 800':32014, 'Liquid Ozone':16273, 'Helium Isotopes':16274, 'Hydrogen Isotopes':17889,
-  'Nitrogen Isotopes':17888, 'Oxygen Isotopes':17887, 'Strontium Clathrates':16275 }, mkt.ids || {});
+let mkt = Object.assign({ items:[], range:3, ids:{}, open:true }, store.get('whmap.mkt', {}));   // the user's own product list (no limit, kept until they change it)
 let mktState = { sys:null, busy:false, rows:null, err:'', msg:'' };
 const mktOrders = new Map();   // "region:type" -> { t, list }
-const mktSave = () => store.set('whmap.mkt', { items:mkt.items, on:mkt.on, range:mkt.range, ids:mkt.ids });
+const mktSave = () => store.set('whmap.mkt', { items:mkt.items, range:mkt.range, ids:mkt.ids, open:mkt.open });
 const mktIsk = v => v >= 1e9 ? (v / 1e9).toFixed(2) + ' B' : v >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : v >= 1e3 ? (v / 1e3).toFixed(1) + ' k' : v.toFixed(2);
 async function mktResolve(names){
   const miss = names.filter(x => !mkt.ids[x]);
@@ -2892,7 +2896,7 @@ async function runMarket(){
   mktState.busy = true; mktState.err = ''; mktState.msg = 'Finding the systems in range…'; renderMarket();
   try{
     const dist = await jumpsAround(id, mkt.range, null, () => { mktState.msg = `Finding the systems in range… ${Object.keys(essNgb).length} known`; renderMarket(); });
-    const wanted = mkt.on.slice(), names = await mktResolve(wanted);
+    const wanted = mkt.items.slice(), names = await mktResolve(wanted);
     mktState.unknown = wanted.filter(x => !names.includes(x));
     const regions = [...new Set(Object.keys(dist).map(x => (essNgb[x] || [])[3]).filter(Boolean))];
     const rows = [];
@@ -2919,14 +2923,10 @@ function renderMarket(){
   $('#marketTitle').textContent = 'Market near ' + sysName;
   const cell = (o) => o ? `<td class="r mono">${mktIsk(o.price)}</td><td><button type="button" class="linkbtn" data-mdest="${o.sys}" data-mname="${esc(o.name)}" title="Set destination in game">${esc(o.name)}</button>
       <span class="dim">${o.jumps} j · ${fmtInt(o.vol)}${o.structure ? ' · structure' : ''}</span></td>` : '<td class="r dim">–</td><td class="dim">none in range</td>';
-  const sel = new Set(mkt.on);
   box.innerHTML = `
     <div class="row"><label class="row" style="gap:6px">Range <select id="mktRange">${[0, 1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === mkt.range ? ' selected' : ''}>${v ? v + ' jump' + (v > 1 ? 's' : '') : 'this system only'}</option>`).join('')}</select></label>
-      <button type="button" class="primary" id="mktGo"${mktState.busy || !sel.size ? ' disabled' : ''}>${mktState.busy ? 'Searching…' : 'Search prices'}</button></div>
-    <details${mktState.rows ? '' : ' open'}><summary>Products (${sel.size} selected)</summary>
-      <div class="mktItems">${mkt.items.map(x => `<label><input type="checkbox" data-mitem="${esc(x)}"${sel.has(x) ? ' checked' : ''}> ${esc(x)}${MKT_DEFAULT.includes(x) ? '' : ` <button type="button" class="linkbtn" data-mdel="${esc(x)}" title="Remove from the list">✕</button>`}</label>`).join('')}</div>
-      <div class="row"><input id="mktAdd" placeholder="Add a product: exact in-game name" style="flex:1"><button type="button" class="small" id="mktAddBtn">Add</button></div>
-    </details>
+      <button type="button" class="primary" id="mktGo"${mktState.busy || !mkt.items.length ? ' disabled' : ''}>${mktState.busy ? 'Searching…' : 'Search prices'}</button></div>
+    <p class="note">${mkt.items.length ? `${mkt.items.length} product(s) from your list: ${esc(mkt.items.join(', '))}.` : 'Your product list is empty.'} <button type="button" class="linkbtn" id="mktEdit">Edit my products</button> (side panel, <b>My market products</b>).</p>
     ${mktState.msg ? `<p class="note">${esc(mktState.msg)}</p>` : ''}
     ${mktState.err ? `<p class="note" style="color:var(--bad)">${esc(mktState.err)}</p>` : ''}
     ${mktState.rows ? `<table class="htable"><thead><tr><th>Product</th><th class="r">Best sell</th><th>Where</th><th class="r">Best buy</th><th>Where</th></tr></thead><tbody>
@@ -2934,17 +2934,7 @@ function renderMarket(){
       ${mktState.unknown && mktState.unknown.length ? `<p class="note" style="color:var(--warn)">Not found in EVE: ${esc(mktState.unknown.join(', '))}</p>` : ''}<p class="note">${mktState.systems} system(s) within ${mkt.range} jump(s). Best sell = cheapest price to buy from; best buy = highest price you can sell at (check the order range). Click a system to set it as destination in game. Prices from CCP, refreshed every 5 minutes.</p>` : ''}`;
   $('#mktRange').addEventListener('change', e => { mkt.range = Number(e.target.value) || 0; mktSave(); });
   $('#mktGo').addEventListener('click', runMarket);
-  box.querySelectorAll('[data-mitem]').forEach(c => c.addEventListener('change', () => {
-    const x = c.dataset.mitem; mkt.on = mkt.on.filter(y => y !== x); if (c.checked) mkt.on.push(x); mktSave(); renderMarket(); }));
-  box.querySelectorAll('[data-mdel]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); const x = b.dataset.mdel;
-    mkt.items = mkt.items.filter(y => y !== x); mkt.on = mkt.on.filter(y => y !== x); mktSave(); renderMarket(); }));
-  const add = async () => { const v = $('#mktAdd').value.trim(); if (!v) return;
-    try{ const ok = await mktResolve([v]); if (!ok.length){ toast('Unknown product: type its exact in-game name.', true); return; }
-      const name = mktOfficial(v), have = mkt.items.find(x => x.toLowerCase() === name.toLowerCase()) || name;
-      if (!mkt.items.includes(have)) mkt.items.push(have); if (!mkt.on.includes(have)) mkt.on.push(have); mktSave(); renderMarket(); }
-    catch(e){ toast('Could not check the name with EVE servers.', true); } };
-  $('#mktAddBtn').addEventListener('click', add);
-  $('#mktAdd').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  $('#mktEdit').addEventListener('click', () => { $('#market').classList.remove('open'); mkt.open = true; mktSave(); renderMktCard(); $('#mktCard').scrollIntoView({ behavior:'smooth', block:'start' }); $('#mktAdd').focus(); });
   box.querySelectorAll('[data-mdest]').forEach(b => b.addEventListener('click', () => setDestination(Number(b.dataset.mdest), false, b.dataset.mname)));
 }
 function routeHtml(n){
@@ -3631,6 +3621,27 @@ window.addEventListener('storage', e => {
 $('#btnHelp').addEventListener('click', () => $('#help').classList.add('open'));
 $('#closeHelp').addEventListener('click', () => $('#help').classList.remove('open'));
 $('#closeMarket').addEventListener('click', () => $('#market').classList.remove('open'));
+function renderMktCard(){
+  const fold = $('#mktFold'); if (!fold) return;
+  fold.open = !!mkt.open;
+  $('#mktCount').textContent = `(${mkt.items.length})`;
+  $('#mktList').innerHTML = mkt.items.length ? mkt.items.map(x => `<span>${esc(x)} <button type="button" class="linkbtn" data-mdel="${esc(x)}" title="Remove">✕</button></span>`).join('')
+    : '<span class="note">No products yet: add the ones you want to follow.</span>';
+  $('#mktList').querySelectorAll('[data-mdel]').forEach(b => b.addEventListener('click', () => { mkt.items = mkt.items.filter(y => y !== b.dataset.mdel); mktSave(); renderMktCard(); renderMarket(); }));
+}
+async function mktAddItem(){
+  const inp = $('#mktAdd'), v = inp.value.trim(); if (!v) return;
+  try{ const ok = await mktResolve([v]); if (!ok.length){ toast('Unknown product: type its exact in-game name (English).', true); return; }
+    const name = mktOfficial(v);
+    if (!mkt.items.some(x => x.toLowerCase() === name.toLowerCase())) mkt.items.push(name);
+    inp.value = ''; mktSave(); renderMktCard(); renderMarket(); toast(`${name} added to your market products.`); }
+  catch(e){ toast('Could not check the name with EVE servers.', true); }
+}
+$('#mktFold').addEventListener('toggle', () => { mkt.open = $('#mktFold').open; mktSave(); });
+$('#mktAddBtn').addEventListener('click', mktAddItem);
+$('#mktAdd').addEventListener('keydown', e => { if (e.key === 'Enter') mktAddItem(); });
+renderMktCard();
+
 document.querySelectorAll('#help [role=tab]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#help [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('#help .tabpane').forEach(p => p.hidden = p.id !== b.dataset.tab);
