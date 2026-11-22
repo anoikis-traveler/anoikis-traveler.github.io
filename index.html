@@ -284,6 +284,11 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 #toast.err{border-color:var(--bad)}
 .modal{position:fixed;inset:0;background:rgba(3,5,10,.8);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
 .modal.open{display:flex}
+#ctxMenu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5);min-width:180px;padding:4px 0;display:grid}
+#ctxMenu[hidden]{display:none}
+#ctxMenu .ctxh{padding:4px 12px 6px;font-size:11px;color:var(--dim);border-bottom:1px solid var(--line);margin-bottom:2px}
+#ctxMenu button{background:none;border:0;text-align:left;padding:7px 12px;color:var(--text);font:inherit;font-size:13px;cursor:pointer;border-radius:0}
+#ctxMenu button:hover{background:var(--panel-2)}
 .mktItems{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0;font-size:13px}
 #mktFold summary{cursor:pointer;list-style-position:inside}
 .mtree{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:3px;margin-top:6px;padding:2px 0}
@@ -436,7 +441,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
         <input id="mktSearch" type="search" placeholder="Search all EVE market items…" style="width:100%" disabled>
         <div id="mktTree" class="mtree"><span class="note">Loading EVE market data…</span></div>
         <div id="mktHits" class="mtree" hidden></div>
-        <p class="note">Click a product to add it to your list (click again to remove). Searched by <b>🛒 Market nearby</b> (panel of a k-space system). No limit; kept in this browser until you change them.</p>
+        <p class="note">Click a product to add it to your list (click again to remove). Prices: <b>right-click</b> a k-space system on the map → <b>🛒 Market nearby</b>. No limit; kept in this browser until you change them.</p>
       </details>
     </section>
 
@@ -563,6 +568,15 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   </div>
 </div>
 
+<div class="modal" id="essModal" role="dialog" aria-modal="true" aria-labelledby="essTitle">
+  <div class="mbox" style="max-width:620px">
+    <h2 id="essTitle">ESS estimate</h2>
+    <div id="essBody"></div>
+    <div class="row"><button type="button" id="closeEss">Close</button></div>
+  </div>
+</div>
+
+<div id="ctxMenu" role="menu" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 
@@ -2411,6 +2425,7 @@ function render(){
     if (here){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, mine, '▼ '); labelY -= 14; }
     if (pilotsBySys[n.id]){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, pilotsBySys[n.id]); }
     g.addEventListener('pointerdown', ev => startDrag(ev, n));
+    g.addEventListener('contextmenu', ev => { ev.preventDefault(); ev.stopPropagation(); openCtx(ev, n); });
     g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); select('node', n.id); } });
   }
   // Deux systèmes sélectionnés : estompe le reste et montre la future connexion
@@ -2655,6 +2670,7 @@ let drag = null;
 const svg = $('#map');
 function startDrag(ev, n){
   ev.stopPropagation();
+  if (ev.button === 2) return;   // right button: context menu, not a drag
   drag = { n, sx:ev.clientX, sy:ev.clientY, ox:n.x, oy:n.y, moved:false, multi:ev.ctrlKey || ev.shiftKey || ev.metaKey };
   try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
 }
@@ -2829,11 +2845,11 @@ async function essLoadSov(){
 async function essRun(id){
   if (essScan && essScan.busy) return;
   const range = essRange;
-  essScan = { id, range, busy:true, done:0, rows:null, err:'' }; lastSelKey = ''; renderSel();
+  essScan = { id, range, busy:true, done:0, rows:null, err:'' }; renderEss();
   try{
     await Promise.all([ loadActivity(), essLoadSov() ]);
     const dist = await jumpsAround(id, range, info => Math.round(info[1] * 10) / 10 <= 0,   // nullsec only: the ESS does not exist elsewhere
-      () => { essScan.done = Object.keys(essNgb).length; lastSelKey = ''; renderSel(); });
+      () => { essScan.done = Object.keys(essNgb).length; renderEss(); });
     const kills = activity.kills || {};
     essScan.rows = Object.keys(dist).map(sid => { const info = essNgb[sid] || ['?', 0, []]; const sv = essSov[sid] || {};
       const npc = (kills[sid] || {}).npc_kills || 0;
@@ -2841,9 +2857,19 @@ async function essRun(id){
         owner:sv.alliance_id || sv.corporation_id || null };
     }).sort((a, b) => (Number(b.npcHeld === false) - Number(a.npcHeld === false)) || (b.npc - a.npc) || (a.jumps - b.jumps));
   }catch(e){ essScan.err = 'Could not reach EVE servers (' + (e.message || e) + '). Try again in a minute.'; }
-  essScan.busy = false; lastSelKey = ''; renderSel();
+  essScan.busy = false; renderEss();
 }
 const essIsk = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' B' : n >= 1e6 ? Math.round(n / 1e6) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' k' : '0';
+let essWin = null;   // { id, name } of the system the ESS window is about
+function openEss(id, name){ essWin = { id, name, cls:'NS' }; renderEss(); $('#essModal').classList.add('open'); }
+function renderEss(){
+  const box = $('#essBody'); if (!box || !essWin) return;
+  $('#essTitle').textContent = 'ESS estimate around ' + essWin.name;
+  box.innerHTML = essHtml(essWin);
+  const eR = $('#essRange'), eG = $('#essGo');
+  if (eR) eR.addEventListener('change', () => { essRange = Number(eR.value) || 2; store.set('whmap.essRange', essRange); });
+  if (eG) eG.addEventListener('click', () => { if (eR) essRange = Number(eR.value) || essRange; essRun(essWin.id); });
+}
 function essHtml(n){
   if (n.cls !== 'NS' || !isRealId(n.id)) return '';
   const sc = essScan && String(essScan.id) === String(n.id) ? essScan : null;
@@ -2860,7 +2886,7 @@ function essHtml(n){
     body = `<table class="htable"><thead><tr><th>System</th><th class="r">J</th><th class="r" title="NPCs killed in the last hour (CCP data)">NPC/h</th><th class="r" title="Rough estimate of the ISK added to the ESS Main Bank per hour: average bounty ${essIsk(ESS_BOUNTY[0])}–${essIsk(ESS_BOUNTY[1])} ISK per NPC, ${ESS_SHARE[0] * 100}–${ESS_SHARE[1] * 100} % kept in the Main Bank. NPC-held space has no ESS.">≈ ISK/h</th></tr></thead><tbody>${rows}</tbody></table>
       ${sc.rows.length > 40 ? `<p class="note">${sc.rows.length - 40} quieter system(s) not shown.</p>` : ''}`;
   }
-  return `<h3>ESS estimate (nullsec)</h3>
+  return `
     <div class="row"><label class="row" style="gap:6px;font-size:12.5px">Range <select id="essRange">${[1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === essRange ? ' selected' : ''}>${v} jump${v > 1 ? 's' : ''}</option>`).join('')}</select> from ${esc(n.name)}</label>
       <button type="button" class="small" id="essGo"${sc && sc.busy ? ' disabled' : ''}>${sc && sc.rows ? 'Refresh' : 'Estimate'}</button></div>
     ${body}
@@ -2985,7 +3011,6 @@ function renderNodePanel(box){
     ${(() => { const ks = (killFeed[n.id] || []); if (!ks.length) return ''; const st = killState(n.id); const now = Date.now();
       return `<div class="${st === 'alarm' ? 'kbanner' : 'routebox'}" style="${st === 'alarm' ? 'cursor:default;animation:none' : 'border-left-color:var(--bad)'}">${st === 'alarm' ? '⚠ Alarm: repeated kills' : 'Kills in the last hour'}</div>
       <div class="klist">${ks.slice(0, 8).map(k => `<a href="https://zkillboard.com/kill/${k.id}/" target="_blank" rel="noopener"><span class="ago">${fmtDur((now - k.time) / 60000)} ago</span><span>${esc(k.ship || 'unknown ship')}</span></a>`).join('')}</div>`; })()}
-    ${essHtml(n)}
     <label class="f">Shared notes (residents, structures, dangers…)<textarea id="nNotes">${esc(n.notes)}</textarea></label>
     <h3>Signatures</h3>
     <label class="f">In the in-game scanner: Ctrl+A, Ctrl+C, then paste here
@@ -3011,9 +3036,6 @@ function renderNodePanel(box){
     <div class="row"><button type="button" id="nPick"${linkPick ? ' disabled' : ''}>Select a 2nd system</button><span class="note">or Ctrl + click the other system</span></div>
     <div class="row"><button type="button" class="danger" id="nDel">Remove this system</button></div>`;
   const bM = $('#nMarket'); if (bM) bM.addEventListener('click', () => openMarket(n.id, n.name));
-  const eR = $('#essRange'), eG = $('#essGo');
-  if (eR) eR.addEventListener('change', () => { essRange = Number(eR.value) || 2; store.set('whmap.essRange', essRange); });
-  if (eG) eG.addEventListener('click', () => { if (eR) essRange = Number(eR.value) || essRange; essRun(n.id); });
   const bD = $('#nDest'), bW = $('#nWp');
   if (bD) bD.addEventListener('click', () => setDestination(n.id, false));
   if (bW) bW.addEventListener('click', () => setDestination(n.id, true));
@@ -3634,6 +3656,29 @@ window.addEventListener('storage', e => {
 $('#btnHelp').addEventListener('click', () => $('#help').classList.add('open'));
 $('#closeHelp').addEventListener('click', () => $('#help').classList.remove('open'));
 $('#closeMarket').addEventListener('click', () => $('#market').classList.remove('open'));
+$('#closeEss').addEventListener('click', () => $('#essModal').classList.remove('open'));
+/* Right-click menu on a system */
+function closeCtx(){ const m = $('#ctxMenu'); if (m) m.hidden = true; }
+function openCtx(ev, n){
+  const m = $('#ctxMenu'), real = isRealId(n.id), items = [];
+  if (isK(n.cls) && real) items.push(['mkt', '🛒 Market nearby']);
+  if (n.cls === 'NS' && real) items.push(['ess', '💰 ESS estimate (NPC kills)']);
+  items.push(['sel', 'Show details']);
+  m.innerHTML = `<div class="ctxh">${esc(n.name)}</div>` + items.map(([k, t]) => `<button type="button" data-ctx="${k}">${t}</button>`).join('');
+  m.hidden = false;
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.min(ev.clientX, innerWidth - r.width - 8) + 'px';
+  m.style.top = Math.min(ev.clientY, innerHeight - r.height - 8) + 'px';
+  m.querySelectorAll('[data-ctx]').forEach(b => b.addEventListener('click', () => {
+    closeCtx();
+    if (b.dataset.ctx === 'mkt') openMarket(n.id, n.name);
+    else if (b.dataset.ctx === 'ess') openEss(n.id, n.name);
+    else select('node', n.id);
+  }));
+}
+document.addEventListener('pointerdown', ev => { if (!ev.target.closest('#ctxMenu')) closeCtx(); });
+addEventListener('blur', closeCtx); addEventListener('resize', closeCtx);
+
 function renderMktCard(keepFold){
   const fold = $('#mktFold'); if (!fold) return;
   if (!keepFold) fold.open = !!mkt.open;
@@ -3729,7 +3774,7 @@ document.querySelectorAll('#help [role=tab]').forEach(b => b.addEventListener('c
   document.querySelectorAll('#help [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('#help .tabpane').forEach(p => p.hidden = p.id !== b.dataset.tab);
 }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); $('#market').classList.remove('open'); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); $('#market').classList.remove('open'); $('#essModal').classList.remove('open'); closeCtx(); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
 
 /* =========================================================
    Démarrage
