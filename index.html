@@ -9,6 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* Carte de navigation wormhole partagée : carte à gauche, panneaux à droite. Thème sombre unique. */
+#subBar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;font-size:14px;border-bottom:1px solid #6b5a1f;background:#2a230b;color:#ffe6a3}
+#subBar.expired{background:#2a1214;border-color:#5a2a2a;color:#ffc9c9}
+#subBar .cd{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:15px;font-weight:600;letter-spacing:.02em}
+#subBar code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:3px;font-size:14px;user-select:all}
+#subBar button{padding:3px 9px;font-size:12px}
+#subBar .prices{flex-basis:100%;font-size:13px;line-height:1.55;opacity:.95}
 :root{
   --bg:#070a12; --panel:#0e1424; --panel-2:#141c30; --line:#24314c; --text:#e2e8f3; --dim:#8b98b0;
   --accent:#f2a74b; --ok:#5fd68a; --warn:#f2c94b; --bad:#ef5a5a; --eol:#c07cff;
@@ -297,6 +303,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   <button id="btnSetup" type="button">Settings</button>
   <button id="btnLogin" type="button" class="primary">EVE login</button>
 </header>
+<div id="subBar" hidden role="status" aria-live="polite"></div>
 
 <div class="layout">
   <div id="mapwrap">
@@ -334,9 +341,9 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 
   <aside>
     <div id="getMapSide" hidden></div><div id="support">
-      <span class="tag">Support the map</span>
+      <span class="tag">Your own map</span>
       <div class="sp"><span class="ic" aria-hidden="true">☕</span>
-        <span><b>Help keep it free</b><small>If you'd like to help, send ISK in game to <b class="who">Sava Yesh</b>. Donating gives no extra access: everyone gets the same map.</small></span>
+        <span><b>Free for a week, then from 50 M ISK / week</b><small>Payments and donations go to <b class="who">Sava Yesh</b> in game. Put your map code, your name or your corporation's name in the reason.</small></span>
         <button type="button" class="small" id="btnCopyDonor" title="Copy the exact character name">Copy name</button></div>
     </div>
     <section class="card">
@@ -637,7 +644,7 @@ const remotePath = p => p.startsWith('pilots') ? p : 'data/' + p;
 /* ---------- Site lock (site.json next to index.html): only the owner's map exists on this site ---------- */
 let SITE_LOCK = null, lockState = 'out';   // out (not logged in) · pending · ok · noaccess
 const locked = () => !!SITE_LOCK && !demoMode;
-const canEdit = () => (locked() && lockState !== 'ok') ? false : (!shared() || myRole !== 'view');
+const canEdit = () => (locked() && lockState !== 'ok') ? false : (!shared() || (myRole !== 'view' && !subExpired()));
 let streams = [], persistT = null, renderT = null, reconnectT = null, roToast = 0;
 
 if (/[?&]debug\b/.test(location.search)) window.__wh = { get map(){ return map; }, put:(...a) => put(...a), fit:(...a) => fitRoute(...a) };
@@ -723,7 +730,7 @@ function liveOpen(){
         live.uid = a.uid; live.name = a.name; live.backoff = 1000;
         clearInterval(live.pingT); live.pingT = setInterval(() => { try{ if (ws.readyState === 1) ws.send('ping'); }catch(e){} }, 45000);
         res();
-        if (live.sub) liveSend({ op:'sub', map:live.sub }).catch(liveSubFail);
+        if (live.sub) liveSend({ op:'sub', map:live.sub }).then(r => setSub(r.sub)).catch(liveSubFail);
       }catch(e){ if (live.ws === ws){ live.ws = null; live.ready = null; } rej(new Error('Live server refused the login: ' + e.message)); try{ ws.close(); }catch(x){} }
     };
     ws.onmessage = ev => {
@@ -774,14 +781,63 @@ async function remote(method, path, body){
   if (!shared()) return;
   try{ await fbReq(method, `maps/${slot.mapOwner}/${remotePath(path)}`, body); }
   catch(e){
-    if (e.status === 401 || e.status === 403){ setSync('err', 'Write refused'); toast(myRole === 'view' ? 'You have read-only access to this map.' : 'The database refused the change: your access may have been removed.', true); }
+    if (e.status === 401 || e.status === 403){
+      if (subExpired()){ setSync('err', 'Read only · subscription ended'); return; }   // the banner explains it
+      setSync('err', 'Write refused'); toast(myRole === 'view' ? 'You have read-only access to this map.' : 'The database refused the change: your access may have been removed.', true);
+    }
     else setSync('err', 'Sharing: write error');
   }
 }
-function readOnlyToast(){ if (locked() && lockState !== 'ok') return; if (Date.now() - roToast > 4000){ roToast = Date.now(); toast('Read only: the map owner has not given you the right to edit it.', true); } }
+/* ---------- Abonnement de la carte : bandeau la veille de l'échéance, lecture seule ensuite ---------- */
+const SUB_PAYEE = 'Sava Yesh';
+let subInfo = null, subSkew = 0, subTick = null, subPricesOpen = false;
+const subFreeOrNone = () => !subInfo || subInfo.free || subInfo.until == null;
+function subLeft(){ return subFreeOrNone() ? Infinity : subInfo.until - (Date.now() + subSkew); }
+function subExpired(){ return subLeft() <= 0; }
+function setSub(info){
+  subInfo = info && typeof info === 'object' ? info : null;
+  subSkew = subInfo && subInfo.now ? subInfo.now - Date.now() : 0;
+  clearInterval(subTick); subTick = setInterval(renderSubBar, 1000);
+  renderSubBar();
+}
+function subPricesHtml(){
+  const c = subInfo && subInfo.code ? `<code>${esc(subInfo.code)}</code>` : 'the map owner\'s name';
+  return `Send ISK to <b>${esc(SUB_PAYEE)}</b> with ${c} in the reason (the owner's name or corporation name also works). Anyone can pay.<br>`
+    + `• 50 M / week: 2 characters · 100 M / week: 6 characters · Corporation (every member): 250 M / week up to 50 members, 400 M up to 100, 500 M above<br>`
+    + `• 4 weeks at once: 10 % off (180 M · 360 M · 900 M / 1 440 M / 1 800 M). Payments are seen within 15 minutes.`;
+}
+function renderSubBar(){
+  const bar = $('#subBar'); if (!bar) return;
+  const left = subLeft();
+  const show = !!subInfo && !subInfo.free && left < 24 * 3600e3 && lockState === 'ok';
+  bar.hidden = !show;
+  if (!show){ if (subInfo && left === Infinity) clearInterval(subTick); return; }
+  const expired = left <= 0;
+  bar.classList.toggle('expired', expired);
+  const t = Math.max(0, Math.floor(left / 1000)), hh = String(Math.floor(t / 3600)).padStart(2, '0'), mm = String(Math.floor(t / 60) % 60).padStart(2, '0'), ss = String(t % 60).padStart(2, '0');
+  const html = (expired
+    ? `<span>🔒 <b>This map's subscription has ended.</b> The map is read-only until it is renewed.</span>`
+    : `<span>⏳ <b>This map's ${subInfo.trial ? 'free week' : 'subscription'} ends in</b> <span class="cd">${hh}:${mm}:${ss}</span></span>`)
+    + ` <span>Renew: send ISK to <b>${esc(SUB_PAYEE)}</b> with ${subInfo.code ? `<code>${esc(subInfo.code)}</code>` : 'the owner\'s name'} in the reason.</span>`
+    + ` <button type="button" data-subprices>${subPricesOpen ? 'Hide prices' : 'Prices'}</button>`
+    + (subPricesOpen ? `<div class="prices">${subPricesHtml()}</div>` : '');
+  if (bar.dataset.h !== html){ bar.innerHTML = html; bar.dataset.h = html; }
+}
+document.addEventListener('click', ev => { if (ev.target.closest('[data-subprices]')){ subPricesOpen = !subPricesOpen; renderSubBar(); } });
+function subStatusText(){
+  if (!subInfo) return '';
+  if (subInfo.free) return ' Subscription: free.';
+  if (subInfo.until == null) return '';
+  const lbl = { p2:'2 characters', p6:'6 characters', corp:'corporation' }[subInfo.plan] || '';
+  const when = new Date(subInfo.until).toLocaleString(undefined, { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  return ` ${subExpired() ? 'Subscription ended' : (subInfo.trial ? 'Free week' : 'Subscription') + ' until ' + when}${lbl ? ' (' + lbl + ')' : ''}. Payment code: ${subInfo.code || '–'} → ISK to ${SUB_PAYEE}.`;
+}
+
+function readOnlyToast(){ if (locked() && lockState !== 'ok') return; if (Date.now() - roToast > 4000){ roToast = Date.now(); toast(subExpired() ? 'Read only: this map\'s subscription has ended. Renew it to edit again (see the banner).' : 'Read only: the map owner has not given you the right to edit it.', true); } }
 /* Écrit une valeur (null = supprimer) localement et dans la base partagée */
 function put(path, val){
   if (!canEdit() && !path.startsWith('pilots')){ readOnlyToast(); return; }
+  if (path.startsWith('pilots') && shared() && subExpired()) return;   // expired map: the server refuses position updates
   setAt(map, path.split('/'), val === undefined ? null : JSON.parse(JSON.stringify(val)));
   persistLocal(); scheduleRender();
   if (val === null || val === undefined) remote('DELETE', path); else remote('PUT', path, val);
@@ -800,6 +856,7 @@ let mapOwnerName = '';
 
 async function connectShared(){
   streams.forEach(e => e.close()); streams = []; clearTimeout(reconnectT);
+  if (typeof setSub === 'function'){ subInfo = null; renderSubBar(); }
   if (locked() && fb && tok){
     try{ await ensureFb(); }catch(e){ toast(e.message, true); setSync('err', 'Sharing: log in again'); lockState = 'out'; renderLock(); return; }
     const mo = await lockResolve();
@@ -833,12 +890,13 @@ async function connectShared(){
   const open = (sub, apply) => {
     if (liveMode()){
       live.onEv = m => {
+        if (m.ev === 'sub'){ setSub(m.data); return; }
         if (m.ev === 'put') apply(m.path, m.data);
         persistLocal(); scheduleRender();
         if (live.sub) setSync('on', liveLabel());   // not after "Access removed"
       };
       live.sub = slot.mapOwner;
-      liveSend({ op:'sub', map:slot.mapOwner }).catch(liveSubFail);
+      liveSend({ op:'sub', map:slot.mapOwner }).then(r => setSub(r.sub)).catch(liveSubFail);
       streams.push({ close(){ if (live.sub){ live.sub = null; live.onEv = null; liveSend({ op:'unsub' }).catch(() => {}); } } });
       return;
     }
@@ -3181,7 +3239,7 @@ async function openAccess(){
   const mine = sel.value === fb.uid;
   $('#aclBox').hidden = !mine;
   const lim = aclLimit();
-  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` : '') : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
+  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
   $('#ownersBox').hidden = !(SITE_LOCK && fb.uid === SITE_LOCK.owner && mine);
   $('#cfgLinkBox').hidden = !!SITE_LOCK;
   if (mine){ $('#cfgLink').value = cfgLink(); loadAcl(); if (!$('#ownersBox').hidden) loadOwners(); }
