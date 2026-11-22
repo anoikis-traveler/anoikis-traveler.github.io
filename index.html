@@ -232,6 +232,10 @@ svg#vol.panning{cursor:grabbing}
 .mpsub .chev{margin-left:auto;transition:transform .2s}
 .mpsub[aria-expanded="false"] .chev{transform:rotate(-90deg)}
 .who .live{fill:var(--ok)} .who .dead{fill:var(--bad)}
+.who .more{fill:var(--accent);font-weight:700}
+.whofull{display:none;paint-order:stroke;stroke:#070a12;stroke-width:3px;stroke-linejoin:round}
+.node:hover .whofull,.vnode:hover .whofull{display:inline}
+.node:hover .whoshort.hasmore,.vnode:hover .whoshort.hasmore{display:none}
 .mpanel .prow{padding:4px 6px}
 .legend{position:absolute;left:12px;bottom:12px;background:rgba(14,20,36,.92);border:1px solid var(--line);padding:8px 10px;font-size:11.5px;display:grid;gap:4px;border-radius:3px}
 .legend span{display:flex;align-items:center;gap:8px}
@@ -2364,6 +2368,17 @@ function whoSpans(textEl, items, prefix){
     const t = document.createElementNS(svgNS, 'tspan'); t.setAttribute('class', it.live ? 'live' : 'dead'); t.textContent = it.name; textEl.appendChild(t);
   });
 }
+/* Pilots shown above a system: the first two, then "+N"; hovering the system shows everyone (3 names per line) */
+function whoLabel(parent, x, y, mine, others, fs){
+  const all = [...(mine || []), ...(others || [])]; if (!all.length) return;
+  const pre = mine && mine.length ? '▼ ' : '', more = all.length - 2;
+  const short = el('text', { x, y, 'text-anchor':'middle', class:'who whoshort' + (more > 0 ? ' hasmore' : ''), 'font-size':fs }, parent);
+  whoSpans(short, all.slice(0, 2), pre);
+  if (more <= 0) return;
+  const m = document.createElementNS(svgNS, 'tspan'); m.setAttribute('class', 'more'); m.textContent = `  +${more}`; short.appendChild(m);
+  const lines = []; for (let i = 0; i < all.length; i += 3) lines.push(all.slice(i, i + 3));
+  lines.forEach((line, i) => { const t = el('text', { x, y:y - (lines.length - 1 - i) * (fs + 3), 'text-anchor':'middle', class:'who whofull', 'font-size':fs }, parent); whoSpans(t, line, i === 0 ? pre : ''); });
+}
 let hubSyncT = null;
 function renderAll(){ renderNav(); render(); renderLog(); renderPilot(); renderPilots(); renderExits(); renderKillAlarms(); renderHubCard(); clearTimeout(hubSyncT); hubSyncT = setTimeout(syncHubLinks, 1500); }
 function render(){
@@ -2441,8 +2456,7 @@ function render(){
     if (ws && ws.eff){ const e = el('text', { x:NW - 10, y:54, 'text-anchor':'end', class:'eff' }, g); e.textContent = ws.eff.replace(' Star', '').replace('Cataclysmic Variable', 'Cataclysmic'); }
     else if (k && (k.ship_kills || k.pod_kills)){ const e = el('text', { x:NW - 10, y:54, 'text-anchor':'end', class:'act' }, g); e.textContent = `☠ ${k.ship_kills + k.pod_kills}/h`; }
     let labelY = -10;
-    if (here){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, mine, '▼ '); labelY -= 14; }
-    if (pilotsBySys[n.id]){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, pilotsBySys[n.id]); }
+    if (here || pilotsBySys[n.id]) whoLabel(g, NW/2, labelY, here ? mine : [], pilotsBySys[n.id], 11);
     g.addEventListener('pointerdown', ev => startDrag(ev, n));
     g.addEventListener('contextmenu', ev => { ev.preventDefault(); ev.stopPropagation(); openCtx(ev, n); });
     g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); select('node', n.id); } });
@@ -2643,11 +2657,7 @@ function renderVolume(){
     const t2 = el('text', { x:p.x, y:p.y + rad + fs * 2 + 2, 'text-anchor':'middle', class:'vcls', 'font-size':Math.max(9, fs * 0.62), fill:c.color }, g); t2.textContent = sub.join(' · ');
     { const marks = ['enter', 'exit'].filter(k => isMark(k, it.id)); const mfs = Math.max(13, fs * 1.05);
       marks.forEach((k, mi) => { const mt = el('text', { x:p.x, y:p.y + rad + fs * 2 + 4 + mfs * (1.25 + mi * 1.25), 'text-anchor':'middle', class:'vmark mkpulse ' + k, 'font-size':mfs }, g); mt.textContent = MARKS[k].label; }); }
-    if (mineV.length || pilotsBySys[it.id]){
-      const w = el('text', { x:p.x, y:p.y - rad - 8, 'text-anchor':'middle', class:'who', 'font-size':11 }, g);
-      if (mineV.length) whoSpans(w, mineV, '▼ ');
-      if (pilotsBySys[it.id]){ if (mineV.length){ const sp = document.createElementNS(svgNS, 'tspan'); sp.textContent = ' · '; w.appendChild(sp); } whoSpans(w, pilotsBySys[it.id]); }
-    }
+    if (mineV.length || pilotsBySys[it.id]) whoLabel(g, p.x, p.y - rad - 8, mineV, pilotsBySys[it.id], 11);
     g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); select('node', it.id); } });
   }
   if (pmV && !linkBetween(sel.id, sel.second) && P[String(sel.id)] && P[String(sel.second)]){
