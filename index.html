@@ -539,6 +539,12 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       </form>
       <div id="ownList"></div>
     </div>
+    <div id="impBox">
+      <h3>Import from another mapper</h3>
+      <p class="note">Export your map from <b>Pathfinder</b> (Map → Settings → Import/Export → Export) or <b>Wanderer</b> (Map settings → Import/Export → Export), then choose the .json file. Systems, connections and (from Wanderer) signatures are <b>added</b> to the displayed map; nothing already on it is removed.</p>
+      <div class="row"><button type="button" class="small" id="impPick">Choose a file…</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>
+      <div id="impRes" class="note"></div>
+    </div>
     <div class="row"><button type="button" id="closeAccess">Close</button></div>
   </div>
 </div>
@@ -3611,6 +3617,7 @@ async function openAccess(){
   sel.value = slot.mapOwner || fb.uid;
   const mine = sel.value === fb.uid;
   $('#aclBox').hidden = !mine;
+  $('#impBox').hidden = !canEdit(); impData = null; renderImport();
   const lim = aclLimit();
   const cm = $('#createMapBox'); if (cm) cm.remove();
   const pb = $('#planBox'); if (pb) pb.remove();
@@ -3704,6 +3711,98 @@ window.addEventListener('storage', e => {
 $('#btnHelp').addEventListener('click', () => $('#help').classList.add('open'));
 $('#closeHelp').addEventListener('click', () => $('#help').classList.remove('open'));
 $('#closeMarket').addEventListener('click', () => $('#market').classList.remove('open'));
+/* ---------- Import from Pathfinder or Wanderer exports ---------- */
+function parseMapperExport(j){
+  const sysOut = [], linkOut = [], sigOut = [];
+  const pos = p => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y)) ? { x:Number(p.x), y:Number(p.y) } : null;
+  const pf = j && (j.data && Array.isArray(j.data.systems) ? j.data : null);
+  if (pf && pf.systems.length && pf.systems[0].systemId != null){
+    // Pathfinder: systems carry an internal id, connections point to it
+    const byInternal = {};
+    for (const x of pf.systems){ const id = Number(x.systemId); if (!id) continue; byInternal[x.id] = id;
+      sysOut.push({ id, name:x.name || '', pos:pos(x.position), note:x.alias && x.alias !== x.name ? x.alias : '' }); }
+    for (const c of (pf.connections || [])){
+      const a = byInternal[c.source], b = byInternal[c.target]; if (!a || !b) continue;
+      const t = Array.isArray(c.type) ? c.type : [];
+      const size = t.includes('wh_jump_mass_s') || t.includes('frigate') ? 'S' : t.includes('wh_jump_mass_m') ? 'M' : t.includes('wh_jump_mass_l') ? 'L' : t.includes('wh_jump_mass_xl') ? 'XL' : '?';
+      linkOut.push({ a, b, gate:c.scope === 'stargate' || c.scope === 'jumpbridge', mass:t.includes('wh_critical') ? 'critical' : t.includes('wh_reduced') ? 'reduced' : 'fresh', eol:t.includes('wh_eol'), size });
+    }
+    return { format:'Pathfinder', name:(j.config && j.config.name) || '', systems:sysOut, links:linkOut, sigs:sigOut };
+  }
+  if (j && Array.isArray(j.systems) && Array.isArray(j.connections)){
+    // Wanderer (versioned export, or the older settings export)
+    for (const x of j.systems){ const id = Number(x.solar_system_id != null ? x.solar_system_id : x.id); if (!id) continue;
+      sysOut.push({ id, name:x.name || '', pos:pos(x.position), note:[x.custom_name, x.description].filter(Boolean).join(' · ') }); }
+    const SIZE = ['S', 'M', 'L', 'XL', 'XL'];
+    for (const c of j.connections){
+      const a = Number(c.source), b = Number(c.target); if (!a || !b) continue;
+      linkOut.push({ a, b, gate:Number(c.type) === 1 || Number(c.type) === 2, mass:Number(c.mass_status) === 2 ? 'critical' : Number(c.mass_status) === 1 ? 'reduced' : 'fresh',
+        eol:Number(c.time_status) === 1 || Number(c.time_status) === 2, size:SIZE[Number(c.ship_size_type)] || '?', wh:c.wormhole_type && c.wormhole_type !== 'K162' ? String(c.wormhole_type) : '' });
+    }
+    for (const g of (Array.isArray(j.signatures) ? j.signatures : [])){
+      const id = String(g.eve_id || '').toUpperCase(); if (!/^[A-Z]{3}-\d{3}$/.test(id)) continue;
+      sigOut.push({ sys:Number(g.solar_system_id), sig:{ id, group:g.group || g.kind || '', type:g.type || g.name || '', strength:'' } });
+    }
+    return { format:'Wanderer', name:(j.map && j.map.name) || '', systems:sysOut, links:linkOut, sigs:sigOut };
+  }
+  return null;
+}
+let impData = null;
+function renderImport(msg){
+  const r = $('#impRes'); if (!r) return;
+  if (msg){ r.innerHTML = msg; return; }
+  if (!impData){ r.innerHTML = ''; return; }
+  const d = impData;
+  r.innerHTML = `<b>${esc(d.format)}</b> export${d.name ? ' “' + esc(d.name) + '”' : ''}: ${d.systems.length} system(s), ${d.links.length} connection(s)${d.sigs.length ? ', ' + d.sigs.length + ' signature(s)' : ''}.
+    <div class="row" style="margin-top:6px"><button type="button" class="small primary" id="impGo">Add to the displayed map</button><button type="button" class="small" id="impCancel">Cancel</button></div>`;
+  $('#impGo').addEventListener('click', runImport);
+  $('#impCancel').addEventListener('click', () => { impData = null; renderImport(); });
+}
+async function runImport(){
+  const d = impData; if (!d) return;
+  if (!canEdit()){ readOnlyToast(); return; }
+  impData = null;
+  // place the imported chain to the right of what is already on the map, keeping its own layout
+  const have = Object.values(map.nodes).filter(Boolean);
+  const maxX = have.length ? Math.max(...have.map(n => n.x)) : 0, minY = have.length ? Math.min(...have.map(n => n.y)) : 0;
+  const ps = d.systems.filter(x => x.pos), x0 = ps.length ? Math.min(...ps.map(x => x.pos.x)) : 0, y0 = ps.length ? Math.min(...ps.map(x => x.pos.y)) : 0;
+  const SX = 2.2, SY = 1.6, ox = (have.length ? maxX + NW + 240 : 0), oy = minY;
+  let addedS = 0, addedL = 0, addedG = 0, failed = 0, i = 0;
+  for (const x of d.systems){
+    i++; if (i % 4 === 1) renderImport(`Adding systems… ${i}/${d.systems.length}`);
+    if (map.nodes[x.id]) continue;
+    try{
+      const info = await systemInfo(x.id);
+      const n = { id:x.id, name:info.name, sec:info.sec, region:info.region, cls:info.cls, stargates:info.stargates || [], notes:x.note || '', sigs:[],
+        x:x.pos ? Math.round(ox + (x.pos.x - x0) * SX) : freeSpot(null).x, y:x.pos ? Math.round(oy + (x.pos.y - y0) * SY) : freeSpot(null).y };
+      put(`nodes/${x.id}`, n); addedS++;
+    }catch(e){ failed++; }
+  }
+  for (const l of d.links){
+    if (!map.nodes[l.a] || !map.nodes[l.b] || linkBetween(l.a, l.b)) continue;
+    const id = 'l' + uid();
+    put(`links/${id}`, { id, a:l.a, b:l.b, type:l.gate ? 'gate' : 'wh', mass:l.mass, eol:!!l.eol, eolAt:l.eol ? Date.now() : null, size:l.size || '?', wh:l.wh || '', created:Date.now(), passes:[] });
+    addedL++;
+  }
+  const bySys = {};
+  for (const g of d.sigs){ if (map.nodes[g.sys]) (bySys[g.sys] = bySys[g.sys] || []).push(g.sig); }
+  for (const sys in bySys){
+    const list = (map.nodes[sys].sigs || []).map(s => Object.assign({}, s));
+    for (const sg of bySys[sys]) if (!list.some(s => s.id === sg.id)){ list.push(sg); addedG++; }
+    list.sort((a, b) => a.id.localeCompare(b.id)); put(`nodes/${sys}/sigs`, list);
+  }
+  renderImport(`Done: ${addedS} system(s), ${addedL} connection(s)${addedG ? ', ' + addedG + ' signature(s)' : ''} added${failed ? ` · ${failed} system(s) could not be read from EVE servers` : ''}. Systems already on the map were kept as they were.`);
+  toast(`Import done: ${addedS} system(s), ${addedL} connection(s) added.`);
+  lastSelKey = ''; scheduleRender();
+}
+$('#impPick').addEventListener('click', () => { if (!canEdit()){ readOnlyToast(); return; } $('#impFile').click(); });
+$('#impFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try{ impData = parseMapperExport(JSON.parse(await f.text())); }catch(err){ impData = null; }
+  if (!impData || !impData.systems.length){ impData = null; renderImport('<span style="color:var(--bad)">This file is not a Pathfinder or Wanderer map export.</span>'); return; }
+  renderImport();
+});
+
 $('#closeEss').addEventListener('click', () => $('#essModal').classList.remove('open'));
 /* Right-click menu on a system */
 function closeCtx(){ const m = $('#ctxMenu'); if (m) m.hidden = true; }
