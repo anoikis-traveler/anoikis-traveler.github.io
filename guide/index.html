@@ -43,6 +43,7 @@ section{padding:64px 0;border-top:1px solid var(--line)}
 h2{font:700 34px var(--display);letter-spacing:.05em;text-transform:uppercase;margin:0 0 8px}
 .lead{color:var(--dim);margin:0 0 30px;max-width:760px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.card.new{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;position:relative}.card .nb{position:absolute;top:12px;right:12px;background:var(--accent);color:#1b1206;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
 .card .ic{font-size:24px;line-height:1}
 .card h3{margin:10px 0 6px;font-size:17px}
@@ -133,6 +134,8 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
   <p class="lead" data-i18n="feat_lead"></p>
   <p class="langs" data-i18n="feat_langs"></p>
   <div class="grid">
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">🛒</div><h3 data-i18n="f9_t"></h3><p data-i18n="f9_p"></p></div>
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">💰</div><h3 data-i18n="f10_t"></h3><p data-i18n="f10_p"></p></div>
     <div class="card"><div class="ic">🧭</div><h3 data-i18n="f1_t"></h3><p data-i18n="f1_p"></p></div>
     <div class="card"><div class="ic">👥</div><h3 data-i18n="f2_t"></h3><p data-i18n="f2_p"></p></div>
     <div class="card"><div class="ic">🔗</div><h3 data-i18n="f3_t"></h3><p data-i18n="f3_p"></p></div>
@@ -236,7 +239,7 @@ f4_t:'Thera & Turnur',f4_p:'Live EVE-Scout data. The hubs stay out of the way an
 f5_t:'Routes to trade hubs',f5_p:'Jita, Amarr, Dodixie, Rens and Hek: the shortest route, the safest route and the shortest route avoiding Thera and Turnur.',
 f6_t:'Danger alerts',f6_p:'Recent kills are highlighted on the map, with an alarm when a system has 3 or more kills in 10 minutes.',
 f7_t:'3D view',f7_p:'Turn the chain in 3D around the selected system to read big chains at a glance.',
-f8_t:'Assets & destination',f8_p:'See where your characters have assets, get a reminder after each jump, and send a route straight to your EVE client.',
+f8_t:'Assets & destination',f8_p:'See where your characters have assets, get a reminder after each jump, and send a route straight to your EVE client.',new_b:'New',f9_t:'Market nearby',f9_p:'Click any k-space system of your chain: best buy and sell prices within 0 to 5 jumps for your own product list, picked from the whole EVE market. One click on a system sets it as destination in game.',f10_t:'ESS estimate',f10_p:'Your hole opens in nullsec? Choose a range in jumps and see the nullsec systems around with their NPC kills of the last hour and an estimate of what their ESS is collecting. An estimate only: EVE does not publish ESS content.',
 shots_title:'Screenshots',shots_lead:'Taken from the demo, which you can try without logging in.',
 cap_system:'A selected system with its details',cap_system_html:'<b>System details.</b> Click a system: class, region, recent kills, shared notes, signatures and the route from you.',
 cap_thera:'Thera connected to the chain',cap_thera_html:'<b>Thera & Turnur.</b> Every exit with its size, time left and jumps from your current system.',
@@ -297,7 +300,7 @@ f4_t:'Thera et Turnur',f4_p:'Données EVE-Scout en direct. Les hubs restent à l
 f5_t:'Routes vers les hubs',f5_p:'Jita, Amarr, Dodixie, Rens et Hek : la route la plus courte, la plus sûre, et la plus courte sans passer par Thera ni Turnur.',
 f6_t:'Alertes de danger',f6_p:'Les kills récents sont signalés sur la carte, avec une alarme dès qu\'un système compte 3 kills ou plus en 10 minutes.',
 f7_t:'Vue 3D',f7_p:'Faites tourner la chaîne en 3D autour du système sélectionné pour lire les grandes chaînes d\'un coup d\'œil.',
-f8_t:'Assets et destination',f8_p:'Voyez où vos personnages ont des assets, recevez un rappel après chaque saut, et envoyez une route directement dans votre client EVE.',
+f8_t:'Assets et destination',f8_p:'Voyez où vos personnages ont des assets, recevez un rappel après chaque saut, et envoyez une route directement dans votre client EVE.',new_b:'Nouveau',f9_t:'Marché à proximité',f9_p:'Cliquez sur un système de l\'espace connu de votre chaîne : meilleurs prix d\'achat et de vente à 0 à 5 sauts pour votre propre liste de produits, choisie dans tout le marché EVE. Un clic sur un système l\'envoie comme destination dans le jeu.',f10_t:'Estimation ESS',f10_p:'Votre trou débouche en 0.0 ? Choisissez une portée en sauts et voyez les systèmes 0.0 autour, avec leurs PNJ tués dans la dernière heure et une estimation de ce que leur ESS accumule. Une estimation seulement : EVE ne publie pas le contenu des ESS.',
 shots_title:'Captures d\'écran',shots_lead:'Prises dans la démo, que vous pouvez essayer sans vous connecter.',
 cap_system:'Un système sélectionné et son détail',cap_system_html:'<b>Détail d\'un système.</b> Cliquez sur un système : classe, région, kills récents, notes partagées, signatures et route depuis vous.',
 cap_thera:'Thera reliée à la chaîne',cap_thera_html:'<b>Thera et Turnur.</b> Chaque sortie avec sa taille, son temps restant et le nombre de sauts depuis votre système.',
@@ -358,7 +361,7 @@ f4_t:'Thera & Turnur',f4_p:'Live-Daten von EVE-Scout. Die Hubs bleiben außen vo
 f5_t:'Routen zu Handelszentren',f5_p:'Jita, Amarr, Dodixie, Rens und Hek: kürzeste Route, sicherste Route und kürzeste Route ohne Thera und Turnur.',
 f6_t:'Gefahrenwarnungen',f6_p:'Aktuelle Kills werden auf der Karte markiert, mit Alarm, sobald ein System 3 oder mehr Kills in 10 Minuten hat.',
 f7_t:'3D-Ansicht',f7_p:'Drehe die Kette in 3D um das ausgewählte System, um auch große Ketten auf einen Blick zu lesen.',
-f8_t:'Assets & Ziel',f8_p:'Sieh, wo deine Charaktere Assets haben, erhalte nach jedem Sprung einen Hinweis und schicke Routen direkt an deinen EVE-Client.',
+f8_t:'Assets & Ziel',f8_p:'Sieh, wo deine Charaktere Assets haben, erhalte nach jedem Sprung einen Hinweis und schicke Routen direkt an deinen EVE-Client.',new_b:'Neu',f9_t:'Markt in der Nähe',f9_p:'Klicke auf ein K-Space-System deiner Kette: beste Kauf- und Verkaufspreise in 0 bis 5 Sprüngen für deine eigene Produktliste, gewählt aus dem ganzen EVE-Markt. Ein Klick auf ein System setzt es als Ziel im Spiel.',f10_t:'ESS-Schätzung',f10_p:'Dein Loch öffnet sich ins Nullsec? Wähle eine Reichweite in Sprüngen und sieh die Nullsec-Systeme ringsum mit ihren NPC-Kills der letzten Stunde und einer Schätzung dessen, was ihr ESS sammelt. Nur eine Schätzung: EVE veröffentlicht den ESS-Inhalt nicht.',
 shots_title:'Screenshots',shots_lead:'Aus der Demo, die du ohne Login ausprobieren kannst.',
 cap_system:'Ein ausgewähltes System mit Details',cap_system_html:'<b>Systemdetails.</b> Klicke auf ein System: Klasse, Region, aktuelle Kills, geteilte Notizen, Signaturen und die Route von dir aus.',
 cap_thera:'Thera mit der Kette verbunden',cap_thera_html:'<b>Thera & Turnur.</b> Jeder Ausgang mit Größe, Restzeit und Sprüngen von deinem aktuellen System.',
@@ -419,7 +422,7 @@ f4_t:'Thera y Turnur',f4_p:'Datos de EVE-Scout en directo. Los hubs se quedan ap
 f5_t:'Rutas a centros comerciales',f5_p:'Jita, Amarr, Dodixie, Rens y Hek: la ruta más corta, la más segura y la más corta sin pasar por Thera ni Turnur.',
 f6_t:'Alertas de peligro',f6_p:'Las muertes recientes se marcan en el mapa, con alarma cuando un sistema tiene 3 o más en 10 minutos.',
 f7_t:'Vista 3D',f7_p:'Gira la cadena en 3D alrededor del sistema seleccionado para leer cadenas grandes de un vistazo.',
-f8_t:'Activos y destino',f8_p:'Mira dónde tienen activos tus personajes, recibe un aviso tras cada salto y envía una ruta directamente a tu cliente de EVE.',
+f8_t:'Activos y destino',f8_p:'Mira dónde tienen activos tus personajes, recibe un aviso tras cada salto y envía una ruta directamente a tu cliente de EVE.',new_b:'Nuevo',f9_t:'Mercado cercano',f9_p:'Haz clic en un sistema de espacio conocido de tu cadena: mejores precios de compra y venta a 0–5 saltos para tu propia lista de productos, elegida en todo el mercado de EVE. Un clic en un sistema lo fija como destino en el juego.',f10_t:'Estimación ESS',f10_p:'¿Tu agujero sale a nullsec? Elige un alcance en saltos y mira los sistemas nullsec cercanos con sus NPC muertos en la última hora y una estimación de lo que acumula su ESS. Solo una estimación: EVE no publica el contenido de los ESS.',
 shots_title:'Capturas',shots_lead:'Tomadas de la demo, que puedes probar sin iniciar sesión.',
 cap_system:'Un sistema seleccionado con sus detalles',cap_system_html:'<b>Detalle del sistema.</b> Haz clic en un sistema: clase, región, muertes recientes, notas compartidas, firmas y la ruta desde ti.',
 cap_thera:'Thera conectada a la cadena',cap_thera_html:'<b>Thera y Turnur.</b> Cada salida con su tamaño, el tiempo que le queda y los saltos desde tu sistema actual.',
