@@ -2657,7 +2657,13 @@ function renderVolume(){
 }
 (() => {
   const vs = $('#vol'); let vd = null;
+  const vnodeAt = ev => { let g = ev.target.closest && ev.target.closest('.vnode');
+    if (!g && document.elementsFromPoint) g = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest && x.closest('.vnode')).find(Boolean) || null;
+    return g; };
+  // right-click on a system in the 3D view: same menu as the flat view
+  vs.addEventListener('contextmenu', ev => { const g = vnodeAt(ev); const n = g && map.nodes[g.dataset.node]; if (!n) return; ev.preventDefault(); openCtx(ev, n); });
   vs.addEventListener('pointerdown', ev => {
+    if (ev.button === 2) return;   // right button: context menu, not a rotation
     let g = ev.target.closest && ev.target.closest('.vnode');
     if (!g && document.elementsFromPoint) g = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest && x.closest('.vnode')).find(Boolean) || null;
     const linkId = !g && ev.target.dataset && ev.target.dataset.link;
@@ -3684,6 +3690,7 @@ function openCtx(ev, n){
   const m = $('#ctxMenu'), real = isRealId(n.id), items = [];
   if (isK(n.cls) && real) items.push(['mkt', '🛒 Market nearby']);
   if ((n.cls === 'NS' || n.cls === 'LS') && real) items.push(['ess', '💰 Activity (NPC kills)']);
+  if (real) items.push(['dotlan', '🗺️ Open on DOTLAN']);
   items.push(['sel', 'Show details']);
   m.innerHTML = `<div class="ctxh">${esc(n.name)}</div>` + items.map(([k, t]) => `<button type="button" data-ctx="${k}">${t}</button>`).join('');
   m.hidden = false;
@@ -3694,6 +3701,7 @@ function openCtx(ev, n){
     closeCtx();
     if (b.dataset.ctx === 'mkt') openMarket(n.id, n.name);
     else if (b.dataset.ctx === 'ess') openEss(n.id, n.name, n.cls);
+    else if (b.dataset.ctx === 'dotlan') window.open('https://evemaps.dotlan.net/system/' + encodeURIComponent(n.name), '_blank', 'noopener');
     else select('node', n.id);
   }));
 }
