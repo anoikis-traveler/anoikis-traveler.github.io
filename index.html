@@ -333,12 +333,6 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
     <button id="btnHome" type="button" title="Center the map on your home system">⌂ Home</button>
     <button id="btnThera" type="button" class="hubbtn" title="Center the map on Thera">Thera</button>
     <button id="btnTurnur" type="button" class="hubbtn" title="Center the map on Turnur">Turnur</button>
-    <span class="exitgrp">
-      <button id="btnEnter" type="button" class="exitbtn enter" title="Set ENTER to your current system">ENTER</button><button id="btnEnterSet" type="button" class="exitbtn enter pin" title="Reset ENTER to your current system" aria-label="Reset ENTER to your current system" hidden>📍</button>
-    </span>
-    <span class="exitgrp">
-      <button id="btnExit" type="button" class="exitbtn" title="Set EXIT to your current system">EXIT</button><button id="btnExitSet" type="button" class="exitbtn pin" title="Reset EXIT to your current system" aria-label="Reset EXIT to your current system" hidden>📍</button>
-    </span>
   </div>
   <span class="grow"></span>
   <span class="sync" id="syncState" title="Sharing status">Local map</span>
@@ -556,7 +550,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
         <li>Click a <b>connection</b> to set the hole type (e.g. H296), mass, end of life, and use the mass calculator.</li>
         <li>Log each pass ("Add a pass") to track remaining mass, shared with the whole corp.</li>
         <li>Drag systems with the mouse, use the wheel to zoom, drag the background to pan. <b>3D view</b> rotates around the selected system.</li>
-        <li><b>ENTER</b> / <b>EXIT</b>: one click marks your current system as the way in / the way home, a second click removes it.</li>
+        <li><b>ENTER</b> / <b>EXIT</b>: right-click a system → <b>Set as ENTER</b> (the way in) or <b>Set as EXIT</b> (the way home); right-click it again to remove the mark.</li>
         <li><b>Thera</b> and <b>Turnur</b> (EVE-Scout data) stay hidden until your chain connects to them: show them with the 🌀 button, and see jumps and routes in the right panel.</li>
         <li><b>📦 Assets</b> shows where your characters have assets; after each wormhole jump, a window lists the ones within your chosen range.</li>
         <li><b>Set destination</b> (system panel) sends the route straight to your EVE client.</li>
@@ -1419,10 +1413,11 @@ function clickMark(kind){
 function renderNav(){
   for (const kind of Object.keys(MARKS)){
     const M = MARKS[kind], m = markOf(kind), b = $(M.btn);
+    if (!b) continue;   // ENTER / EXIT now live in the right-click menu
     b.textContent = m ? `${M.label}: ${m.name}` : M.label;
     b.classList.toggle('set', !!m);
     b.title = m ? `${M.label} is ${m.name}${m.by ? ' (set by ' + m.by + ')' : ''}. Click to remove it.` : `Set ${M.label} to your current system`;
-    $(M.pin).hidden = !m;
+    if ($(M.pin)) $(M.pin).hidden = !m;
   }
   const h = $('#btnHome');
   h.textContent = cfg.home ? `⌂ ${cfg.home.name}` : '⌂ Home';
@@ -3401,10 +3396,6 @@ setInterval(() => { if (assetsOn && tok) loadAssets(false); }, 10 * 60e3);
 setTimeout(() => { if (assetsOn && tok) loadAssets(false); }, 4000);
 $('#btnHere').addEventListener('click', () => { if (me.current != null && map.nodes[me.current]) focusSystem(me.current); else toast('Your character\'s location is unknown: log in with EVE.', true); });
 $('#btnHome').addEventListener('click', () => { if (!cfg.home){ openSetup(); $('#homeName').focus(); toast('Enter your home system, then Save.'); return; } gotoSystem(cfg.home.id, cfg.home.name); });
-$('#btnExit').addEventListener('click', () => clickMark('exit'));
-$('#btnExitSet').addEventListener('click', () => markHere('exit'));
-$('#btnEnter').addEventListener('click', () => clickMark('enter'));
-$('#btnEnterSet').addEventListener('click', () => markHere('enter'));
 $('#btnTurnur').addEventListener('click', () => gotoHub('turnur'));
 document.querySelectorAll('#hubCard [data-htab]').forEach(b => b.addEventListener('click', () => { hubTab = b.dataset.htab; hubOpen = null; renderHubCard(); }));
 $('#btnCenter').addEventListener('click', () => { if (cfg.view === 'vol'){ vcam = { yaw:-0.5, pitch:0.95, k:1, px:0, py:0 }; renderVolume(); } else center(); });
@@ -3690,6 +3681,7 @@ function openCtx(ev, n){
   const m = $('#ctxMenu'), real = isRealId(n.id), items = [];
   if (isK(n.cls) && real) items.push(['mkt', '🛒 Market nearby']);
   if ((n.cls === 'NS' || n.cls === 'LS') && real) items.push(['ess', '💰 Activity (NPC kills)']);
+  if (canEdit()) for (const k of ['enter', 'exit']) items.push(isMark(k, n.id) ? ['un' + k, `Remove ${MARKS[k].label}`] : ['set' + k, `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`]);
   if (real) items.push(['dotlan', '🗺️ Open on DOTLAN']);
   items.push(['sel', 'Show details']);
   m.innerHTML = `<div class="ctxh">${esc(n.name)}</div>` + items.map(([k, t]) => `<button type="button" data-ctx="${k}">${t}</button>`).join('');
@@ -3701,6 +3693,8 @@ function openCtx(ev, n){
     closeCtx();
     if (b.dataset.ctx === 'mkt') openMarket(n.id, n.name);
     else if (b.dataset.ctx === 'ess') openEss(n.id, n.name, n.cls);
+    else if (/^set(enter|exit)$/.test(b.dataset.ctx)) setMark(b.dataset.ctx.slice(3), n.id);
+    else if (/^un(enter|exit)$/.test(b.dataset.ctx)) clearMark(b.dataset.ctx.slice(2));
     else if (b.dataset.ctx === 'dotlan') window.open('https://evemaps.dotlan.net/system/' + encodeURIComponent(n.name), '_blank', 'noopener');
     else select('node', n.id);
   }));
