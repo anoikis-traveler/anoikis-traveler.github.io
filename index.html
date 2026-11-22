@@ -286,6 +286,17 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 .modal.open{display:flex}
 .mktItems{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0;font-size:13px}
 #mktFold summary{cursor:pointer;list-style-position:inside}
+.mtree{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:3px;margin-top:6px;padding:2px 0}
+.mtree .mg{display:flex;align-items:center;gap:4px;white-space:nowrap;padding:4px 6px 4px calc(6px + var(--d) * 10px);cursor:pointer;font-size:12.5px;user-select:none}
+.mtree .mg:hover,.mtree .ty:hover{background:var(--panel-2)}
+.mtree .mg .car{display:inline-block;width:10px;color:var(--dim);transition:transform .12s;font-size:10px}
+.mtree .mg.open .car{transform:rotate(90deg)}
+.mtree .ty{display:flex;align-items:center;gap:6px;padding:2px 6px 2px calc(8px + var(--d) * 10px);cursor:pointer;font-size:12px}
+.mtree .ty img{width:22px;height:22px;border-radius:2px;flex:none;background:var(--bg)}
+.mtree .ty .tn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mtree .ty .tn small{color:var(--dim);margin-left:6px}
+.mtree .ty.on{color:var(--ok)}
+.mtree .ty .ck{width:14px;flex:none;color:var(--ok);font-weight:700}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
 .modal .mbox{background:var(--panel);border:1px solid var(--line);max-width:680px;width:100%;padding:22px;display:grid;gap:12px;max-height:92vh;overflow:auto;border-radius:4px}
 .modal h2{font-family:var(--display);font-size:1.8rem;margin:0}
@@ -422,8 +433,10 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
     <section class="card" id="mktCard">
       <details id="mktFold"><summary><h2 style="display:inline">🛒 My market products</h2> <span class="dim" id="mktCount"></span></summary>
         <div id="mktList" class="mktItems"></div>
-        <div class="row"><input id="mktAdd" placeholder="Exact in-game name (English)" style="flex:1"><button type="button" class="small" id="mktAddBtn">Add</button></div>
-        <p class="note">Products searched by <b>🛒 Market nearby</b> (panel of a k-space system). No limit; kept in this browser until you change them.</p>
+        <input id="mktSearch" type="search" placeholder="Search all EVE market items…" style="width:100%" disabled>
+        <div id="mktTree" class="mtree"><span class="note">Loading EVE market data…</span></div>
+        <div id="mktHits" class="mtree" hidden></div>
+        <p class="note">Click a product to add it to your list (click again to remove). Searched by <b>🛒 Market nearby</b> (panel of a k-space system). No limit; kept in this browser until you change them.</p>
       </details>
     </section>
 
@@ -2926,7 +2939,7 @@ function renderMarket(){
   box.innerHTML = `
     <div class="row"><label class="row" style="gap:6px">Range <select id="mktRange">${[0, 1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === mkt.range ? ' selected' : ''}>${v ? v + ' jump' + (v > 1 ? 's' : '') : 'this system only'}</option>`).join('')}</select></label>
       <button type="button" class="primary" id="mktGo"${mktState.busy || !mkt.items.length ? ' disabled' : ''}>${mktState.busy ? 'Searching…' : 'Search prices'}</button></div>
-    <p class="note">${mkt.items.length ? `${mkt.items.length} product(s) from your list: ${esc(mkt.items.join(', '))}.` : 'Your product list is empty.'} <button type="button" class="linkbtn" id="mktEdit">Edit my products</button> (side panel, <b>My market products</b>).</p>
+    <p class="note">${mkt.items.length ? `${mkt.items.length} product(s) from your list: ${esc(mkt.items.join(', '))}.` : 'Your product list is empty.'} <button type="button" class="linkbtn" id="mktEdit">Choose my products</button> (side panel, <b>My market products</b>).</p>
     ${mktState.msg ? `<p class="note">${esc(mktState.msg)}</p>` : ''}
     ${mktState.err ? `<p class="note" style="color:var(--bad)">${esc(mktState.err)}</p>` : ''}
     ${mktState.rows ? `<table class="htable"><thead><tr><th>Product</th><th class="r">Best sell</th><th>Where</th><th class="r">Best buy</th><th>Where</th></tr></thead><tbody>
@@ -2934,7 +2947,7 @@ function renderMarket(){
       ${mktState.unknown && mktState.unknown.length ? `<p class="note" style="color:var(--warn)">Not found in EVE: ${esc(mktState.unknown.join(', '))}</p>` : ''}<p class="note">${mktState.systems} system(s) within ${mkt.range} jump(s). Best sell = cheapest price to buy from; best buy = highest price you can sell at (check the order range). Click a system to set it as destination in game. Prices from CCP, refreshed every 5 minutes.</p>` : ''}`;
   $('#mktRange').addEventListener('change', e => { mkt.range = Number(e.target.value) || 0; mktSave(); });
   $('#mktGo').addEventListener('click', runMarket);
-  $('#mktEdit').addEventListener('click', () => { $('#market').classList.remove('open'); mkt.open = true; mktSave(); renderMktCard(); $('#mktCard').scrollIntoView({ behavior:'smooth', block:'start' }); $('#mktAdd').focus(); });
+  $('#mktEdit').addEventListener('click', () => { $('#market').classList.remove('open'); mkt.open = true; mktSave(); renderMktCard(); $('#mktCard').scrollIntoView({ behavior:'smooth', block:'start' }); if (!mktSde && !mktSdeP) mktInitTree(); });
   box.querySelectorAll('[data-mdest]').forEach(b => b.addEventListener('click', () => setDestination(Number(b.dataset.mdest), false, b.dataset.mname)));
 }
 function routeHtml(n){
@@ -3621,26 +3634,96 @@ window.addEventListener('storage', e => {
 $('#btnHelp').addEventListener('click', () => $('#help').classList.add('open'));
 $('#closeHelp').addEventListener('click', () => $('#help').classList.remove('open'));
 $('#closeMarket').addEventListener('click', () => $('#market').classList.remove('open'));
-function renderMktCard(){
+function renderMktCard(keepFold){
   const fold = $('#mktFold'); if (!fold) return;
-  fold.open = !!mkt.open;
+  if (!keepFold) fold.open = !!mkt.open;
   $('#mktCount').textContent = `(${mkt.items.length})`;
   $('#mktList').innerHTML = mkt.items.length ? mkt.items.map(x => `<span>${esc(x)} <button type="button" class="linkbtn" data-mdel="${esc(x)}" title="Remove">✕</button></span>`).join('')
-    : '<span class="note">No products yet: add the ones you want to follow.</span>';
-  $('#mktList').querySelectorAll('[data-mdel]').forEach(b => b.addEventListener('click', () => { mkt.items = mkt.items.filter(y => y !== b.dataset.mdel); mktSave(); renderMktCard(); renderMarket(); }));
+    : '<span class="note">No products yet: click the ones you want to follow below.</span>';
+  $('#mktList').querySelectorAll('[data-mdel]').forEach(b => b.addEventListener('click', () => { const x = b.dataset.mdel; mkt.items = mkt.items.filter(y => y !== x); mktSave();
+    const id = mkt.ids[x]; if (id) document.querySelectorAll(`#mktFold .ty[data-t="${id}"]`).forEach(r => { r.classList.remove('on'); r.querySelector('.ck').textContent = ''; });
+    renderMktCard(true); renderMarket(); }));
 }
-async function mktAddItem(){
-  const inp = $('#mktAdd'), v = inp.value.trim(); if (!v) return;
-  try{ const ok = await mktResolve([v]); if (!ok.length){ toast('Unknown product: type its exact in-game name (English).', true); return; }
-    const name = mktOfficial(v);
-    if (!mkt.items.some(x => x.toLowerCase() === name.toLowerCase())) mkt.items.push(name);
-    inp.value = ''; mktSave(); renderMktCard(); renderMarket(); toast(`${name} added to your market products.`); }
-  catch(e){ toast('Could not check the name with EVE servers.', true); }
+/* All EVE market items, read from the same daily EVE data file as the fitting page (EVEShip.fit, jsDelivr) */
+let mktSde = null, mktSdeP = null, mktKids = null;
+async function mktLoadSde(){
+  if (mktSde) return mktSde;
+  if (mktSdeP) return mktSdeP;
+  mktSdeP = (async () => {
+    let v = '14.3720952.0';
+    try{ const c = store.get('whmap.sdever', null); if (c && Date.now() - c.at < 6 * 3600e3) v = c.v;
+      else { const r = await fetch('https://data.jsdelivr.com/v1/packages/npm/@eveshipfit/sde/resolved?specifier=14'); const j = await r.json();
+        if (typeof j.version === 'string' && j.version.startsWith('14.')){ v = j.version; store.set('whmap.sdever', { at:Date.now(), v }); } } }catch(e){}
+    const r = await fetch(`https://cdn.jsdelivr.net/npm/@eveshipfit/sde@${v}/dist/sde.dat`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = new Uint8Array(await r.arrayBuffer());
+    const dv = new DataView(buf.buffer), td = new TextDecoder();
+    const u32 = q => dv.getUint32(q, true), i32 = q => dv.getInt32(q, true), u16 = q => dv.getUint16(q, true);
+    const field = (t, i) => { const vt = t - i32(t), n = u16(vt); return 4 + 2 * i < n ? u16(vt + 4 + 2 * i) : 0; };
+    const int = (t, i) => { const o = field(t, i); return o ? i32(t + o) : 0; };
+    const bool = (t, i) => { const o = field(t, i); return o ? dv.getUint8(t + o) !== 0 : false; };
+    const str = (t, i) => { const o = field(t, i); if (!o) return ''; const x = t + o + u32(t + o); return td.decode(new Uint8Array(buf.buffer, x + 4, u32(x))); };
+    const tables = (t, i) => { const o = field(t, i); if (!o) return []; const x = t + o + u32(t + o), n = u32(x), out = []; for (let k = 0; k < n; k++){ const e = x + 4 + 4 * k; out.push(e + u32(e)); } return out; };
+    const root = u32(0), types = new Map(), groups = new Map();
+    for (const t of tables(root, 1)){ if (!bool(t, 4) || !int(t, 6)) continue; types.set(int(t, 0), { id:int(t, 0), name:str(t, 1), market:int(t, 6), meta:int(t, 7) }); }
+    for (const t of tables(root, 8)) groups.set(int(t, 0), { id:int(t, 0), name:str(t, 1), parent:int(t, 2) });
+    const kids = new Map(), items = new Map();
+    for (const g of groups.values()){ if (!kids.has(g.parent)) kids.set(g.parent, []); kids.get(g.parent).push(g); }
+    for (const t of types.values()){ if (!items.has(t.market)) items.set(t.market, []); items.get(t.market).push(t); }
+    for (const l of kids.values()) l.sort((a, b) => a.name.localeCompare(b.name));
+    for (const l of items.values()) l.sort((a, b) => (a.meta || 0) - (b.meta || 0) || a.name.localeCompare(b.name));
+    const list = [...types.values()].map(t => ({ t, low:t.name.toLowerCase(), g:(groups.get(t.market) || {}).name || '' }));
+    return mktSde = { types, groups, kids, items, list };
+  })();
+  try{ return await mktSdeP; }catch(e){ mktSdeP = null; throw e; }
 }
-$('#mktFold').addEventListener('toggle', () => { mkt.open = $('#mktFold').open; mktSave(); });
-$('#mktAddBtn').addEventListener('click', mktAddItem);
-$('#mktAdd').addEventListener('keydown', e => { if (e.key === 'Enter') mktAddItem(); });
+const mktHas = name => mkt.items.includes(name);
+const mktRow = (t, d, extra = '') => `<div class="ty${mktHas(t.name) ? ' on' : ''}" data-t="${t.id}" style="--d:${d}" title="Click to ${mktHas(t.name) ? 'remove from' : 'add to'} your list"><span class="ck">${mktHas(t.name) ? '✓' : ''}</span><img src="https://images.evetech.net/types/${t.id}/icon?size=32" alt="" loading="lazy"><span class="tn">${esc(t.name)}${extra}</span></div>`;
+const mktGroup = (g, d) => `<div class="mg" data-g="${g.id}" style="--d:${d}"><span class="car">▸</span>${esc(g.name)}</div><div class="kids" hidden></div>`;
+async function mktInitTree(){
+  const tree = $('#mktTree');
+  try{
+    const S = await mktLoadSde();
+    tree.innerHTML = (S.kids.get(0) || []).map(g => mktGroup(g, 0)).join('');
+    $('#mktSearch').disabled = false;
+  }catch(e){ tree.innerHTML = `<span class="note" style="color:var(--bad)">Could not load the EVE market data (${esc(e.message || e)}).</span> <button type="button" class="small" id="mktRetry">Retry</button>`;
+    $('#mktRetry').addEventListener('click', () => { tree.innerHTML = '<span class="note">Loading EVE market data…</span>'; mktInitTree(); }); }
+}
+function mktExpand(el){
+  const kids = el.nextElementSibling, open = kids.hidden;
+  kids.hidden = !open; el.classList.toggle('open', open);
+  if (!open || kids.dataset.done) return;
+  const d = Number(el.style.getPropertyValue('--d')) + 1, id = Number(el.dataset.g);
+  kids.innerHTML = (mktSde.kids.get(id) || []).map(g => mktGroup(g, d)).join('') + (mktSde.items.get(id) || []).map(t => mktRow(t, d)).join('')
+    || `<div class="note" style="padding:2px 8px 2px calc(8px + ${d} * 10px)">Empty</div>`;
+  kids.dataset.done = '1';
+}
+function mktRunSearch(){
+  const q = $('#mktSearch').value.trim().toLowerCase();
+  $('#mktTree').hidden = !!q; $('#mktHits').hidden = !q;
+  if (!q || !mktSde) return;
+  const words = q.split(/\s+/);
+  const hits = mktSde.list.filter(x => words.every(w => x.low.includes(w))).sort((a, b) => (b.low.startsWith(q) - a.low.startsWith(q)) || a.t.name.localeCompare(b.t.name)).slice(0, 150);
+  $('#mktHits').innerHTML = hits.length ? hits.map(x => mktRow(x.t, 0, `<small>${esc(x.g)}</small>`)).join('') : '<div class="note" style="padding:6px">Nothing found.</div>';
+}
+function mktToggle(row){
+  const t = mktSde && mktSde.types.get(Number(row.dataset.t)); if (!t) return;
+  if (mktHas(t.name)) mkt.items = mkt.items.filter(x => x !== t.name);
+  else { mkt.items.push(t.name); mkt.ids[t.name] = t.id; }
+  mktSave();
+  // update every row of this product (tree and search results) without closing the open folders
+  document.querySelectorAll(`#mktFold .ty[data-t="${t.id}"]`).forEach(r => { const on = mktHas(t.name); r.classList.toggle('on', on); r.querySelector('.ck').textContent = on ? '✓' : ''; });
+  renderMktCard(true); renderMarket();
+}
+$('#mktFold').addEventListener('toggle', () => { mkt.open = $('#mktFold').open; mktSave(); if (mkt.open && !mktSde && !mktSdeP) mktInitTree(); });
+$('#mktFold').addEventListener('click', ev => {
+  const g = ev.target.closest('.mtree .mg'); if (g){ mktExpand(g); return; }
+  const r = ev.target.closest('.mtree .ty'); if (r) mktToggle(r);
+});
+{ let tmo; $('#mktSearch').addEventListener('input', () => { clearTimeout(tmo); tmo = setTimeout(mktRunSearch, 150); });
+  $('#mktSearch').addEventListener('keydown', e => { if (e.key === 'Escape'){ e.target.value = ''; mktRunSearch(); } }); }
 renderMktCard();
+if (mkt.open) mktInitTree();
 
 document.querySelectorAll('#help [role=tab]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#help [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
