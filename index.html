@@ -232,6 +232,13 @@ svg#vol.panning{cursor:grabbing}
 .mpsub .chev{margin-left:auto;transition:transform .2s}
 .mpsub[aria-expanded="false"] .chev{transform:rotate(-90deg)}
 .who .live{fill:var(--ok)} .who .dead{fill:var(--bad)}
+.who .more{fill:var(--accent);font-weight:700}
+.whofull{display:none}
+.whotop{pointer-events:none}
+.whobg{fill:rgba(14,20,36,.96);stroke:var(--accent);stroke-width:1.2px;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}
+.whoshow{font-weight:600}
+#links,#nodes,#labels,#volScene{transition:opacity .15s}
+svg.whodim #links,svg.whodim #nodes,svg.whodim #labels,svg.whodim #volScene{opacity:.22}
 .mpanel .prow{padding:4px 6px}
 .legend{position:absolute;left:12px;bottom:12px;background:rgba(14,20,36,.92);border:1px solid var(--line);padding:8px 10px;font-size:11.5px;display:grid;gap:4px;border-radius:3px}
 .legend span{display:flex;align-items:center;gap:8px}
@@ -353,11 +360,12 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   <div id="mapwrap">
     <div id="lockMsg" hidden><div class="lbox"><h3>🔒 Private map</h3><p id="lockText"></p><div class="row" style="justify-content:center"><button type="button" class="primary" id="lockLogin">EVE login</button><a class="btn" href="?demo">Watch the demo</a><a class="btn" href="guide/">Guide</a></div><div class="getmap" id="getMapLock"></div></div></div>
     <svg id="map" aria-label="Systems map">
-      <g id="vp"><g id="links"></g><g id="nodes"></g><g id="labels"></g></g>
+      <g id="vp"><g id="links"></g><g id="nodes"></g><g id="labels"></g><g id="whoTop" class="whotop"></g></g>
     </svg>
     <svg id="vol" aria-label="3D systems map" hidden>
       <defs id="volDefs"></defs>
       <g id="volScene"></g>
+      <g id="volWho" class="whotop"></g>
     </svg>
     <div id="killAlarm" aria-live="assertive"></div>
     <div id="assetAlert" aria-live="polite" hidden></div>
@@ -2359,6 +2367,33 @@ function whoSpans(textEl, items, prefix){
     const t = document.createElementNS(svgNS, 'tspan'); t.setAttribute('class', it.live ? 'live' : 'dead'); t.textContent = it.name; textEl.appendChild(t);
   });
 }
+/* Pilots shown above a system: the first two, then "+N"; hovering the system shows everyone (one name per line) */
+function whoLabel(parent, x, y, mine, others, fs){
+  const all = [...(mine || []), ...(others || [])]; if (!all.length) return;
+  const pre = mine && mine.length ? '▼ ' : '', more = all.length - 2;
+  const short = el('text', { x, y, 'text-anchor':'middle', class:'who whoshort' + (more > 0 ? ' hasmore' : ''), 'font-size':fs }, parent);
+  whoSpans(short, all.slice(0, 2), pre);
+  if (more <= 0) return;
+  const m = document.createElementNS(svgNS, 'tspan'); m.setAttribute('class', 'more'); m.textContent = `  +${more}`; short.appendChild(m);
+  const lines = all.map(x => [x]);   // one name per line, in a single column
+  lines.forEach((line, i) => { const t = el('text', { x, y:y - (lines.length - 1 - i) * (fs + 3), 'text-anchor':'middle', class:'who whofull', 'font-size':fs }, parent); whoSpans(t, line, i === 0 ? pre : ''); });
+  parent.addEventListener('pointerenter', () => { whoKey = whoKeyOf(parent); showWho(parent); });
+  parent.addEventListener('pointerleave', () => { whoKey = null; hideWho(); });
+  if (whoKey && whoKeyOf(parent) === whoKey) requestAnimationFrame(() => { if (whoKey === whoKeyOf(parent) && parent.isConnected) showWho(parent); });   // map redrawn while hovering
+}
+let whoKey = null;
+const whoKeyOf = g => (g.dataset && g.dataset.node) || g.getAttribute('aria-label') || '';
+/* hovered system with more than two pilots: the full list is highlighted on top, the rest of the map fades */
+function showWho(g){
+  const svg = g.ownerSVGElement, top = svg && svg.querySelector('.whotop'); if (!top) return;
+  top.innerHTML = '';
+  const box = el('g', g.getAttribute('transform') ? { transform:g.getAttribute('transform') } : {}, top);
+  const bg = el('rect', { class:'whobg', rx:5 }, box);
+  g.querySelectorAll('.whofull').forEach(t => { const c = t.cloneNode(true); c.setAttribute('class', 'who whoshow'); box.appendChild(c); });
+  try{ const b = box.getBBox(); bg.setAttribute('x', b.x - 8); bg.setAttribute('y', b.y - 5); bg.setAttribute('width', b.width + 16); bg.setAttribute('height', b.height + 10); }catch(e){}
+  svg.classList.add('whodim');
+}
+function hideWho(){ document.querySelectorAll('.whotop').forEach(t => { t.innerHTML = ''; const svg = t.ownerSVGElement; if (svg) svg.classList.remove('whodim'); }); }
 let hubSyncT = null;
 function renderAll(){ renderNav(); render(); renderLog(); renderPilot(); renderPilots(); renderExits(); renderKillAlarms(); renderHubCard(); clearTimeout(hubSyncT); hubSyncT = setTimeout(syncHubLinks, 1500); }
 function render(){
@@ -2369,7 +2404,7 @@ function render(){
   if (vol){ renderVolume(); renderSel(); return; }
   const gl = $('#links'), gn = $('#nodes'), glab = $('#labels');
   const route = currentRoute();
-  gl.innerHTML = ''; gn.innerHTML = ''; glab.innerHTML = '';
+  gl.innerHTML = ''; gn.innerHTML = ''; glab.innerHTML = ''; hideWho();
   const pairSeen = {}, pairCount = {};
   for (const l of linksArr()){ const k = [String(l.a), String(l.b)].sort().join('|'); pairCount[k] = (pairCount[k] || 0) + 1; }
   const focusIds = new Set(sel && sel.kind === 'node' ? [sel.id, sel.second].filter(x => x != null && !HUB_IDS.includes(Number(x))).map(String) : []);
@@ -2436,8 +2471,7 @@ function render(){
     if (ws && ws.eff){ const e = el('text', { x:NW - 10, y:54, 'text-anchor':'end', class:'eff' }, g); e.textContent = ws.eff.replace(' Star', '').replace('Cataclysmic Variable', 'Cataclysmic'); }
     else if (k && (k.ship_kills || k.pod_kills)){ const e = el('text', { x:NW - 10, y:54, 'text-anchor':'end', class:'act' }, g); e.textContent = `☠ ${k.ship_kills + k.pod_kills}/h`; }
     let labelY = -10;
-    if (here){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, mine, '▼ '); labelY -= 14; }
-    if (pilotsBySys[n.id]){ const w = el('text', { x:NW/2, y:labelY, 'text-anchor':'middle', class:'who' }, g); whoSpans(w, pilotsBySys[n.id]); }
+    if (here || pilotsBySys[n.id]) whoLabel(g, NW/2, labelY, here ? mine : [], pilotsBySys[n.id], 11);
     g.addEventListener('pointerdown', ev => startDrag(ev, n));
     g.addEventListener('contextmenu', ev => { ev.preventDefault(); ev.stopPropagation(); openCtx(ev, n); });
     g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); select('node', n.id); } });
@@ -2549,7 +2583,7 @@ function volGradients(){
 }
 function renderVolume(){
   volGradients();
-  const scene = $('#volScene'); scene.innerHTML = '';
+  const scene = $('#volScene'); scene.innerHTML = ''; hideWho();
   const { pos, comps } = volLayout();
   const ids = Object.keys(pos);
   if (!ids.length){
@@ -2638,11 +2672,7 @@ function renderVolume(){
     const t2 = el('text', { x:p.x, y:p.y + rad + fs * 2 + 2, 'text-anchor':'middle', class:'vcls', 'font-size':Math.max(9, fs * 0.62), fill:c.color }, g); t2.textContent = sub.join(' · ');
     { const marks = ['enter', 'exit'].filter(k => isMark(k, it.id)); const mfs = Math.max(13, fs * 1.05);
       marks.forEach((k, mi) => { const mt = el('text', { x:p.x, y:p.y + rad + fs * 2 + 4 + mfs * (1.25 + mi * 1.25), 'text-anchor':'middle', class:'vmark mkpulse ' + k, 'font-size':mfs }, g); mt.textContent = MARKS[k].label; }); }
-    if (mineV.length || pilotsBySys[it.id]){
-      const w = el('text', { x:p.x, y:p.y - rad - 8, 'text-anchor':'middle', class:'who', 'font-size':11 }, g);
-      if (mineV.length) whoSpans(w, mineV, '▼ ');
-      if (pilotsBySys[it.id]){ if (mineV.length){ const sp = document.createElementNS(svgNS, 'tspan'); sp.textContent = ' · '; w.appendChild(sp); } whoSpans(w, pilotsBySys[it.id]); }
-    }
+    if (mineV.length || pilotsBySys[it.id]) whoLabel(g, p.x, p.y - rad - 8, mineV, pilotsBySys[it.id], 11);
     g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); select('node', it.id); } });
   }
   if (pmV && !linkBetween(sel.id, sel.second) && P[String(sel.id)] && P[String(sel.second)]){
