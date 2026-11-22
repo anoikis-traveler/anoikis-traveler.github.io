@@ -21,6 +21,7 @@ header.top .wrap{display:flex;align-items:center;gap:18px;height:60px}
 .brand b{color:var(--accent)}
 nav.links{display:flex;gap:16px;margin-left:auto;font-size:14px}
 nav.links a{color:var(--dim);text-decoration:none}nav.links a:hover{color:var(--text)}
+.langs{margin:-6px 0 18px;font-size:14px;color:var(--dim)}
 .lang{display:flex;gap:2px;border:1px solid var(--line);border-radius:7px;padding:2px}
 .lang button{font:600 12px var(--mono);background:none;border:0;color:var(--dim);padding:5px 8px;border-radius:5px;cursor:pointer}
 .lang button[aria-pressed="true"]{background:var(--accent);color:#1b1206}
@@ -129,6 +130,7 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
 <section id="features"><div class="wrap">
   <h2 data-i18n="feat_title"></h2>
   <p class="lead" data-i18n="feat_lead"></p>
+  <p class="langs" data-i18n="feat_langs"></p>
   <div class="grid">
     <div class="card"><div class="ic">🧭</div><h3 data-i18n="f1_t"></h3><p data-i18n="f1_p"></p></div>
     <div class="card"><div class="ic">👥</div><h3 data-i18n="f2_t"></h3><p data-i18n="f2_p"></p></div>
@@ -223,7 +225,7 @@ hero_tag:'A shared wormhole mapper for EVE Online that follows your trail throug
 hero_sub:'Log in with EVE and fly: every jump is added to your group\'s map in real time. Thera and Turnur connections, routes to trade hubs and a 3D view are built in. Private, nothing to install, first week free.',
 btn_demo:'Try the demo',btn_open:'Open the map',btn_request:'Get your own map',
 alt_overview:'Anoikis Traveler showing a wormhole chain with pilots, connections and the Thera panel',
-feat_title:'Features',feat_lead:'Everything a wormhole group needs to scout, roll and get home, on one screen.',
+feat_title:'Features',feat_langs:'🌐 This guide: English · Français · Deutsch · Español. The map and the fitting tool are in English for now.',feat_lead:'Everything a wormhole group needs to scout, roll and get home, on one screen.',
 f1_t:'Automatic tracking',f1_p:'The map follows your character: each system you jump into is added with its connection, live.',
 f2_t:'Shared with your group',f2_p:'Everyone on the map sees the same chain and where every pilot is. Green means the map is open, the EVE badge means in game.',
 f3_t:'Connection details',f3_p:'Wormhole type, mass state, end of life, a mass calculator and a log of passes shared with the whole group.',
@@ -261,7 +263,7 @@ s10_t:'Share with your group',
 s10_p:'<p>The map owner opens <span class="k">Access</span> and invites up to <b>9 more characters</b>, with edit or read-only rights. They log in on the same page and land on your map automatically. Nobody else can see it.</p>',
 req_title:'Get your own map',req_lead:'Create it yourself in one click. Your first week is free and starts the first time you open it, then from 50 M ISK a week.',
 req_how:'How to create it',req_open:'Open the map',
-req_steps:'<li>Open the map and log in with EVE with the character that will <b>own</b> your group\'s map (usually your corporation\'s director).</li><li>Click <b>Create my map</b>: your map opens right away and your free week starts.</li><li>Invite your group from <b>Access</b>: 2 or 6 characters, or your whole corporation.</li><li>To keep it, send ISK in game to <b>Sava Yesh</b> with your map code (shown in <b>Access</b>).</li>',
+req_steps:'<li>Open the map and log in with EVE with the character that will <b>own</b> your group\'s map (usually your corporation\'s director).</li><li>Click <b>Create my map</b> and choose your plan (1 week or 4 weeks at once): your map opens right away and your free week starts.</li><li>Invite your group from <b>Access</b>: 2 or 6 characters, or your whole corporation.</li><li>To keep it, send ISK in game to <b>Sava Yesh</b> with your map code (shown in <b>Access</b>).</li>',
 req_what:'Good to know',req_what_p:'<p>One map per character. The character who creates the map owns it and manages its members. Nothing to install, no mail to send.</p>',
 copy_name:'Copy name',copy_subject:'Copy subject',copied:'Copied',
 faq_title:'FAQ',
@@ -284,7 +286,7 @@ hero_tag:'Une carte de wormholes partagée pour EVE Online, qui suit votre trace
 hero_sub:'Connectez-vous avec EVE et volez : chaque saut s\'ajoute en direct à la carte de votre groupe. Connexions Thera et Turnur, routes vers les hubs de commerce et vue 3D sont incluses. Privé, rien à installer, première semaine gratuite.',
 btn_demo:'Essayer la démo',btn_open:'Ouvrir la carte',btn_request:'Avoir sa propre carte',
 alt_overview:'Anoikis Traveler affichant une chaîne de wormholes avec les pilotes, les connexions et le panneau Thera',
-feat_title:'Fonctions',feat_lead:'Tout ce qu\'un groupe wormhole utilise pour scanner, fermer des trous et rentrer, sur un seul écran.',
+feat_title:'Fonctions',feat_langs:'🌐 Ce guide : English · Français · Deutsch · Español. La carte et l\'outil de fitting sont en anglais pour le moment.',feat_lead:'Tout ce qu\'un groupe wormhole utilise pour scanner, fermer des trous et rentrer, sur un seul écran.',
 f1_t:'Suivi automatique',f1_p:'La carte suit votre personnage : chaque système où vous sautez est ajouté avec sa connexion, en direct.',
 f2_t:'Partagée avec le groupe',f2_p:'Tout le monde voit la même chaîne et la position de chaque pilote. Vert : carte ouverte ; badge EVE : en jeu.',
 f3_t:'Détail des connexions',f3_p:'Type de trou, état de masse, fin de vie, calculateur de masse et journal des passages partagé avec tout le groupe.',
@@ -322,7 +324,7 @@ s10_t:'Partager avec le groupe',
 s10_p:'<p>Le propriétaire de la carte ouvre <span class="k">Access</span> et invite jusqu\'à <b>9 autres personnages</b>, en modification ou en lecture seule. Ils se connectent sur la même page et arrivent directement sur votre carte. Personne d\'autre ne la voit.</p>',
 req_title:'Avoir sa propre carte',req_lead:'Créez-la vous-même en un clic. La première semaine est gratuite et démarre à la première ouverture, ensuite à partir de 50 M ISK par semaine.',
 req_how:'Comment la créer',req_open:'Ouvrir la carte',
-req_steps:'<li>Ouvrez la carte et connectez-vous avec EVE avec le personnage qui sera <b>propriétaire</b> de la carte du groupe (en général le directeur de la corporation).</li><li>Cliquez sur <b>Create my map</b> : votre carte s\'ouvre aussitôt et votre semaine gratuite commence.</li><li>Invitez votre groupe depuis <b>Access</b> : 2 ou 6 personnages, ou toute votre corporation.</li><li>Pour la garder, envoyez des ISK en jeu à <b>Sava Yesh</b> avec le code de votre carte (affiché dans <b>Access</b>).</li>',
+req_steps:'<li>Ouvrez la carte et connectez-vous avec EVE avec le personnage qui sera <b>propriétaire</b> de la carte du groupe (en général le directeur de la corporation).</li><li>Cliquez sur <b>Create my map</b> et choisissez votre formule (1 semaine ou 4 semaines d\'un coup) : votre carte s\'ouvre aussitôt et votre semaine gratuite commence.</li><li>Invitez votre groupe depuis <b>Access</b> : 2 ou 6 personnages, ou toute votre corporation.</li><li>Pour la garder, envoyez des ISK en jeu à <b>Sava Yesh</b> avec le code de votre carte (affiché dans <b>Access</b>).</li>',
 req_what:'Bon à savoir',req_what_p:'<p>Une carte par personnage. Le personnage qui crée la carte en est propriétaire et gère ses membres. Rien à installer, aucun mail à envoyer.</p>',
 copy_name:'Copier le nom',copy_subject:'Copier l\'objet',copied:'Copié',
 faq_title:'Questions fréquentes',
@@ -345,7 +347,7 @@ hero_tag:'Ein gemeinsamer Wurmloch-Mapper für EVE Online, der deiner Spur durch
 hero_sub:'Mit EVE einloggen und losfliegen: Jeder Sprung landet live auf der Karte deiner Gruppe. Thera- und Turnur-Verbindungen, Routen zu den Handelszentren und eine 3D-Ansicht sind eingebaut. Privat, keine Installation, erste Woche kostenlos.',
 btn_demo:'Demo ausprobieren',btn_open:'Karte öffnen',btn_request:'Eigene Karte anfragen',
 alt_overview:'Anoikis Traveler mit einer Wurmlochkette, Piloten, Verbindungen und dem Thera-Bereich',
-feat_title:'Funktionen',feat_lead:'Alles, was eine Wurmloch-Gruppe zum Scannen, Rollen und Heimkommen braucht, auf einem Bildschirm.',
+feat_langs:'🌐 Dieser Guide: English · Français · Deutsch · Español. Die Karte und das Fitting-Tool sind vorerst auf Englisch.',feat_title:'Funktionen',feat_lead:'Alles, was eine Wurmloch-Gruppe zum Scannen, Rollen und Heimkommen braucht, auf einem Bildschirm.',
 f1_t:'Automatisches Tracking',f1_p:'Die Karte folgt deinem Charakter: Jedes System, in das du springst, wird samt Verbindung live hinzugefügt.',
 f2_t:'Mit der Gruppe geteilt',f2_p:'Alle sehen dieselbe Kette und wo jeder Pilot ist. Grün heißt Karte offen, das EVE-Abzeichen heißt im Spiel.',
 f3_t:'Verbindungsdetails',f3_p:'Wurmlochtyp, Massezustand, Lebensende, Masserechner und ein Protokoll der Durchflüge für die ganze Gruppe.',
@@ -383,7 +385,7 @@ s10_t:'Mit der Gruppe teilen',
 s10_p:'<p>Der Kartenbesitzer öffnet <span class="k">Access</span> und lädt bis zu <b>9 weitere Charaktere</b> ein, mit Bearbeitungs- oder Leserechten. Sie loggen sich auf derselben Seite ein und landen automatisch auf deiner Karte. Niemand sonst sieht sie.</p>',
 req_title:'Eigene Karte bekommen',req_lead:'Erstelle sie selbst mit einem Klick. Die erste Woche ist kostenlos und beginnt beim ersten Öffnen, danach ab 50 M ISK pro Woche.',
 req_how:'So erstellst du sie',req_open:'Karte öffnen',
-req_steps:'<li>Öffne die Karte und logge dich mit EVE mit dem Charakter ein, der die Karte deiner Gruppe <b>besitzen</b> soll (meist der Direktor deiner Corporation).</li><li>Klicke auf <b>Create my map</b>: Deine Karte öffnet sich sofort und deine kostenlose Woche beginnt.</li><li>Lade deine Gruppe über <b>Access</b> ein: 2 oder 6 Charaktere oder deine ganze Corporation.</li><li>Um sie zu behalten, sende ISK im Spiel an <b>Sava Yesh</b> mit deinem Kartencode (unter <b>Access</b>).</li>',
+req_steps:'<li>Öffne die Karte und logge dich mit EVE mit dem Charakter ein, der die Karte deiner Gruppe <b>besitzen</b> soll (meist der Direktor deiner Corporation).</li><li>Klicke auf <b>Create my map</b> und wähle dein Paket (1 Woche oder 4 Wochen auf einmal): Deine Karte öffnet sich sofort und deine kostenlose Woche beginnt.</li><li>Lade deine Gruppe über <b>Access</b> ein: 2 oder 6 Charaktere oder deine ganze Corporation.</li><li>Um sie zu behalten, sende ISK im Spiel an <b>Sava Yesh</b> mit deinem Kartencode (unter <b>Access</b>).</li>',
 req_what:'Gut zu wissen',req_what_p:'<p>Eine Karte pro Charakter. Der Charakter, der die Karte erstellt, besitzt sie und verwaltet ihre Mitglieder. Nichts zu installieren, keine Mail nötig.</p>',
 copy_name:'Namen kopieren',copy_subject:'Betreff kopieren',copied:'Kopiert',
 faq_title:'FAQ',
@@ -406,7 +408,7 @@ hero_tag:'Un mapa de agujeros de gusano compartido para EVE Online que sigue tu 
 hero_sub:'Inicia sesión con EVE y vuela: cada salto se añade en directo al mapa de tu grupo. Conexiones de Thera y Turnur, rutas a los centros comerciales y vista 3D incluidas. Privado, sin instalar nada y la primera semana gratis.',
 btn_demo:'Probar la demo',btn_open:'Abrir el mapa',btn_request:'Pedir tu propio mapa',
 alt_overview:'Anoikis Traveler mostrando una cadena de agujeros de gusano con pilotos, conexiones y el panel de Thera',
-feat_title:'Funciones',feat_lead:'Todo lo que un grupo de agujeros de gusano necesita para explorar, cerrar agujeros y volver a casa, en una sola pantalla.',
+feat_langs:'🌐 Esta guía: English · Français · Deutsch · Español. El mapa y la herramienta de fitting están en inglés por ahora.',feat_title:'Funciones',feat_lead:'Todo lo que un grupo de agujeros de gusano necesita para explorar, cerrar agujeros y volver a casa, en una sola pantalla.',
 f1_t:'Seguimiento automático',f1_p:'El mapa sigue a tu personaje: cada sistema al que saltas se añade con su conexión, en directo.',
 f2_t:'Compartido con tu grupo',f2_p:'Todos ven la misma cadena y dónde está cada piloto. Verde: mapa abierto; insignia EVE: en el juego.',
 f3_t:'Detalle de conexiones',f3_p:'Tipo de agujero, estado de masa, fin de vida, calculadora de masa y registro de pasos compartido con todo el grupo.',
@@ -444,7 +446,7 @@ s10_t:'Compartir con tu grupo',
 s10_p:'<p>El propietario del mapa abre <span class="k">Access</span> e invita hasta <b>9 personajes más</b>, con permiso de edición o solo lectura. Inician sesión en la misma página y llegan directamente a tu mapa. Nadie más puede verlo.</p>',
 req_title:'Tener tu propio mapa',req_lead:'Créalo tú mismo con un clic. La primera semana es gratis y empieza la primera vez que lo abres, después desde 50 M ISK por semana.',
 req_how:'Cómo crearlo',req_open:'Abrir el mapa',
-req_steps:'<li>Abre el mapa e inicia sesión con EVE con el personaje que será el <b>propietario</b> del mapa de tu grupo (normalmente el director de tu corporación).</li><li>Pulsa <b>Create my map</b>: tu mapa se abre al instante y empieza tu semana gratis.</li><li>Invita a tu grupo desde <b>Access</b>: 2 o 6 personajes, o toda tu corporación.</li><li>Para conservarlo, envía ISK en el juego a <b>Sava Yesh</b> con el código de tu mapa (en <b>Access</b>).</li>',
+req_steps:'<li>Abre el mapa e inicia sesión con EVE con el personaje que será el <b>propietario</b> del mapa de tu grupo (normalmente el director de tu corporación).</li><li>Pulsa <b>Create my map</b> y elige tu plan (1 semana o 4 semanas de una vez): tu mapa se abre al instante y empieza tu semana gratis.</li><li>Invita a tu grupo desde <b>Access</b>: 2 o 6 personajes, o toda tu corporación.</li><li>Para conservarlo, envía ISK en el juego a <b>Sava Yesh</b> con el código de tu mapa (en <b>Access</b>).</li>',
 req_what:'Conviene saber',req_what_p:'<p>Un mapa por personaje. El personaje que crea el mapa es su propietario y gestiona sus miembros. Nada que instalar, ningún correo que enviar.</p>',
 copy_name:'Copiar nombre',copy_subject:'Copiar asunto',copied:'Copiado',
 faq_title:'Preguntas frecuentes',
@@ -474,8 +476,9 @@ let lang = pick();
 function apply(l){
   lang = l; const d = T[l];
   document.documentElement.lang = l;
-  document.querySelectorAll('[data-i18n]').forEach(e => { const v = d[e.dataset.i18n]; if (v != null) e.innerHTML = v; });
-  document.querySelectorAll('[data-i18n-alt]').forEach(e => { e.alt = d[e.dataset.i18nAlt] || ''; });
+  // a language may be incomplete: missing texts fall back to English, so translations can be added a little at a time
+  document.querySelectorAll('[data-i18n]').forEach(e => { const v = d[e.dataset.i18n] ?? T.en[e.dataset.i18n]; if (v != null) e.innerHTML = v; });
+  document.querySelectorAll('[data-i18n-alt]').forEach(e => { e.alt = d[e.dataset.i18nAlt] ?? T.en[e.dataset.i18nAlt] ?? ''; });
   document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === l));
   $('#rafLink').href = `https://www.eveonline.com/${l === 'en' ? '' : l + '/'}signup?invc=${RAF}`;
   try{ localStorage.setItem('at.lang', l); }catch(e){}
