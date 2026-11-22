@@ -129,6 +129,11 @@ svg#vol.panning{cursor:grabbing}
 #support .ic{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-size:16px;background:#123222}
 #support b{color:var(--ok);font-size:12.5px;display:block}#support b.who{display:inline;font-size:inherit}
 #support small{color:var(--dim);font-size:11.5px;line-height:1.35;display:block}
+#support .donhow{margin-top:8px;width:100%;background:none;border:1px dashed #24533a;color:var(--ok);font-size:12px;padding:5px;border-radius:4px;cursor:pointer}
+#support .donhow:hover{background:#123222}
+#btnDonate{background:linear-gradient(135deg,#1d4a33,#173826);border-color:#2e6b4a;color:#bff2d3}
+#btnDonate:hover{filter:brightness(1.15)}
+.donsteps{margin:0;padding-left:20px;display:grid;gap:6px}
 #lockMsg{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(5,8,15,.92)}
 #lockMsg .lbox{max-width:440px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px 26px}
 #lockMsg .lbox h3{margin:0 0 8px;color:var(--accent);font-size:18px}
@@ -342,6 +347,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   <button id="btnCenter" type="button">Recenter</button>
   <input id="fileImport" type="file" accept=".json,application/json" hidden>
   <button id="btnClear" type="button" class="danger">Clear map</button>
+  <button id="btnDonate" type="button" data-donate title="Anoikis Traveler is free: donations keep it online">❤️ Donate</button>
   <button id="btnHelp" type="button">Help</button>
   <button id="btnAccess" type="button" hidden>Access</button>
   <button id="btnSetup" type="button">Settings</button>
@@ -377,7 +383,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
       <span><i style="border-color:var(--eol)"></i>End of life (EOL)</span>
       <span><i style="border-color:#3c4a66;border-top-style:dotted;border-top-width:2px"></i>Stargate</span>
       <span><b class="ka" style="opacity:.6"></b>Recent kill (under 15 min)</span>
-      <span><b class="ka" style="box-shadow:0 0 8px var(--bad)"></b>Alarm: 3+ kills in 10 min</span>
+      <span><b class="ka" style="box-shadow:0 0 8px var(--bad)"></b>Alarm: kill in the last 10 min</span>
     </div>
     <div class="maptools"><button type="button" id="btnHubs" aria-pressed="false" title="Show or hide Thera, Turnur and their exits (always shown once connected to your chain)">🌀 Thera / Turnur</button><button type="button" id="btnAssets" aria-pressed="false" title="Show or hide the systems where your characters have assets">📦 Assets</button></div>
     <div class="zoom"><button type="button" id="zin" aria-label="Zoom in">+</button><button type="button" id="zout" aria-label="Zoom out">−</button></div>
@@ -385,10 +391,11 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 
   <aside>
     <div id="getMapSide" hidden></div><div id="subBox" hidden aria-live="polite"></div><div id="support">
-      <span class="tag">Your own map</span>
-      <div class="sp"><span class="ic" aria-hidden="true">☕</span>
-        <span><b>Free for a week, then from 50 M ISK / week</b><small>Payments and donations go to <b class="who">Sava Yesh</b> in game. Put your map code, your name or your corporation's name in the reason.</small></span>
+      <span class="tag">Free for everyone · runs on donations</span>
+      <div class="sp"><span class="ic" aria-hidden="true">❤️</span>
+        <span><b>Like the map? Keep it online</b><small>Anoikis Traveler is free, with no ads. Any ISK sent in game to <b class="who">Sava Yesh</b> helps pay for the servers. Thank you!</small></span>
         <button type="button" class="small" id="btnCopyDonor" title="Copy the exact character name">Copy name</button></div>
+      <button type="button" class="donhow" data-donate>How to donate in game</button>
     </div>
     <section class="card">
       <h2>Pilot</h2>
@@ -566,6 +573,21 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
     <h2 id="marketTitle">Market</h2>
     <div id="mktBody"></div>
     <div class="row"><button type="button" id="closeMarket">Close</button></div>
+  </div>
+</div>
+
+<div class="modal" id="donate" role="dialog" aria-modal="true" aria-labelledby="donTitle">
+  <div class="mbox" style="max-width:560px">
+    <h2 id="donTitle">❤️ Support Anoikis Traveler</h2>
+    <p>The map, the fitting tool and everything to come are <b>free for everyone</b>, with no ads. Servers and development are paid by one player. If the map saves you time (or your pod), an ISK donation helps keep it online.</p>
+    <h3>How to donate in game</h3>
+    <ol class="donsteps">
+      <li>Copy the name: <b>Sava Yesh</b> <button type="button" class="small" data-copydonor>Copy name</button></li>
+      <li>In EVE, search the character (People &amp; Places, or paste the name in a chat), then right-click it → <b>Give Money</b>.</li>
+      <li>Any amount is welcome. You can add a word in the reason.</li>
+    </ol>
+    <p class="note">Donations give no extra access: everyone gets the same map. Thank you for helping!</p>
+    <div class="row"><button type="button" id="closeDonate">Close</button></div>
   </div>
 </div>
 
@@ -939,7 +961,7 @@ function renderSubBar(){
 document.addEventListener('click', ev => { if (ev.target.closest('[data-subprices]')){ subPricesOpen = !subPricesOpen; renderSubBar(); } });
 function subStatusText(){
   if (!subInfo) return '';
-  if (subInfo.free) return ' Subscription: free.';
+  if (subInfo.free) return '';
   if (subInfo.until == null) return '';
   const lbl = { p2:'2 characters', p6:'6 characters', corp:'corporation' }[subInfo.plan] || '';
   const when = new Date(subInfo.until).toLocaleString(undefined, { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
@@ -1620,7 +1642,7 @@ async function loadZkill(id){
 /* =========================================================
    Kills récents : zKillboard (liste de la dernière heure) + ESI (heure exacte et vaisseau)
    ========================================================= */
-const KILL_RECENT_MIN = 15, ALARM_WINDOW_MIN = 10, ALARM_COUNT = 3;
+const KILL_RECENT_MIN = 15, ALARM_WINDOW_MIN = 10, ALARM_COUNT = 1;   // alarm as soon as one kill happened in the last 10 minutes
 const killFeed = {};      // système -> [{ id, time, ship }]
 const kmCache = {};       // killmail -> { time, ship }
 const alarmSeen = {};     // système -> heure du dernier kill déjà signalé
@@ -1802,27 +1824,23 @@ function getMapHtml(){
   const canCreate = !!tok && liveMode() && !isMapOwner;
   return `<h4>🗺️ Want your own map?</h4><ol>
 <li>Log in with EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
-<li>Click <b>Create my map</b>. Your <b>free week</b> starts the first time you open it.</li>
-<li>Invite your group from <i>Access</i>: 2 or 6 characters, or your whole corporation.</li>
-<li>To keep it afterwards, send ISK in game to <b>Sava Yesh</b> with your map code (shown in <i>Access</i>): from 50 M ISK a week.</li></ol>
-${canCreate ? '<p><button type="button" class="primary" data-createmap>Create my map: first week free</button></p>' : ''}
+<li>Click <b>Create my map</b>. It is <b>free</b>.</li>
+<li>Invite your group from <i>Access</i>: up to 20 characters per map.</li>
+<li>If you like it, a donation in ISK to <b>Sava Yesh</b> helps keep the site online.</li></ol>
+${canCreate ? '<p><button type="button" class="primary" data-createmap>Create my map (free)</button></p>' : ''}
 <p class="gm-note">Each map is private: no one else sees it.</p>`;
 }
 function createMapDialog(){
   return new Promise(res => {
     const d = document.createElement('div'); d.className = 'cm-overlay';
     d.innerHTML = `<div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cmT"><h3 id="cmT">🗺️ Create my map</h3>
-      <p class="cm-lead">Your <b>first week is free</b> and starts when you open the map. Choose the plan you will renew with (you can change it during the free week, in Access).</p>
-      <label><input type="radio" name="cmPlan" value="p2"> <b>2 characters</b> <span>50 M / week · 180 M / 4 weeks</span></label>
-      <label><input type="radio" name="cmPlan" value="p6" checked> <b>6 characters</b> <span>100 M / week · 360 M / 4 weeks</span></label>
-      <label><input type="radio" name="cmPlan" value="corp"> <b>Whole corporation</b> <span>every member · 250 M / week up to 50 members (900 M / 4 weeks), 400 M up to 100 (1 440 M), 500 M above (1 800 M)</span></label>
-      <label class="cm-month"><input type="checkbox" id="cmMonth"> Renew <b>4 weeks at once</b> (−10 %) instead of 1 week</label>
-      <p class="cm-note">Payments: ISK in game to <b>${esc(SUB_PAYEE)}</b> with your map code in the reason. The amount you send decides the length.</p>
+      <p class="cm-lead">Your map is <b>free</b> and private. You can invite up to <b>20 characters</b> (you included) from <i>Access</i>.</p>
+      <p class="cm-note">Anoikis Traveler runs on donations: if it helps your group, ISK sent in game to <b>${esc(SUB_PAYEE)}</b> keeps it online.</p>
       <div class="cm-row"><button type="button" class="primary" data-cm="ok">Create my map</button><button type="button" data-cm="no">Cancel</button></div></div>`;
     document.body.appendChild(d);
     const done = v => { d.remove(); res(v); };
     d.addEventListener('click', e => { const b = e.target.closest('[data-cm]'); if (e.target === d) return done(null); if (!b) return;
-      done(b.dataset.cm === 'ok' ? { plan:(d.querySelector('[name=cmPlan]:checked') || {}).value || 'p6', period:d.querySelector('#cmMonth').checked ? 'month' : 'week' } : null); });
+      done(b.dataset.cm === 'ok' ? { plan:'p6', period:'week' } : null); });
     d.addEventListener('keydown', e => { if (e.key === 'Escape') done(null); });
     d.querySelector('[data-cm=ok]').focus();
   });
@@ -1835,7 +1853,7 @@ async function createMyMap(btn){
     await ensureFb();
     const r = await liveSend({ op:'createMap', plan:choice.plan, period:choice.period });
     isMapOwner = true;
-    toast(r.existed ? 'You already own a map: opening it.' : 'Your map is ready. Your free week starts now.');
+    toast(r.existed ? 'You already own a map: opening it.' : 'Your map is ready.');
     slot.mapOwner = fb.uid; saveCfg();
     $('#access').classList.remove('open');
     await connectShared();
@@ -1854,7 +1872,7 @@ function renderLock(){
   box.hidden = !show; if (!show) return;
   const owner = SITE_LOCK.ownerName || 'the owner';
   $('#lockText').innerHTML = lockState === 'noaccess'
-    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (for example your corporation's) to add this character in <i>Access</i>, then reload the page.<br>Or create your own map below: the first week is free.`
+    ? `<b>${esc(tok ? tok.charName : '')}</b> has no access to any map on this site.<br>Ask the owner of the map you want to join (for example your corporation's) to add this character in <i>Access</i>, then reload the page.<br>Or create your own map below, for free.`
     : lockState === 'pending' ? 'Checking your access…'
     : `This site hosts private wormhole maps.<br>Log in with EVE if you have been given access.`;
   $('#lockLogin').hidden = lockState === 'pending';
@@ -3465,6 +3483,8 @@ function closeSetup(){ $('#setup').classList.remove('open'); }
 function normUrl(v){ v = (v || '').trim().replace(/\/+$/, ''); if (v && !/^https?:\/\//.test(v)) v = 'https://' + v; return v; }
 $('#btnSetup').addEventListener('click', openSetup);
 $('#btnCopyDonor').addEventListener('click', () => copyText('Sava Yesh', 'Name copied: Sava Yesh'));
+document.addEventListener('click', ev => { if (ev.target.closest('[data-donate]')) $('#donate').classList.add('open'); if (ev.target.closest('[data-copydonor]')) copyText('Sava Yesh', 'Name copied: Sava Yesh'); });
+$('#closeDonate').addEventListener('click', () => $('#donate').classList.remove('open'));
 $('#btnLock').addEventListener('click', () => {
   if (!fb || !cloudReady()){ toast('Log in with EVE (secure sharing active) first.', true); return; }
   const j = { clientId:cfg.clientId, worker:cfg.cloud.worker, db:cfg.cloud.db, apiKey:cfg.cloud.apiKey, owner:fb.uid, ownerName:fb.name };
@@ -3522,7 +3542,7 @@ function handleConfigLink(){
 }
 
 /* ---------- Panneau Accès ---------- */
-const aclLimit = () => SITE_LOCK && fb && fb.uid !== SITE_LOCK.owner && myOwnerRec ? Math.max(0, Number(myOwnerRec.max || 10) - 1) : 0;
+const aclLimit = () => SITE_LOCK && fb && fb.uid !== SITE_LOCK.owner && myOwnerRec ? Math.max(0, Number((subInfo && subInfo.freeSite && subInfo.max) || myOwnerRec.max || 10) - 1) : 0;
 async function loadOwners(){
   const box = $('#ownList');
   try{
@@ -3579,8 +3599,8 @@ async function openAccess(){
     };
     $('#planSel').addEventListener('change', save); $('#planMonth').addEventListener('change', save);
   }
-  if (SITE_LOCK && !isMapOwner && liveMode()) $('#mapRoleNote').insertAdjacentHTML('afterend', '<p id="createMapBox"><button type="button" class="small primary" data-createmap>Create my own map (first week free)</button></p>');
-  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
+  if (SITE_LOCK && !isMapOwner && liveMode()) $('#mapRoleNote').insertAdjacentHTML('afterend', '<p id="createMapBox"><button type="button" class="small primary" data-createmap>Create my own map (free)</button></p>');
+  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` + (subInfo && subInfo.freeSite ? ' The site is free: more characters per map would create hosting costs for the site owner.' : '') : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
   $('#ownersBox').hidden = !(SITE_LOCK && fb.uid === SITE_LOCK.owner && mine);
   $('#cfgLinkBox').hidden = !!SITE_LOCK;
   if (mine){ $('#cfgLink').value = cfgLink(); loadAcl(); if (!$('#ownersBox').hidden) loadOwners(); }
@@ -3775,7 +3795,7 @@ document.querySelectorAll('#help [role=tab]').forEach(b => b.addEventListener('c
   document.querySelectorAll('#help [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('#help .tabpane').forEach(p => p.hidden = p.id !== b.dataset.tab);
 }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); $('#market').classList.remove('open'); $('#essModal').classList.remove('open'); closeCtx(); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(); $('#help').classList.remove('open'); $('#access').classList.remove('open'); $('#market').classList.remove('open'); $('#essModal').classList.remove('open'); $('#donate').classList.remove('open'); closeCtx(); if (linkPick){ linkPick = false; lastSelKey = ''; renderSel(); } } });
 
 /* =========================================================
    Démarrage
