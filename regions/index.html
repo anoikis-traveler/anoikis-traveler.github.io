@@ -187,13 +187,17 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .as-loc{font-size:12px;color:var(--dim);margin:8px 0 3px;border-bottom:1px solid var(--line);padding-bottom:2px}
 .as-list{list-style:none;margin:0;padding:0}
 .as-list .as-list{padding-left:16px;border-left:1px dashed var(--line);margin-left:7px}
-.as-it{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:center;padding:2px 0;font-size:12.5px}
+.as-it{display:grid;grid-template-columns:22px 1fr auto auto;gap:6px;align-items:center;padding:2px 0;font-size:12.5px}
 .as-it img{width:20px;height:20px;border-radius:2px;background:var(--bg)}
 .as-it .q{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
 .as-it.box{cursor:pointer}
 .as-it.box .nm::before{content:"▸ ";color:var(--dim)}
 .as-it.box.open .nm::before{content:"▾ "}
 .as-tools{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.as-it .v{font-family:var(--mono);font-size:11px;color:var(--ok);min-width:0;text-align:right}
+.as-it .v.none{color:#55606f}
+.as-sell{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:4px;font-size:12.5px}
+.as-sell b{font-family:var(--display);font-size:1.35rem;color:var(--ok);letter-spacing:.02em}
 .asset-hit{cursor:pointer}
 #wChain{width:460px}
 .chainwb{display:flex;flex-direction:column;gap:6px;resize:both;overflow:hidden;width:min(680px,calc(100vw - 40px));height:380px;min-width:280px;min-height:200px;max-width:calc(100vw - 30px);max-height:calc(100vh - 80px)}
@@ -760,9 +764,9 @@ async function placeName(locId, type, t){
 function demoAssets(sys){
   const it = (id, q, kids) => ({ type_id:id, quantity:q, kids:kids || [] });
   const n = sysName(sys);
-  Object.assign(typeNames, { 11172:'Helios', 2048:'Damage Control II', 11578:'Covert Ops Cloaking Device II', 30013:'Core Scanner Probe I', 3467:'Small Secure Container', 34:'Tritanium', 35:'Pyerite', 12058:'Tengu', 28668:'Nanite Repair Paste' });
+  Object.assign(typeNames, { 11172:'Helios', 2048:'Damage Control II', 11578:'Covert Ops Cloaking Device II', 30013:'Core Scanner Probe I', 3467:'Small Secure Container', 34:'Tritanium', 35:'Pyerite', 29984:'Tengu', 28668:'Nanite Repair Paste' });
   return [{ name:'Demo Pilot', places:[{ place:`${n} - Demo Citadel`, items:[
-    it(11172, 1, [it(11578, 1), it(2048, 1), it(30013, 16)]), it(3467, 1, [it(34, 125000), it(35, 40000)]), it(28668, 200), it(12058, 1) ] }] }];
+    it(11172, 1, [it(11578, 1), it(2048, 1), it(30013, 16)]), it(3467, 1, [it(34, 125000), it(35, 40000)]), it(28668, 200), it(29984, 1) ] }] }];
 }
 async function assetsDetail(sys){
   if (DEMO) return demoAssets(sys);
@@ -788,6 +792,55 @@ async function assetsDetail(sys){
   return out;
 }
 let assetsSys = null;
+/* Selling on the spot: buy orders of this system, plus region-wide ones (they take items from anywhere in the region).
+   Each type is valued for its whole quantity, highest orders first. Orders with a jump range from other systems are not counted. */
+const buyCache = new Map();
+async function regionBuys(region, type){
+  const key = region + ':' + type, c = buyCache.get(key);
+  if (c && Date.now() - c.t < 10 * 60000) return c.o;
+  const out = []; let page = 1, pages = 1;
+  do{
+    const r = await fetch(`${ESI}/markets/${region}/orders/?datasource=tranquility&order_type=buy&type_id=${type}&page=${page}`);
+    if (!r.ok){ if (r.status === 404) break; throw new Error('ESI ' + r.status); }
+    pages = Number(r.headers.get('x-pages')) || 1; out.push(...await r.json());
+  } while (++page <= pages);
+  buyCache.set(key, { t:Date.now(), o:out });
+  return out;
+}
+async function sellHere(sys, flat){
+  const box = $('#asSell'), reg = regionOf(sys);
+  if (!reg){ box.innerHTML = `<div class="as-sell">No market in wormhole space: nothing can be sold on the spot in ${esc(sysName(sys))}.</div>`; return; }
+  const qty = new Map(); for (const x of flat) qty.set(x.type_id, (qty.get(x.type_id) || 0) + x.quantity);
+  const types = [...qty.keys()];
+  box.innerHTML = `<div class="as-sell dim">Reading the buy orders of ${esc(regionName(reg))}… 0 / ${types.length}</div>`;
+  const unit = new Map(); let done = 0, i = 0;
+  await Promise.all(Array.from({ length:Math.min(8, types.length) }, async () => {
+    while (i < types.length){
+      const t = types[i++];
+      try{
+        const os = (await regionBuys(reg, t)).filter(o => o.is_buy_order !== false && (String(o.system_id) === String(sys) || o.range === 'region')).sort((a, b) => b.price - a.price);
+        let left = qty.get(t), tot = 0;
+        for (const o of os){ const take = Math.min(left, o.volume_remain); tot += take * o.price; left -= take; if (!left) break; }
+        unit.set(t, { total:tot, filled:qty.get(t) - left, q:qty.get(t) });
+      }catch(e){ unit.set(t, { total:0, filled:0, q:qty.get(t), err:true }); }
+      if (++done % 4 === 0 || done === types.length){ const d = box.querySelector('.as-sell'); if (d) d.textContent = `Reading the buy orders of ${regionName(reg)}… ${done} / ${types.length}`; }
+    }
+  }));
+  if (assetsSys !== String(sys)) return;
+  let total = 0, sold = 0, part = 0;
+  for (const [, u] of unit){ total += u.total; if (u.filled === u.q && u.q) sold++; else if (u.filled) part++; }
+  // value on each line: its share of what that type fetches
+  $('#assetsBody').querySelectorAll('.as-it[data-t]').forEach(r => {
+    const u = unit.get(Number(r.dataset.t)), v = r.querySelector('.v'); if (!u || !v) return;
+    const val = u.q ? u.total * Number(r.dataset.q) / u.q : 0;
+    v.textContent = val ? short(val) : '—'; v.className = 'v' + (val ? '' : ' none');
+    v.title = u.filled < u.q ? `${u.filled.toLocaleString('en-US')} of ${u.q.toLocaleString('en-US')} sellable here` : 'Sold to buy orders here';
+  });
+  const none = types.length - sold - part;
+  box.innerHTML = `<div class="as-sell">Sell here now: <b>${short(total)}</b> ISK <span class="dim">(${Math.round(total).toLocaleString('en-US')})</span><br>
+    <span class="dim">${sold} item type${sold > 1 ? 's' : ''} fully sold${part ? `, ${part} only in part` : ''}${none ? `, ${none} with no buyer here` : ''} · buy orders in ${esc(sysName(sys))} and region-wide orders of ${esc(regionName(reg))}. Compare with <i>Appraise</i> for the trade hubs.</span></div>`;
+}
+function short(n){ const a = Math.abs(n); return a >= 1e12 ? (n / 1e12).toFixed(2) + ' t' : a >= 1e9 ? (n / 1e9).toFixed(2) + ' b' : a >= 1e6 ? (n / 1e6).toFixed(2) + ' m' : a >= 1e3 ? (n / 1e3).toFixed(1) + ' k' : Math.round(n).toLocaleString('en-US'); }
 async function openAssets(sys){
   sys = String(sys); assetsSys = sys;
   const box = $('#wAssets'), body = $('#assetsBody');
@@ -799,12 +852,13 @@ async function openAssets(sys){
   if (assetsSys !== sys) return;
   const flat = [];
   const row = x => { flat.push(x); const nm = typeNames[x.type_id] || ('Type ' + x.type_id), has = x.kids.length;
-    return `<li><div class="as-it${has ? ' box' : ''}"><img loading="lazy" alt="" src="https://images.evetech.net/types/${x.type_id}/icon?size=32"><span class="nm">${esc(nm)}${has ? ` <span class="dim">(${x.kids.length})</span>` : ''}</span><span class="q">${x.quantity > 1 ? '×' + x.quantity.toLocaleString('en-US') : ''}</span></div>${has ? `<ul class="as-list" hidden>${x.kids.map(row).join('')}</ul>` : ''}</li>`; };
+    return `<li><div class="as-it${has ? ' box' : ''}" data-t="${x.type_id}" data-q="${x.quantity}"><img loading="lazy" alt="" src="https://images.evetech.net/types/${x.type_id}/icon?size=32"><span class="nm">${esc(nm)}${has ? ` <span class="dim">(${x.kids.length})</span>` : ''}</span><span class="q">${x.quantity > 1 ? '×' + x.quantity.toLocaleString('en-US') : ''}</span><span class="v"></span></div>${has ? `<ul class="as-list" hidden>${x.kids.map(row).join('')}</ul>` : ''}</li>`; };
   body.innerHTML = data.length ? data.map(c => `<div class="as-char">${esc(c.name)}</div>${c.err ? `<p class="dim">${esc(c.err)}</p>` : ''}${c.places.map(p => `<div class="as-loc">${esc(p.place)}</div><ul class="as-list">${p.items.map(row).join('')}</ul>`).join('')}`).join('')
-      + `<div class="as-tools"><button type="button" class="primary" id="asAppr" title="Value of these assets in the Appraisal">Appraise</button><button type="button" id="asOpen">Open all</button></div>`
+      + `<div class="as-tools"><button type="button" class="primary" id="asSellBtn" title="What these assets fetch if sold right now to the buy orders of this system">Sell here</button><button type="button" id="asAppr" title="Value of these assets in the trade hubs (Appraisal)">Appraise</button><button type="button" id="asOpen">Open all</button></div><div id="asSell"></div>`
     : '<p class="dim">No assets of your characters here.</p>';
   body.querySelectorAll('.as-it.box').forEach(b => b.addEventListener('click', () => { b.classList.toggle('open'); b.nextElementSibling.hidden = !b.classList.contains('open'); }));
   const all = $('#asOpen'); if (all) all.onclick = () => body.querySelectorAll('.as-it.box').forEach(b => { b.classList.add('open'); b.nextElementSibling.hidden = false; });
+  const sb = $('#asSellBtn'); if (sb) sb.onclick = () => sellHere(sys, flat);
   const ap = $('#asAppr'); if (ap) ap.onclick = () => {
     const m = new Map(); for (const x of flat) if (typeNames[x.type_id]) m.set(typeNames[x.type_id], (m.get(typeNames[x.type_id]) || 0) + x.quantity);
     window.open('../appraisal/#t=' + encodeURIComponent([...m].map(([n, q]) => `${n}\t${q}`).join('\n')), '_blank', 'noopener');

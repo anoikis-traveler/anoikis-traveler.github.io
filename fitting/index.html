@@ -33,6 +33,11 @@ a{color:var(--accent)}
 header{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-family:var(--display);font-size:1.5rem;margin:0;letter-spacing:.05em;text-transform:uppercase}
 header h1 b{color:var(--accent)}
+header h1 a.home{color:inherit;text-decoration:none}
+.sitenav{display:flex;gap:2px;background:var(--bg,#070a12);border:1px solid var(--line);border-radius:4px;padding:2px}
+.sitenav a{color:var(--dim,#8b98b0);text-decoration:none;padding:4px 11px;border-radius:3px;font-size:13px}
+.sitenav a:hover{color:var(--text,#e2e8f3)}
+.sitenav a[aria-current="page"]{background:var(--panel-2,#141c30);color:var(--accent)}
 .ver{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 6px;white-space:nowrap}
 header .grow{flex:1}
 main{padding:12px;max-width:1600px;margin:0 auto}
@@ -213,7 +218,8 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
 </head>
 <body>
 <header>
-  <h1>Anoikis <b>Traveler</b></h1>
+  <h1><a href="../" class="home" title="Back to the Anoikis Traveler home page">Anoikis <b>Traveler</b></a></h1>
+  <nav class="sitenav" aria-label="Tools"><a href="../">Home</a><a href="../regions/">Map</a><a href="./" aria-current="page">Fitting</a><a href="../appraisal/">Appraisal</a><a href="../guide/">Guide</a></nav>
   <span class="ver">Fitting · preview</span>
   <span class="grow"></span>
 </header>
