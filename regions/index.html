@@ -2078,14 +2078,7 @@ function renderPanel(){
         : '<div class="dim">None on your mapper chain.</div>'}
       ${own.some(x => incSys[String(x.id)]) ? `<h3>☣ Incursion</h3><div>${own.filter(x => incSys[String(x.id)]).map(x => `<button class="lk" data-sys="${x.id}">${esc(x.n)}</button>${incSys[String(x.id)].staging ? ' <span class="dim">(staging)</span>' : ''}`).join(' · ')}</div>` : ''}
       <h3>Pilots in this region</h3>
-      ${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)} · <button class="lk" data-sys="${p.sys}">${esc(sysName(p.sys))}</button>${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">Nobody shared on the mapper is here.</div>'}
-      <h3>Legend</h3>
-      <div class="legend"><span><i style="border-color:var(--c-gate)"></i>Gate</span><span><i style="border-color:var(--c-gatec)"></i>Gate between constellations</span>
-      <span><i style="border-color:var(--c-gater);border-top-style:dashed"></i>Gate to another region</span><span><i style="border-color:var(--c-wh)"></i>Wormhole (mapper)</span>
-      <span><i style="border-color:var(--c-jb);border-top-style:dotted"></i>Jump bridge</span><span style="color:#ff7da1">☣ Incursion</span><span><i style="border-color:var(--c-route)"></i>Route</span></div>
-      ${colorMode === 'wh' ? `<h3>Wormholes lead to</h3><div class="legend">${['HS', 'LS', 'NS', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'THERA', 'TURNUR', 'POCH', 'C13', 'DRIFT'].map(k => `<span><i style="border-color:${WH_COL[k]};border-top-width:3px"></i>${WH_LABEL[k]}</span>`).join('')}</div>
-      <p class="dim" style="font-size:12px">Known space in grey: lighter for high-sec, darker for null-sec. Systems with an active hole take the colour of where it leads.</p>` : ''}
-      <p class="dim" style="font-size:12px">A dotted ring marks systems already on your mapper chain. Positions are the real EVE coordinates.</p>`;
+      ${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)} · <button class="lk" data-sys="${p.sys}">${esc(sysName(p.sys))}</button>${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">Nobody shared on the mapper is here.</div>'}`;
   } else {
     const id = String(s.id);
     const nb = adj[id] || [];
