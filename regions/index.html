@@ -179,6 +179,22 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .wb.view .btns{display:flex;gap:5px;flex-wrap:wrap}
 .wb.view button{font-size:12.5px;padding:4px 9px}
 #wInfo{width:330px}
+#wAssets{width:380px}
+#wAssets .wb{max-height:min(560px,calc(100vh - 120px))}
+#wAssets .wcol + .wcol{margin-left:0}
+.as-char{font-family:var(--display);font-size:1.02rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:10px 0 4px}
+.as-char:first-child{margin-top:0}
+.as-loc{font-size:12px;color:var(--dim);margin:8px 0 3px;border-bottom:1px solid var(--line);padding-bottom:2px}
+.as-list{list-style:none;margin:0;padding:0}
+.as-list .as-list{padding-left:16px;border-left:1px dashed var(--line);margin-left:7px}
+.as-it{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:center;padding:2px 0;font-size:12.5px}
+.as-it img{width:20px;height:20px;border-radius:2px;background:var(--bg)}
+.as-it .q{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.as-it.box{cursor:pointer}
+.as-it.box .nm::before{content:"▸ ";color:var(--dim)}
+.as-it.box.open .nm::before{content:"▾ "}
+.as-tools{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.asset-hit{cursor:pointer}
 #wChain{width:460px}
 .chainwb{display:flex;flex-direction:column;gap:6px;resize:both;overflow:hidden;width:460px;height:340px;min-width:280px;min-height:200px;max-width:calc(100vw - 30px);max-height:calc(100vh - 80px)}
 #wChain{width:auto}
@@ -269,6 +285,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
       <svg id="chainSvg" aria-label="Flat map of the chain"></svg>
       <div class="dim chainnote" id="chainNote"></div>
     </div>
+  </section>
+
+  <section class="widget" id="wAssets" data-title="Assets" hidden>
+    <header class="wh"><span class="wt">Assets</span><span class="wsub" id="assetsSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="assetsClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb" id="assetsBody"></div>
   </section>
 
   <section class="widget" id="apBox" data-title="Route" hidden>
@@ -615,7 +636,7 @@ async function lookupName(id){
 }
 
 /* ---------- Assets: where your characters have things (same cache as the mapper, refreshed hourly like CCP's) ---------- */
-let assetsOn = store.get('whmap.reg.assets', false), assetData = {};
+let assetsOn = store.get('whmap.reg.assets', false), assetData = {}, assetFull = {};
 const stationSys = store.get('whmap.stations', {}), structSys = store.get('whmap.structs', {});
 async function esiPages(t, path){
   const f = await freshTok(t), out = []; let page = 1, pages = 1;
@@ -655,6 +676,7 @@ async function loadAssets(force){
     if (!scopesOf(store.get(CK.tok + c.charId, c)).includes(AS_SCOPE)){ assetData[c.charId] = { name:c.charName, t:Date.now(), bySys:{}, err:'scope' }; continue; }
     try{
       const list = await esiPages(c, `/characters/${c.charId}/assets/`);
+      assetFull[c.charId] = list;
       const byItem = {}; for (const a of list) byItem[a.item_id] = a;
       const bySys = {}, roots = {};
       for (const a of list){
@@ -670,6 +692,79 @@ async function loadAssets(force){
     }catch(e){ assetData[c.charId] = { ...(assetData[c.charId] || { bySys:{} }), name:c.charName, err:String(e.message || e) }; }
   }
   render(); renderPanel();
+}
+/* ---------- Assets widget: what is in a system, per character and place ---------- */
+const typeNames = store.get('whmap.reg.tnames', {}), placeNames = store.get('whmap.reg.pnames', {});
+async function resolveNames(ids){
+  const need = [...new Set(ids)].filter(id => typeNames[id] == null && id < 1e12);
+  for (let i = 0; i < need.length; i += 900){
+    try{ const r = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(need.slice(i, i + 900)) });
+         if (r.ok) for (const n of await r.json()) typeNames[n.id] = n.name; }catch(e){}
+  }
+  store.set('whmap.reg.tnames', typeNames);
+}
+async function placeName(locId, type, t){
+  if (placeNames[locId]) return placeNames[locId];
+  if (type === 'solar_system') return placeNames[locId] = 'In space';
+  if (locId >= 1e12){
+    try{ const f = await freshTok(t), r = await fetch(`${ESI}/universe/structures/${locId}/`, { headers:{ Authorization:'Bearer ' + f.access_token } });
+         placeNames[locId] = r.ok ? (await r.json()).name : 'Structure (no access)'; }catch(e){ return 'Structure'; }
+  } else { await resolveNames([locId]); placeNames[locId] = typeNames[locId] || 'Station'; }
+  store.set('whmap.reg.pnames', placeNames);
+  return placeNames[locId];
+}
+function demoAssets(sys){
+  const it = (id, q, kids) => ({ type_id:id, quantity:q, kids:kids || [] });
+  const n = sysName(sys);
+  Object.assign(typeNames, { 11172:'Helios', 2048:'Damage Control II', 11578:'Covert Ops Cloaking Device II', 30013:'Core Scanner Probe I', 3467:'Small Secure Container', 34:'Tritanium', 35:'Pyerite', 12058:'Tengu', 28668:'Nanite Repair Paste' });
+  return [{ name:'Demo Pilot', places:[{ place:`${n} - Demo Citadel`, items:[
+    it(11172, 1, [it(11578, 1), it(2048, 1), it(30013, 16)]), it(3467, 1, [it(34, 125000), it(35, 40000)]), it(28668, 200), it(12058, 1) ] }] }];
+}
+async function assetsDetail(sys){
+  if (DEMO) return demoAssets(sys);
+  const out = [];
+  for (const c of vaultChars()){
+    const d = assetData[c.charId]; if (!d || !d.bySys || !d.bySys[sys]) continue;
+    if (!assetFull[c.charId]){ try{ assetFull[c.charId] = await esiPages(c, `/characters/${c.charId}/assets/`); }catch(e){ out.push({ name:c.charName, err:e.message, places:[] }); continue; } }
+    const list = assetFull[c.charId], byItem = {}, kids = {};
+    for (const a of list){ byItem[a.item_id] = a; (kids[a.location_id] = kids[a.location_id] || []).push(a); }
+    const places = {};
+    for (const a of list){
+      if (a.location_type === 'item' && byItem[a.location_id]) continue;            // shown inside its container
+      if (String(await placeSystem(a.location_id, a.location_type, c)) !== String(sys)) continue;
+      (places[a.location_id] = places[a.location_id] || { type:a.location_type, items:[] }).items.push(a);
+    }
+    const tree = a => ({ type_id:a.type_id, quantity:a.quantity, kids:(kids[a.item_id] || []).map(tree) });
+    const ids = []; const walk = x => { ids.push(x.type_id); x.kids.forEach(walk); };
+    const pl = [];
+    for (const [loc, v] of Object.entries(places)){ const items = v.items.map(tree); items.forEach(walk); pl.push({ place:await placeName(Number(loc), v.type, c), items }); }
+    await resolveNames(ids);
+    if (pl.length) out.push({ name:c.charName, places:pl });
+  }
+  return out;
+}
+let assetsSys = null;
+async function openAssets(sys){
+  sys = String(sys); assetsSys = sys;
+  const box = $('#wAssets'), body = $('#assetsBody');
+  if (box.hidden){ box.hidden = false; placeWidget(box); }
+  box.style.zIndex = ++wz;
+  $('#assetsSub').textContent = sysName(sys);
+  body.innerHTML = '<p class="dim">Loading…</p>';
+  const data = await assetsDetail(sys);
+  if (assetsSys !== sys) return;
+  const flat = [];
+  const row = x => { flat.push(x); const nm = typeNames[x.type_id] || ('Type ' + x.type_id), has = x.kids.length;
+    return `<li><div class="as-it${has ? ' box' : ''}"><img loading="lazy" alt="" src="https://images.evetech.net/types/${x.type_id}/icon?size=32"><span class="nm">${esc(nm)}${has ? ` <span class="dim">(${x.kids.length})</span>` : ''}</span><span class="q">${x.quantity > 1 ? '×' + x.quantity.toLocaleString('en-US') : ''}</span></div>${has ? `<ul class="as-list" hidden>${x.kids.map(row).join('')}</ul>` : ''}</li>`; };
+  body.innerHTML = data.length ? data.map(c => `<div class="as-char">${esc(c.name)}</div>${c.err ? `<p class="dim">${esc(c.err)}</p>` : ''}${c.places.map(p => `<div class="as-loc">${esc(p.place)}</div><ul class="as-list">${p.items.map(row).join('')}</ul>`).join('')}`).join('')
+      + `<div class="as-tools"><button type="button" class="primary" id="asAppr" title="Value of these assets in the Appraisal">Appraise</button><button type="button" id="asOpen">Open all</button></div>`
+    : '<p class="dim">No assets of your characters here.</p>';
+  body.querySelectorAll('.as-it.box').forEach(b => b.addEventListener('click', () => { b.classList.toggle('open'); b.nextElementSibling.hidden = !b.classList.contains('open'); }));
+  const all = $('#asOpen'); if (all) all.onclick = () => body.querySelectorAll('.as-it.box').forEach(b => { b.classList.add('open'); b.nextElementSibling.hidden = false; });
+  const ap = $('#asAppr'); if (ap) ap.onclick = () => {
+    const m = new Map(); for (const x of flat) if (typeNames[x.type_id]) m.set(typeNames[x.type_id], (m.get(typeNames[x.type_id]) || 0) + x.quantity);
+    window.open('../appraisal/#t=' + encodeURIComponent([...m].map(([n, q]) => `${n}\t${q}`).join('\n')), '_blank', 'noopener');
+  };
 }
 function assetsAt(sys){
   if (!assetsOn) return [];
@@ -1036,7 +1131,8 @@ function draw(){
     el('title', {}, g).textContent = s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`;
     const as = assetsAt(id);
     if (as.length){ const n = as.reduce((m, a) => m + a.n, 0), bx = p.x - r - 13, by = p.y - r - 11;
-      el('rect', { x:bx, y:by, width:14, height:11, rx:2, class:'asset' }, g); el('path', { d:`M${bx} ${by + 4}h14M${bx + 7} ${by}v4`, class:'assetl' }, g);
+      el('rect', { x:bx - 4, y:by - 4, width:22, height:19, fill:'transparent', class:'asset-hit', 'data-assets':id }, g);
+      el('rect', { x:bx, y:by, width:14, height:11, rx:2, class:'asset', 'pointer-events':'none' }, g); el('path', { d:`M${bx} ${by + 4}h14M${bx + 7} ${by}v4`, class:'assetl' }, g);
       const at = el('text', { x:bx - 2, y:by + 9, 'text-anchor':'end', class:'assetn' }, g); at.textContent = n > 999 ? '999+' : n; }
     if (me.sys === id){ el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'me' }, g); el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'mepulse' }, g); }
     const pil = pilotsAt(id).filter(x => !tok || x.name !== tok.charName);
@@ -1134,7 +1230,7 @@ function renderPanel(){
       <h3>Gates</h3><div>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
       <h3>Wormholes</h3>${whs.length ? `<ul class="plain">${whs.map(l => { const o = String(l.a) === id ? l.b : l.a;
         return `<li>→ ${regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : esc(sysName(o))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
-      ${assetsOn && assetsAt(id).length ? `<h3>Your assets here</h3><ul class="plain">${assetsAt(id).map(a => `<li>${esc(a.name)} · <b>${a.n}</b> item${a.n > 1 ? 's' : ''} (ships, containers, stacks)</li>`).join('')}</ul>` : ''}
+      ${assetsOn && assetsAt(id).length ? `<h3>Your assets here</h3><ul class="plain">${assetsAt(id).map(a => `<li>${esc(a.name)} · <b>${a.n}</b> item${a.n > 1 ? 's' : ''} (ships, containers, stacks)</li>`).join('')}</ul><div class="row"><button type="button" class="lk" data-openassets="${id}">Show the list</button></div>` : ''}
       <h3>Pilots here</h3>${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)}${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">—</div>'}
       <div class="row" style="margin-top:14px"><button id="bClose" type="button">Back to region</button></div>`;
     const wp = add => sendWaypoint(id, add);
@@ -1145,6 +1241,7 @@ function renderPanel(){
   }
   P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
   P.querySelectorAll('[data-reg]').forEach(b => b.addEventListener('click', () => loadRegion(b.dataset.reg)));
+  P.querySelectorAll('[data-openassets]').forEach(b => b.addEventListener('click', () => openAssets(b.dataset.openassets)));
 }
 /* Destination / waypoint in the EVE client (needs the mapper's login with the waypoint option) */
 async function sendWaypoint(id, add){
@@ -1288,7 +1385,7 @@ function setupInput(){
     svg.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = { d:Math.hypot(a.x - b.x, a.y - b.y), z:cam.zoom }; }
-    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, target:e.target.closest('.sys') };
+    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
     moved = false;
   });
   svg.addEventListener('pointermove', e => {
@@ -1305,7 +1402,7 @@ function setupInput(){
   const up = e => {
     ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
     svg.classList.remove('dragging');
-    if (!moved && start && ptrs.size === 0){ select(start.target ? start.target.dataset.id : null); }
+    if (!moved && start && ptrs.size === 0){ if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
     if (ptrs.size === 0) start = null;
   };
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
@@ -1499,7 +1596,8 @@ function defaultPos(id, el){
   const below = (other, fallback) => { const o = $('#' + other); return o && !o.hidden ? o.offsetTop + o.offsetHeight + 8 : fallback; };
   return { wTool:{ x:12, y:12 }, wView:{ x:12, y:below('wTool', 96) }, apBox:{ x:12, y:below('wView', 220) },
            wChars:{ x:W0 - w - 12, y:12 }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) },
-           wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) } }[id] || { x:40, y:40 };
+           wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
+           wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
 function placeWidget(el){
   const st = wstate[el.id] || {}, d = defaultPos(el.id, el);
@@ -1509,7 +1607,7 @@ function placeWidget(el){
   el.style.top = Math.max(4, Math.min(innerHeight - 36, y)) + 'px';
 }
 function initWidget(el){
-  const head = el.querySelector('.wh'), fold = el.querySelector('.wcol');
+  const head = el.querySelector('.wh'), fold = el.querySelector('.wcol:not([id])');
   let st = null;
   el.addEventListener('pointerdown', () => { el.style.zIndex = ++wz; });
   head.addEventListener('pointerdown', e => {
@@ -1529,12 +1627,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
-  ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => placeWidget($('#' + id))));
+  $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
+  ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
