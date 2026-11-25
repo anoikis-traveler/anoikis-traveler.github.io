@@ -266,12 +266,15 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
-#noFollow{position:absolute;inset:0;z-index:3;pointer-events:none;border:3px solid #f2a74b;box-shadow:inset 0 0 22px rgba(242,167,75,.45);animation:nfpulse 3.2s ease-in-out infinite}
+body.nf #hint{transform:translateY(-16px)}
+#noFollow{position:absolute;inset:0;z-index:3;pointer-events:none;border:12px solid #f2a74b;animation:nfpulse 3.6s ease-in-out infinite}
 #noFollow[hidden]{display:none}
-#nfTxt{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;background:rgba(40,26,8,.92);border:1px solid #f2a74b;color:#ffd9a6;border-radius:4px;padding:4px 12px;font:600 12.5px var(--sans, inherit);letter-spacing:.02em;white-space:nowrap}
-#nfTxt:hover{background:rgba(70,44,12,.95)}
-@keyframes nfpulse{0%,100%{border-color:rgba(242,167,75,.25);box-shadow:inset 0 0 10px rgba(242,167,75,.12)}50%{border-color:rgba(242,167,75,.95);box-shadow:inset 0 0 30px rgba(242,167,75,.5)}}
-@media (prefers-reduced-motion:reduce){#noFollow{animation:none}}
+#nfTxt{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;background:#f2a74b;border:0;color:#1d1204;border-radius:8px 8px 0 0;padding:6px 26px 7px;font:800 15px var(--display, 'Saira Condensed', sans-serif);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;animation:nfpulse2 3.6s ease-in-out infinite}
+#nfTxt small{font:600 12px var(--body, sans-serif);letter-spacing:.02em;text-transform:none;margin-left:10px;opacity:.85}
+#nfTxt:hover{filter:brightness(1.12)}
+@keyframes nfpulse{0%,100%{border-color:rgba(242,167,75,.28);box-shadow:inset 0 0 14px rgba(242,167,75,.15)}50%{border-color:rgba(242,167,75,.95);box-shadow:inset 0 0 40px rgba(242,167,75,.5)}}
+@keyframes nfpulse2{0%,100%{background:rgba(242,167,75,.55)}50%{background:rgba(242,167,75,1)}}
+@media (prefers-reduced-motion:reduce){#noFollow,#nfTxt{animation:none}}
 .inc{fill:none;stroke:#ff5c8a;stroke-width:1.6;stroke-dasharray:2 3;opacity:.9}
 .inc.stg{stroke-width:2.4;stroke-dasharray:none}
 .incg{font-family:var(--mono);font-size:10px;font-weight:700;fill:#ff7da1;paint-order:stroke;stroke:#070a12;stroke-width:3px}
@@ -1462,8 +1465,8 @@ function setFollow(v){ follow = !!v; store.set('whmap.reg.follow', follow); cons
 function renderNoFollow(){
   const f = $('#noFollow'); if (!f) return;
   const on = !follow && !!tok;
-  f.hidden = !on;
-  if (on) $('#nfTxt').innerHTML = `Not following <b>${esc(tok.charName)}</b>${me.sys ? ` (${esc(sysName(me.sys))})` : ''} · <u>click to follow</u>`;
+  f.hidden = !on; document.body.classList.toggle('nf', on);
+  if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
 function coveredAt(x, y, m = 40){
