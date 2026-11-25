@@ -1558,13 +1558,14 @@ function graph(){
   for (const j of jbList()) add(String(j.a), String(j.b), 'j:' + jbKey(j.a, j.b));
   return g;
 }
+let routeSeq = 0;
 function computeRoute(){
   route = null;
-  if (!R || !me.sys || !sel || me.sys === sel) return;
-  const g = graph(); if (!g[me.sys]) return;
+  if (!R || !me.sys || !sel || me.sys === sel || isHubVirtual(sel)) return;
+  const g = graph();
   const prev = { [me.sys]:null }, q = [me.sys];
-  while (q.length){ const u = q.shift(); if (u === sel) break; for (const [v, k] of g[u] || []) if (!(v in prev)){ prev[v] = [u, k]; q.push(v); } }
-  if (!(sel in prev)) return;
+  if (g[me.sys]) while (q.length){ const u = q.shift(); if (u === sel) break; for (const [v, k] of g[u] || []) if (!(v in prev)){ prev[v] = [u, k]; q.push(v); } }
+  if (!(sel in prev)){ farRoute(me.sys, sel); return; }   // the pilot is elsewhere in New Eden: ask CCP for the whole way
   const ids = [], edges = new Set(); let u = sel;
   while (u){ ids.unshift(u); const p = prev[u]; if (!p) break; edges.add(p[1]); u = p[0]; }
   route = { ids, edges };
@@ -2125,6 +2126,24 @@ function whConns(){
   return out;
 }
 const routeCache = new Map();
+// a route that starts outside this map: CCP's route service (gates + your holes + jump bridges), drawn in green where it crosses this region
+async function farRoute(from, to){
+  const my = ++routeSeq, want = `${from}>${to}`;
+  if (DEMO && !/^\d+$/.test(String(from))) return;
+  try{
+    const ids = await esiRoute(Number(from), Number(to), 'Shorter', whConns());
+    if (my !== routeSeq || !me.sys || `${me.sys}>${sel}` !== want) return;
+    const holes = allHoles(), jbs = jbList(), edges = new Set();
+    for (let i = 1; i < ids.length; i++){
+      const a = ids[i - 1], b = ids[i], k = jbKey(a, b);
+      if (jbs.some(j => jbKey(j.a, j.b) === k)){ edges.add('j:' + k); continue; }
+      const h = holes.find(l => pairKey(l.a, l.b) === pairKey(a, b)); if (h){ edges.add('w:' + h.id); continue; }
+      edges.add('g:' + [Number(a), Number(b)].sort().join('-'));
+    }
+    route = { ids, edges, far:true };
+    render(); renderPanel();
+  }catch(e){ console.warn('route', e && e.message); }
+}
 async function esiRoute(a, b, pref, conns){
   const key = `${a}>${b}>${pref}>${JSON.stringify(conns)}`;
   if (routeCache.has(key)) return routeCache.get(key);
