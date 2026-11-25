@@ -2387,6 +2387,8 @@ function setupInput(){
 /* ---------- Chain widget: flat map of the mapper's chains ----------
    Systems linked by wormholes (and the gates you mapped) form a group. Two groups are the same chain when their
    known-space systems are within X gate jumps (X set by the player); otherwise the other ones are secondary chains. */
+// which chain is shown, kept across rebuilds: a member system, or '#hubs' for the "nearest Thera & Turnur" view
+const keyOf = g => g.hubs ? '#hubs' : g.ids.find(id => !isK(id)) || g.ids[g.ids.length - 1];
 let chainX = store.get('whmap.reg.chainX', 5), chainPick = null, chainGroups = [], chainBusy = 0, chainKey = null, chainFocus = null;
 const jumpCache = store.get('whmap.reg.jumps', {});
 async function jumps(a, b){
@@ -2469,9 +2471,9 @@ async function buildChains(){
   }
   // stay on the chain you were looking at (groups are re-sorted), or show the one a new system went into
   const want = chainFocus || chainKey;
-  if (want){ const i = chainGroups.findIndex(g => g.set.has(String(want))); if (i >= 0){ chainPick = i; if (chainFocus){ chainSelect([chainFocus]); renderChainAct(); } } }
+  if (want){ const i = want === '#hubs' ? chainGroups.findIndex(g => g.hubs) : chainGroups.findIndex(g => !g.hubs && g.set.has(String(want))); if (i >= 0){ chainPick = i; if (chainFocus){ chainSelect([chainFocus]); renderChainAct(); } } }
   chainFocus = null;
-  if (chainGroups[chainPick || 0]) chainKey = chainGroups[chainPick || 0].ids[0];
+  if (chainGroups[chainPick || 0]) chainKey = keyOf(chainGroups[chainPick || 0]);
   renderChainSel(); renderChain(); renderAllChains();
 }
 function chainName(g, i){
@@ -2614,7 +2616,7 @@ function renderAllChains(){
       const mk = markAt(id); if (mk.length || isHome(id)){ const t = el('text', { x:q.x, y:q.y - 8, 'text-anchor':'middle', class:'an', style:'fill:#e8c25a' }, svg); t.textContent = [isHome(id) ? '⌂' : '', ...mk.map(x => MARKS[x].label)].filter(Boolean).join(' '); }
       if (showNames){ const t = el('text', { x:q.x, y:q.y + 14, 'text-anchor':'middle', class:'an' }, svg); t.textContent = sysName(id); }
       el('title', {}, svg.lastChild).textContent = sysName(id); }
-    card.onclick = () => { chainPick = i; chainKey = g.ids[0]; chainView = { k:1, x:0, y:0 };
+    card.onclick = () => { chainPick = i; chainKey = keyOf(g); chainView = { k:1, x:0, y:0 };
       if ($('#wChain').hidden) $('#btnChain').click(); else { renderChainSel(); renderChain(); } renderAllChains(); };
   });
 }
@@ -2771,7 +2773,7 @@ function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.chainOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; buildChains(); } };
   btn.onclick = () => show(box.hidden);
-  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? chainGroups[chainPick].ids[0] : null; chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
+  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? keyOf(chainGroups[chainPick]) : null; chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
   $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
   let st = null, band = null;
   const menu = $('#chainMenu');
