@@ -787,6 +787,7 @@ async function login(){
   const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
   const state = 'rg' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "rg": the site root sends the answer back here
   sess.set('whmap.reg.pkce', JSON.stringify({ verifier, state }));
+  if (store.get('whmap.reg.askjb', false)) store.set('whmap.reg.jbTry', Date.now()); else try{ localStorage.removeItem('whmap.reg.jbTry'); }catch(e){}
   const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true), jb = store.get('whmap.reg.askjb', false);
   const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as || jb ? ` ${ST_SCOPE}` : '') + (as ? ` ${AS_SCOPE}` : '') + (jb ? ` ${JB_SCOPE}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
   location.href = `${SSO}/authorize/?${p}`;
@@ -799,7 +800,13 @@ async function tokenRequest(params){
 }
 async function handleCallback(){
   const q = new URLSearchParams(location.search);
-  if (!q.has('code') && !q.has('error')) return;
+  const jbTry = store.get('whmap.reg.jbTry', 0); try{ localStorage.removeItem('whmap.reg.jbTry'); }catch(e){}
+  if (!q.has('code') && !q.has('error')){
+    // came back without an answer right after asking for the jump bridge permission: CCP refused it (invalid_scope page)
+    if (jbTry && Date.now() - jbTry < 15 * 60000){ store.set('whmap.reg.askjb', false);
+      toast('EVE refused the jump bridge permission: your EVE application does not have esi-search.search_structures.v1. The option is now off, log in again; add that scope to the application on developers.eveonline.com to use Import from EVE.', true); }
+    return;
+  }
   let saved = null; try{ saved = JSON.parse(sess.get('whmap.reg.pkce') || 'null'); }catch(e){}
   history.replaceState(null, '', location.pathname);
   if (q.has('error')){ toast('Login cancelled', true); return; }
