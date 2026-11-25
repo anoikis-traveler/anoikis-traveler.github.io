@@ -266,11 +266,25 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
+.inc{fill:none;stroke:#ff5c8a;stroke-width:1.6;stroke-dasharray:2 3;opacity:.9}
+.inc.stg{stroke-width:2.4;stroke-dasharray:none}
+.incg{font-family:var(--mono);font-size:10px;font-weight:700;fill:#ff7da1;paint-order:stroke;stroke:#070a12;stroke-width:3px}
 .jb{fill:none;stroke:var(--c-jb);stroke-width:1.4;stroke-dasharray:3 5;opacity:.7;pointer-events:stroke}
 .jb.route{stroke:var(--c-route);stroke-width:2.6;opacity:1}
 .jbl{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:#dfe6f0;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
 .jbl.go{pointer-events:auto;cursor:pointer;text-decoration:underline;fill:var(--c-jb)}
 .jbl.go:hover{fill:#fff}
+.pochwb{width:min(420px,calc(100vw - 40px));max-height:min(620px,calc(100vh - 110px));overflow:auto;display:flex;flex-direction:column;gap:6px}
+#pochSvg{flex:none;width:100%;height:230px;background:rgba(5,8,16,.6);border:1px solid var(--line);border-radius:4px}
+#pochSvg .pn{font-family:var(--mono);font-size:9px;fill:#c9d2e3;paint-order:stroke;stroke:#05080f;stroke-width:2.5px;pointer-events:none}
+#pochSvg .pk{font-family:var(--display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;fill:#8b98b0}
+#pochSvg g{cursor:pointer}
+#pochList h4{margin:6px 0 2px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+#pochList .pr{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:baseline;font-size:12.5px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+#pochList .pr .lk{font-weight:600}
+#pochList .pr .k{font-size:11.5px;color:var(--dim);text-align:right}
+#pochList .pr .wl{grid-column:1 / 4;font-size:11.5px;color:#e79bc4}
+#wPoch .wcol + .wcol{margin-left:0}
 .colwb{width:min(340px,calc(100vw - 40px));max-height:min(560px,calc(100vh - 120px));overflow:auto;display:flex;flex-direction:column;gap:2px}
 .colwb h4{margin:8px 0 3px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .colwb h4:first-child{margin-top:0}
@@ -387,6 +401,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
+        <button id="btnPoch" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
         <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
         <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
@@ -429,6 +444,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <section class="widget" id="wCols" data-title="Colours" hidden>
     <header class="wh"><span class="wt">Connection colours</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="colsClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb colwb" id="colsBody"></div>
+  </section>
+
+  <section class="widget" id="wPoch" data-title="Pochven" hidden>
+    <header class="wh"><span class="wt" style="color:#d65a9a">Pochven</span><span class="wsub dim" id="pochSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="pochClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb pochwb"><svg id="pochSvg" aria-label="Pochven"></svg><div id="pochList"></div></div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -536,8 +556,8 @@ function classOf(id){                       // destination class of a system, fo
   const sc = scout.find(l => String(l.b) === id && l.clsTxt), sct = sc ? String(sc.clsTxt).toUpperCase() : '';
   if (WH_COL[sct]) return sct;
   const s = byId[id] ? byId[id].s : index && index.sys[id] ? index.sys[id][2] : null;
+  if (id === 'POCH' || isPoch(id) || Number(id) >= 32000000) return 'POCH';
   if (s != null){ const r = secR(s); return r >= 0.5 ? 'HS' : r > 0 ? 'LS' : 'NS'; }
-  if (Number(id) >= 32000000) return 'POCH';
   return isJ(id) ? 'J' : 'J';
 }
 // colour of the far side of a hole seen from `here`
@@ -667,10 +687,33 @@ function renderWhSel(){
   if (unknown.length) Promise.all(unknown.map(async id => { await lookupName(id); if (!(id in nameCache)) nameCache[id] = id; })).then(renderWhSel);
 }
 /* ---------- Thera & Turnur: their whole network, straight from EVE-Scout (same source as the mapper) ---------- */
-const HUB_LIST = ['31000005', '30002086'];                 // Thera, Turnur
-const HUB_CLASS = { '31000005':'THERA', '30002086':'TURNUR' };
+const HUB_LIST = ['31000005', '30002086', 'POCH'];         // Thera, Turnur, Pochven (all its systems as one node)
+const HUB_CLASS = { '31000005':'THERA', '30002086':'TURNUR', POCH:'POCH' };
+const POCH_REG = 10000070;
+const isPoch = id => { const v = index && index.sys && index.sys[String(id)]; return !!v && v[1] === POCH_REG; };
+// the hub a system belongs to on this map ('POCH' for any Pochven system, except on the Pochven map itself)
+const hubOf = id => { id = String(id); if (id !== 'POCH' && isPoch(id) && !(R && R.region.id === POCH_REG)) return 'POCH'; return HUB_LIST.includes(id) ? id : null; };
+// links of a hub: { l, o:the far end, via:the hub-side system }
+function hubLinks(h){
+  const out = [];
+  for (const l of allHoles()){ const a = String(l.a), b = String(l.b), ha = hubOf(a) === h, hb = hubOf(b) === h;
+    if (ha === hb) continue; out.push({ l, o:ha ? b : a, via:ha ? a : b }); }
+  return out;
+}
 const SCOUT_SIZE = { small:'S', medium:'M', large:'L', xlarge:'XL', capital:'XL' };
 let scout = [], scoutT = 0;
+/* Incursions (CCP, public): infested systems and their staging system */
+let incSys = {};
+async function loadIncursions(){
+  try{
+    const r = await fetch(`${ESI}/incursions/`); if (!r.ok) throw 0;
+    const j = await r.json(), m = {};
+    for (const inc of j || []){ for (const sid of inc.infested_solar_systems || []) m[String(sid)] = { state:inc.state, staging:String(inc.staging_solar_system_id) === String(sid), boss:!!inc.has_boss, inf:inc.influence, type:inc.type || 'Incursion', con:inc.constellation_id }; }
+    incSys = m;
+  }catch(e){}
+  if (DEMO && !Object.keys(incSys).length){ for (const n of ['Q-3HS5', 'EUU-4N', '0-VG7A']){ const id = sysByName(n); if (id) incSys[id] = { state:'established', staging:n === 'Q-3HS5', boss:false, inf:0.4, type:'Incursion (demo)' }; } }
+  if (R){ render(); renderPanel(); }
+}
 async function loadScout(){
   if (DEMO){ scout = demoScout(); scoutT = Date.now(); renderWhSel(); if (R){ computeRoute(); render(); renderPanel(); } return; }
   try{
@@ -685,7 +728,7 @@ async function loadScout(){
   }catch(e){}
   renderWhSel(); if (R){ computeRoute(); render(); renderPanel(); }
 }
-nameCache['31000005'] = 'Thera';
+nameCache['31000005'] = 'Thera'; nameCache.POCH = 'Pochven';
 /* every active hole: the mapper's chain plus EVE-Scout's Thera/Turnur connections (no duplicates) */
 function allHoles(){
   const out = whLinks(), seen = new Set(out.map(l => pairKey(l.a, l.b)));
@@ -693,6 +736,12 @@ function allHoles(){
   return out;
 }
 const isHubVirtual = id => HUB_LIST.includes(String(id)) && !byId[String(id)];
+// the holes as drawn: a Pochven end becomes the Pochven node
+function drawHoles(){
+  if (!hubNodes.some(x => x.h === 'POCH')) return allHoles();
+  return allHoles().map(l => { const pa = hubOf(l.a) === 'POCH', pb = hubOf(l.b) === 'POCH';
+    return pa && !pb ? { ...l, a:'POCH', via:String(l.a) } : pb && !pa ? { ...l, b:'POCH', via:String(l.b) } : l; }).filter(l => !(String(l.a) === 'POCH' && String(l.b) === 'POCH'));
+}
 /* Watch list: your characters (this browser) + pilots shared on the mapper.
    green = map open (news less than 3 min old) · red = map closed · EVE badge = connected in the game */
 const LIVE_MS = 3 * 60000, SHOW_MS = 30 * 60000;
@@ -731,7 +780,9 @@ function demoMapper(){
              c3:{ name:'Old Scout', sys:K('4M-QXK'), ship:'Buzzard', online:false, t:now - 12 * 60000 },
              c4:{ name:'Logi', sys:K('4M-QXK'), ship:'Scimitar', online:true, t:now } },
     links:{ d1:L('d1', K('KDG-TA'), 31000123, { wh:'N062' }), d2:L('d2', 31000123, 31000900, { wh:'H296', size:'XL' }), d3:L('d3', 31000900, 31000901, { wh:'D382', mass:'reduced' }),
-            d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }) } };
+            d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }),
+            ...(K('Kino') && K('QYD-WK') ? { d5:L('d5', K('QYD-WK'), K('Kino'), { wh:'C729', size:'L' }) } : {}),
+            ...(K('Nalvula') && K('Y-4CFK') ? { d6:L('d6', K('Y-4CFK'), K('Nalvula'), { wh:'C729', size:'L', mass:'reduced' }) } : {}) } };
 }
 function demoScout(){
   const now = Date.now(), K = n => Number(sysByName(n)), S = (i, hub, b, wh, size, h, cls) => ({ id:'demo' + i, a:hub, b, type:'wh', src:'eve-scout', wh, size, expires:now + h * 3600e3, mass:'fresh', eol:false, outSig:'ABC-' + (100 + i), inSig:'XYZ-' + (200 + i), clsTxt:cls || '' });
@@ -918,7 +969,7 @@ function shareApply(path, data){
   if (path === '/' || path === ''){ const d = data || {}; share.map = { data:d.data || {}, pilots:d.pilots || {} }; }
   else { const parts = path.replace(/^\//, '').split('/'); if (parts[0] === 'data' || parts[0] === 'pilots'){ if (parts.length === 1) share.map[parts[0]] = data || {}; else setAtPath(share.map, parts, data); } }
   shareState('on');
-  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); renderJb(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }, 120);
+  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); renderJb(); renderPoch(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }, 120);
 }
 function shareState(st, txt){ share.state = st; if (txt !== undefined || st !== 'err') share.txt = txt; txt = share.txt; const e = $('#shareSt'); if (!e) return;
   e.className = 'share-st ' + st; e.textContent = st === 'on' ? '● Shared map · live' + (share.ownerName ? ' (' + share.ownerName + ')' : '') : st === 'err' ? '● Shared map: ' + (txt || 'error') : st === 'wait' ? '● Shared map: connecting…' : st === 'none' ? '○ No shared map for this character' : '';
@@ -1074,6 +1125,63 @@ function renderCols(){
     redraw(); });
   $('#colsBody').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => { delete (userCols[b.dataset.rg] || {})[b.dataset.rk]; store.set('whmap.reg.colors', userCols); redraw(); renderCols(); });
   $('#colsReset').onclick = () => { userCols = { wh:{}, line:{} }; store.set('whmap.reg.colors', userCols); redraw(); renderCols(); };
+}
+/* Pochven: the 27 systems (top view of the region), by krai, with the holes your chain has to known space */
+let pochR = null;
+async function renderPoch(){
+  const box = $('#wPoch'); if (!box || box.hidden) return;
+  if (!pochR){ try{ pochR = await (await fetch(DATA + POCH_REG + '.json')).json(); }catch(e){ $('#pochList').textContent = 'Pochven data not available.'; return; } }
+  const own = pochR.systems.filter(x => !x.ext), ids = new Set(own.map(x => String(x.id)));
+  const links = allHoles().filter(l => ids.has(String(l.a)) !== ids.has(String(l.b))).map(l => { const pv = ids.has(String(l.a)) ? String(l.a) : String(l.b); return { l, pv, o:pv === String(l.a) ? String(l.b) : String(l.a) }; });
+  const byP = {}; for (const x of links) (byP[x.pv] = byP[x.pv] || []).push(x);
+  const pil = {}; for (const p of watchList()) if (p.sys && ids.has(p.sys) && presentAt(p)) (pil[p.sys] = pil[p.sys] || []).push(p.name);
+  $('#pochSub').textContent = `27 systems · ${links.length} link${links.length === 1 ? '' : 's'} to known space`;
+  // top view
+  const svg = $('#pochSvg'); svg.innerHTML = ''; const Wp = svg.clientWidth || 400, Hp = 230;
+  svg.setAttribute('viewBox', `0 0 ${Wp} ${Hp}`);
+  // schematic ring (its systems are scattered across New Eden): the three krais as arcs, each in gate order
+  const adjP = {}; for (const [a, b] of pochR.links){ const x = String(a), y = String(b); if (ids.has(x) && ids.has(y)){ (adjP[x] = adjP[x] || []).push(y); (adjP[y] = adjP[y] || []).push(x); } }
+  const cOf = {}; for (const s2 of own) cOf[String(s2.id)] = s2.c;
+  const krais = Object.keys(pochR.constellations).filter(c => own.some(s2 => s2.c == c)), order = [];
+  let prevK = null;
+  for (const c of krais){
+    const mem = own.filter(s2 => s2.c == c).map(s2 => String(s2.id));
+    // start from a system gated to the previous krai (or any border system), then walk the gates
+    const border = mem.filter(id => (adjP[id] || []).some(o => cOf[o] != c));
+    const start = border.find(id => prevK != null && (adjP[id] || []).some(o => cOf[o] == prevK)) || border[0] || mem[0];
+    const seen = new Set([start]), q = [start];
+    while (q.length){ const u = q.shift(); order.push(u); for (const v of (adjP[u] || []).filter(v => cOf[v] == c).sort()) if (!seen.has(v)){ seen.add(v); q.push(v); } }
+    for (const id of mem) if (!seen.has(id)) order.push(id);
+    prevK = c;
+  }
+  const cxp = Wp / 2, cyp = Hp / 2, rx = Wp / 2 - 78, ry = Hp / 2 - 24, pos = {};
+  order.forEach((id, i) => { const t = -Math.PI / 2 + i / order.length * Math.PI * 2; pos[id] = { x:cxp + Math.cos(t) * rx, y:cyp + Math.sin(t) * ry }; });
+  krais.forEach((c, i) => { const mem = order.filter(id => cOf[id] == c), mid = order.indexOf(mem[Math.floor(mem.length / 2)]), t = -Math.PI / 2 + mid / order.length * Math.PI * 2;
+    const kt = el('text', { x:cxp + Math.cos(t) * (rx * 0.55), y:cyp + Math.sin(t) * (ry * 0.55) + 4, 'text-anchor':'middle', class:'pk' }, svg); kt.textContent = pochR.constellations[c]; });
+  for (const [a, b] of pochR.links){ const pa = pos[String(a)], pb = pos[String(b)]; if (pa && pb) el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, stroke:'#55688f', 'stroke-width':1 }, svg); }
+  const KC = ['#e06c9f', '#c74f7c', '#f08fb7'], kIdx = {}; Object.keys(pochR.constellations).forEach((c, i) => kIdx[c] = i);
+  for (const s2 of own){ const id = String(s2.id), q = pos[id], g = el('g', { 'data-pv':id }, svg);
+    if (byP[id]) el('circle', { cx:q.x, cy:q.y, r:9, fill:'none', stroke:'#ffd1e6', 'stroke-width':1.6 }, g);
+    if (pil[id]) el('circle', { cx:q.x, cy:q.y, r:12, fill:'none', stroke:'var(--ok)', 'stroke-width':1.4 }, g);
+    el('circle', { cx:q.x, cy:q.y, r:5, fill:KC[kIdx[s2.c] % 3], stroke:'#05080f' }, g);
+    const out = q.x >= cxp ? 1 : -1, t = el('text', { x:q.x + out * 9, y:q.y + 3, 'text-anchor':out > 0 ? 'start' : 'end', class:'pn' }, g); t.textContent = s2.n;
+    el('title', {}, g).textContent = `${s2.n} · ${pochR.constellations[s2.c] || ''}${byP[id] ? '\nHoles: ' + byP[id].map(x => sysName(x.o)).join(', ') : ''}${pil[id] ? '\nHere: ' + pil[id].join(', ') : ''}`; }
+  svg.querySelectorAll('[data-pv]').forEach(g => g.onclick = () => { setFollow(false); goTo(g.dataset.pv); });
+  // list by krai: systems with a link or pilots first
+  const kr = {}; for (const s2 of own) (kr[s2.c] = kr[s2.c] || []).push(s2);
+  $('#pochList').innerHTML = Object.keys(kr).map(c => `<h4>${esc(pochR.constellations[c] || c)}</h4>` + kr[c].sort((a, b) => (!!byP[String(b.id)] - !!byP[String(a.id)]) || a.n.localeCompare(b.n)).map(s2 => { const id = String(s2.id);
+      return `<div class="pr"><button type="button" class="lk" data-sys="${id}">${esc(s2.n)}</button><span class="dim">${pil[id] ? '● ' + esc(pil[id].join(', ')) : ''}</span><span class="k">${secR(s2.s).toFixed(1)}</span>
+        ${byP[id] ? `<span class="wl">⇄ ${byP[id].map(x => `<button type="button" class="lk" data-sys="${x.o}">${esc(sysName(x.o))}</button> <span class="dim">${esc([regionOf(x.o) ? regionName(regionOf(x.o)) : (isJ(x.o) ? classOf(x.o) : ''), x.l.wh, x.l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span>`).join(' · ')}</span>` : ''}</div>`; }).join('')).join('')
+    + '<p class="dim" style="font-size:11.5px;margin:6px 0 0">Links come from your chain (shared map). A click opens the system on its region map.</p>';
+  $('#pochList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { setFollow(false); goTo(b.dataset.sys); });
+}
+function setupPoch(){
+  const box = $('#wPoch'), btn = $('#btnPoch');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.pochOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; renderPoch(); } };
+  btn.onclick = () => show(box.hidden);
+  $('#pochClose').onclick = () => show(false);
+  if (store.get('whmap.reg.pochOpen', false)) show(true);
+  setInterval(() => renderPoch(), 30000);
 }
 function setupCols(){
   const box = $('#wCols'), btn = $('#btnCols');
@@ -1480,8 +1588,9 @@ function placeHubs(){
       continue;
     }
     if (byId[h]) continue;
-    const conns = allHoles().filter(l => (String(l.a) === h && byId[String(l.b)]) || (String(l.b) === h && byId[String(l.a)]));
-    if (conns.length) hubNodes.push({ h, conns, exits:conns.map(l => String(String(l.a) === h ? l.b : l.a)) });
+    if (h === 'POCH' && R.region.id === POCH_REG) continue;
+    const hl = hubLinks(h).filter(x => byId[x.o]);
+    if (hl.length) hubNodes.push({ h, conns:hl.map(x => x.l), exits:hl.map(x => x.o) });
   }
 }
 /* On screen: close to its exits, on a free spot (no system, label or other hub under it), inside the view.
@@ -1599,9 +1708,9 @@ function dragHub(box, h){
 }
 function hubCard(h, p, gLine){
   const col = hubColour(h), now = Date.now();
-  const rows = allHoles().filter(l => String(l.a) === h || String(l.b) === h).map(l => {
-    const o = String(String(l.a) === h ? l.b : l.a), here = byId[o] && !byId[o].ext, j = isJ(o) && !HUB_LIST.includes(o);
-    return { o, l, kind:here ? 0 : j ? 1 : 2, chain:j && mapper.nodes[o] ? chainBehind(o, h) : [], reg:regionOf(o) };
+  const rows = hubLinks(h).map(({ l, o, via }) => {
+    const here = byId[o] && !byId[o].ext, j = isJ(o) && !HUB_LIST.includes(o);
+    return { o, l, via, kind:here ? 0 : j ? 1 : 2, chain:j && mapper.nodes[o] ? chainBehind(o, h) : [], reg:regionOf(o) };
   }).sort((x, y) => x.kind - y.kind || y.chain.length - x.chain.length || (x.kind === 2 ? regionName(x.reg).localeCompare(regionName(y.reg)) : 0) || sysName(x.o).localeCompare(sysName(y.o)));
   const open = hubOpen[h] === true, wpOk = tok && canWp();      // folded until the player opens it
   const sec = { 0:`In ${R.region.name}`, 1:'J-space', 2:'Other regions' };
@@ -1610,7 +1719,7 @@ function hubCard(h, p, gLine){
     if (r.kind !== last){ html += `<div class="hc-sec">${esc(sec[r.kind])} · ${rows.filter(x => x.kind === r.kind).length}</div>`; last = r.kind; }
     const s2 = secOf(r.o), cc = r.kind === 1 ? (WH_COL[classOf(r.o)] || WH_COL.J) : (s2 != null ? secCol(s2) : WH_COL.J);
     const tag = r.kind === 1 ? classOf(r.o) : s2 != null ? secR(s2).toFixed(1) : '';
-    const meta = [r.kind === 2 ? regionName(r.reg) : '', r.l.wh, r.l.size && r.l.size !== '?' ? r.l.size : '', r.l.expires ? leftTxt(r.l.expires - now) : ''].filter(Boolean).join(' · ');
+    const meta = [h === 'POCH' ? '⇄ ' + sysName(r.via) : '', r.kind === 2 ? regionName(r.reg) : '', r.l.wh, r.l.size && r.l.size !== '?' ? r.l.size : '', r.l.expires ? leftTxt(r.l.expires - now) : ''].filter(Boolean).join(' · ');
     const canGo = r.kind !== 1;
     html += `<div class="hc-row${r.chain.length ? ' on' : ''}" data-go="${r.o}" title="${r.kind === 1 ? 'Wormhole space' : 'Show on the map'}">
       <i style="background:${cc}"></i><span class="hc-n" style="${r.chain.length ? `color:${cc}` : ''}">${esc(sysName(r.o))} <small>${esc(tag)}</small> <small>${esc(meta)}</small></span>
@@ -1723,7 +1832,7 @@ function draw(){
   }
   // wormholes: the mapper's chain and the Thera/Turnur network
   const stubs = {};
-  for (const l of allHoles()){
+  for (const l of drawHoles()){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
     if ((isHubVirtual(a) || isHubVirtual(b)) && !(pa && pb)) continue;
     const cls = 'whl ' + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
@@ -1733,7 +1842,7 @@ function draw(){
       const hcol = isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b), coloured = !/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b));
       el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:'whhalo', style:`stroke:${coloured ? hcol : 'var(--c-wh)'}` }, gWh);   // soft glow under the hole: its colour reads at a glance
       const path = el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:cls, style:coloured ? `stroke:${hcol}` : '' }, gWh);
-      el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${label}${l.expires ? ' · ' + leftTxt(l.expires - Date.now()) + ' left' : ''}${l.outSig ? ` · sig ${l.outSig} / ${l.inSig}` : ''}`;
+      el('title', {}, path).textContent = `${l.via && a === 'POCH' ? sysName(l.via) + ' (Pochven)' : sysName(a)} ↔ ${l.via && b === 'POCH' ? sysName(l.via) + ' (Pochven)' : sysName(b)} ${label}${l.expires ? ' · ' + leftTxt(l.expires - Date.now()) + ' left' : ''}${l.outSig ? ` · sig ${l.outSig} / ${l.inSig}` : ''}`;
     } else if (pa || pb){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
       const i = (stubs[here] = (stubs[here] || 0) + 1) - 1;
@@ -1755,7 +1864,7 @@ function draw(){
   for (const { h, conns, real } of hubNodes){
     const p = P[h]; if (!p) continue;
     if (real){ hubCard(h, p, gWh); continue; }
-    const col = hubColour(h), total = allHoles().filter(l => String(l.a) === h || String(l.b) === h).length;
+    const col = hubColour(h), total = hubLinks(h).length;
     const gr = el('radialGradient', { id:'hg' + h }, defs2);
     el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
     const g = el('g', { class:'sys hub', 'data-id':h, tabindex:'0', role:'button', 'aria-label':`${sysName(h)}: ${total} connections` }, gNodes);
@@ -1763,7 +1872,7 @@ function draw(){
     if (sel === h) el('circle', { cx:p.x, cy:p.y, r:20, class:'halo' }, g);
     el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:col, class:'dot' }, g);
     el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:'url(#shine)', 'pointer-events':'none' }, g);
-    el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (EVE-Scout). Click for the whole network.`;
+    el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (${h === 'POCH' ? 'your chain' : 'EVE-Scout'}). Click for the whole network.`;
     const t = el('text', { x:p.x, y:p.y - 34, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
     const t2 = el('text', { x:p.x, y:p.y - 21, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
     hubCard(h, p, gWh);
@@ -1790,6 +1899,10 @@ function draw(){
       el('rect', { x:bx, y:by, width:14, height:11, rx:2, class:'asset', 'pointer-events':'none' }, g); el('path', { d:`M${bx} ${by + 4}h14M${bx + 7} ${by}v4`, class:'assetl' }, g);
       const at = el('text', { x:bx - 2, y:by + 9, 'text-anchor':'end', class:'assetn' }, g); at.textContent = n > 999 ? '999+' : n; }
     if (me.sys === id){ el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'me' }, g); el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'mepulse' }, g); }
+    const inc = incSys[id];
+    if (inc){ el('circle', { cx:p.x, cy:p.y, r:r + 8, class:'inc' + (inc.staging ? ' stg' : '') }, g);
+      const it = el('text', { x:p.x + r + 2, y:p.y - r - 2, class:'incg' }, g); it.textContent = inc.staging ? '☣ staging' : '☣';
+      el('title', {}, it).textContent = `${inc.type}: ${inc.state}${inc.staging ? ' · staging system' : ''}${inc.boss ? ' · mothership present' : ''} · influence ${Math.round((inc.inf || 0) * 100)} %`; }
     const mk = markAt(id), hm = isHome(id);
     if (hm){ const ht = el('text', { x:p.x, y:p.y - r - 6, 'text-anchor':'middle', class:'homeg' }, g); ht.textContent = '⌂'; el('title', {}, ht).textContent = 'Your home'; }
     mk.forEach((k, i) => { const w = k === 'enter' ? 44 : 36, tx = p.x - w / 2, ty = p.y + r + 4 + i * 16;
@@ -1860,18 +1973,18 @@ function setupPilPop(){
 /* ---------- Side panel ---------- */
 function hubHtml(h){
   const name = sysName(h), col = hubColour(h), now = Date.now();
-  const conns = allHoles().filter(l => String(l.a) === h || String(l.b) === h).map(l => {
-    const o = String(String(l.a) === h ? l.b : l.a), reg = regionOf(o);
-    return { o, l, reg, regName:reg ? regionName(reg) : (l.regionTxt || (isJ(o) ? 'J-space' : '—')), s:secOf(o) };
+  const conns = hubLinks(h).map(({ l, o, via }) => {
+    const reg = regionOf(o);
+    return { o, l, via, reg, regName:reg ? regionName(reg) : (l.regionTxt || (isJ(o) ? 'J-space' : '—')), s:secOf(o) };
   });
   const here = conns.filter(c => byId[c.o] && !byId[c.o].ext);
   const groups = {}; for (const c of conns) (groups[c.regName] = groups[c.regName] || []).push(c);
   const names = Object.keys(groups).sort((a, b) => (a === R.region.name ? -1 : b === R.region.name ? 1 : a.localeCompare(b)));
   const row = c => { const cls = c.s != null ? `<span class="sc" style="color:${secCol(c.s)}">${secR(c.s).toFixed(1)}</span>` : `<span class="sc" style="color:var(--eol)">${esc((c.l.clsTxt || 'WH').toUpperCase())}</span>`;
     const info = [c.l.wh, c.l.size && c.l.size !== '?' ? c.l.size : '', c.l.expires ? leftTxt(c.l.expires - now) : '', c.l.outSig ? `${c.l.outSig} › ${c.l.inSig}` : ''].filter(Boolean).join(' · ');
-    return `<li data-sys="${c.o}">${cls}<span class="nm">${esc(sysName(c.o))}</span><span class="dim" style="font-size:11.5px">${esc(info)}</span></li>`; };
+    return `<li data-sys="${c.o}">${cls}<span class="nm">${esc(sysName(c.o))}</span><span class="dim" style="font-size:11.5px">${esc([h === 'POCH' ? '⇄ ' + sysName(c.via) : '', info].filter(Boolean).join(' · '))}</span></li>`; };
   return `<h2 style="color:${col}">${esc(name)}</h2>
-    <div class="dim">${conns.length} connection${conns.length > 1 ? 's' : ''} in New Eden · ${here.length} into ${esc(R.region.name)}${scoutT ? ` · EVE-Scout, ${new Date(scoutT).toLocaleTimeString([], { timeStyle:'short' })}` : ''}</div>
+    <div class="dim">${conns.length} connection${conns.length > 1 ? 's' : ''} in New Eden · ${here.length} into ${esc(R.region.name)}${h === 'POCH' ? ' · from your chain' : scoutT ? ` · EVE-Scout, ${new Date(scoutT).toLocaleTimeString([], { timeStyle:'short' })}` : ''}</div>
     <div class="row"><button id="bClose" type="button">Back to region</button></div>
     ${names.map(n => `<h3>${esc(n)} <span class="dim" style="font-size:.85rem">(${groups[n].length})</span></h3><ul class="plain netlist">${groups[n].sort((a, b) => (b.s ?? -9) - (a.s ?? -9)).map(row).join('')}</ul>`).join('')}
     <p class="dim" style="font-size:12px">Signatures: ${esc(name)} side › other side. Click a system to open its region.</p>`;
@@ -1900,12 +2013,13 @@ function renderPanel(){
       ${whs.length ? `<ul class="plain">${whs.map(l => { const a = inRegion(l.a) ? l.a : l.b, b = a === l.a ? l.b : l.a;
         return `<li><button class="lk" data-sys="${a}">${esc(sysName(a))}</button> ↔ ${esc(sysName(b))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>`
         : '<div class="dim">None on your mapper chain.</div>'}
+      ${own.some(x => incSys[String(x.id)]) ? `<h3>☣ Incursion</h3><div>${own.filter(x => incSys[String(x.id)]).map(x => `<button class="lk" data-sys="${x.id}">${esc(x.n)}</button>${incSys[String(x.id)].staging ? ' <span class="dim">(staging)</span>' : ''}`).join(' · ')}</div>` : ''}
       <h3>Pilots in this region</h3>
       ${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)} · <button class="lk" data-sys="${p.sys}">${esc(sysName(p.sys))}</button>${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">Nobody shared on the mapper is here.</div>'}
       <h3>Legend</h3>
       <div class="legend"><span><i style="border-color:var(--c-gate)"></i>Gate</span><span><i style="border-color:var(--c-gatec)"></i>Gate between constellations</span>
       <span><i style="border-color:var(--c-gater);border-top-style:dashed"></i>Gate to another region</span><span><i style="border-color:var(--c-wh)"></i>Wormhole (mapper)</span>
-      <span><i style="border-color:var(--c-jb);border-top-style:dotted"></i>Jump bridge</span><span><i style="border-color:var(--c-route)"></i>Route</span></div>
+      <span><i style="border-color:var(--c-jb);border-top-style:dotted"></i>Jump bridge</span><span style="color:#ff7da1">☣ Incursion</span><span><i style="border-color:var(--c-route)"></i>Route</span></div>
       ${colorMode === 'wh' ? `<h3>Wormholes lead to</h3><div class="legend">${['HS', 'LS', 'NS', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'THERA', 'TURNUR', 'POCH', 'C13', 'DRIFT'].map(k => `<span><i style="border-color:${WH_COL[k]};border-top-width:3px"></i>${WH_LABEL[k]}</span>`).join('')}</div>
       <p class="dim" style="font-size:12px">Known space in grey: lighter for high-sec, darker for null-sec. Systems with an active hole take the colour of where it leads.</p>` : ''}
       <p class="dim" style="font-size:12px">A dotted ring marks systems already on your mapper chain. Positions are the real EVE coordinates.</p>`;
@@ -1917,7 +2031,7 @@ function renderPanel(){
     const wpOk = tok && canWp();
     const wpTitle = !tok ? 'Log in through the mapper first' : !wpOk ? 'Turn on waypoints in the mapper (log in again with the waypoint option)' : '';
     let rt = '';
-    const tags = (isHome(id) ? '<span class="chip" style="border-color:var(--accent);color:var(--accent)">⌂ Home</span> ' : '') + markAt(id).map(k => `<span class="chip" style="border-color:${MARKS[k].col};color:${MARKS[k].col}">${MARKS[k].label}</span>`).join(' ');
+    const tags = (incSys[id] ? `<span class="chip" style="border-color:#ff5c8a;color:#ff7da1">☣ ${esc(incSys[id].type)} · ${esc(incSys[id].state)}${incSys[id].staging ? ' · staging' : ''}</span> ` : '') + (isHome(id) ? '<span class="chip" style="border-color:var(--accent);color:var(--accent)">⌂ Home</span> ' : '') + markAt(id).map(k => `<span class="chip" style="border-color:${MARKS[k].col};color:${MARKS[k].col}">${MARKS[k].label}</span>`).join(' ');
     if (me.sys === id) rt = '<div class="chip" style="border-color:var(--ok);color:var(--ok)">You are here</div>';
     else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${[...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}${[...route.edges].some(k => k.startsWith('j:')) ? ' <span class="dim">(uses jump bridges)</span>' : ''}</div>
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
@@ -2607,6 +2721,7 @@ function defaultPos(id, el){
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
            wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 },
+           wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
            wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
@@ -2638,13 +2753,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -2669,7 +2784,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols();
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); loadIncursions(); setInterval(loadIncursions, 10 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
   if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
