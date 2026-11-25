@@ -278,6 +278,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .jb{fill:none;stroke:var(--c-jb);stroke-width:1.4;stroke-dasharray:3 5;opacity:.7;pointer-events:stroke}
 .jb.route{stroke:var(--c-route);stroke-width:2.6;opacity:1}
 .jbl{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:#dfe6f0;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.jbhit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+.jbhit:hover + .jbl, .jbhit:hover{stroke:rgba(207,216,230,.18)}
 .jbl.go{pointer-events:auto;cursor:pointer;text-decoration:underline;fill:var(--c-jb)}
 .jbl.go:hover{fill:#fff}
 .pochwb{width:min(420px,calc(100vw - 40px));max-height:min(620px,calc(100vh - 110px));overflow:auto;display:flex;flex-direction:column;gap:6px}
@@ -1834,6 +1836,9 @@ function draw(){
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2, dx = pb.x - pa.x, dy = pb.y - pa.y, L = Math.hypot(dx, dy) || 1, bend = Math.min(60, L * 0.22);
       const cx = mx - dy / L * bend, cy = my + dx / L * bend;
       const path = el('path', { d:`M${pa.x},${pa.y} Q${cx},${cy} ${pb.x},${pb.y}`, class:'jb' + (onRoute ? ' route' : '') }, gWh);
+      const farEnd = !inA ? a : !inB ? b : null, goEnd = farEnd || (sel === a ? b : sel === b ? a : b);
+      const hit = el('path', { d:`M${pa.x},${pa.y} Q${cx},${cy} ${pb.x},${pb.y}`, class:'jbhit', 'data-jbgo':goEnd }, gWh);
+      el('title', {}, hit).textContent = `Jump bridge ${sysName(a)} » ${sysName(b)} · click: go to ${sysName(goEnd)}${regionOf(goEnd) !== R.region.id ? ' (' + regionName(regionOf(goEnd)) + ')' : ''}`;
       el('title', {}, path).textContent = `Jump bridge ${sysName(a)} » ${sysName(b)}${j.n ? '\n' + j.n : ''}`;
       const far = !inA ? a : !inB ? b : null;      // one end in a neighbouring region: the label names it and takes you there
       const t = el('text', { x:(mx + cx) / 2, y:(my + cy) / 2, 'text-anchor':'middle', class:'jbl' + (far ? ' go' : '') }, gWh);
@@ -1842,6 +1847,7 @@ function draw(){
     } else {
       const p = pa || pb, other = pa ? b : a, ang = -Math.PI / 3, ex = p.x + Math.cos(ang) * 46, ey = p.y + Math.sin(ang) * 46;
       el('path', { d:`M${p.x},${p.y} Q${p.x + 30},${p.y - 4} ${ex},${ey}`, class:'jb' + (onRoute ? ' route' : '') }, gWh);
+      el('path', { d:`M${p.x},${p.y} Q${p.x + 30},${p.y - 4} ${ex},${ey}`, class:'jbhit', 'data-jbgo':other }, gWh);
       const t = el('text', { x:ex + 4, y:ey - 3, class:'jbl ext go', 'data-jbgo':other }, gWh); t.textContent = `JB › ${sysName(other)}${regionOf(other) ? ' (' + regionName(regionOf(other)) + ')' : ''}`;
       el('title', {}, t).textContent = `Open ${regionName(regionOf(other))} on ${sysName(other)}`;
     }
@@ -2267,7 +2273,7 @@ function setupInput(){
     svg.classList.remove('dragging');
     if (!moved && start && ptrs.size === 0){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
-      else if (start.jb){ const id = start.jb.dataset.jbgo; setFollow(false); goTo(id); toast(`Jump bridge: ${sysName(id)} · ${regionName(regionOf(id))}`); }
+      else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); setFollow(false); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
       else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
     }
     if (ptrs.size === 0) start = null;
