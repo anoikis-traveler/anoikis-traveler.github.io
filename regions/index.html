@@ -654,7 +654,37 @@ function demoStep(){                       // the demo pilot flies a gate every 
   const next = adj[cur].filter(n => byId[n] && !byId[n].ext);
   const fresh = next.filter(n => !demoSeen.has(n));
   const pick = (fresh.length ? fresh : next)[Math.floor(Math.random() * (fresh.length ? fresh : next).length)];
-  if (pick){ demoSeen.add(cur); if (demoSeen.size > 12) demoSeen = new Set([...demoSeen].slice(-12)); demoPos[90000001] = pick; }
+  if (pick){ demoSeen.add(cur); if (demoSeen.size > 12) demoSeen = new Set([...demoSeen].slice(-12)); demoPos[90000001] = pick; demoNews(`Demo Pilot jumped into <b>${esc(sysName(pick))}</b>`); }
+  // corpmates fly too, now and then
+  const now = Date.now();
+  for (const k of ['c1', 'c4', 'c2']){
+    const p = mapper.pilots[k]; if (!p) continue;
+    p.t = k === 'c2' ? now - 60000 : now;
+    if (Math.random() < 0.45 && adj[String(p.sys)]){ const nx = adj[String(p.sys)].filter(n => byId[n] && !byId[n].ext); if (nx.length){ p.sys = nx[Math.floor(Math.random() * nx.length)]; if (k !== 'c2') demoNews(`${esc(p.name)} jumped into <b>${esc(sysName(p.sys))}</b>`); } }
+    if (k === 'c2' && Math.random() < 0.2){ p.online = !p.online; }
+  }
+  renderWatch();
+}
+// what just happened, in the demo banner
+let demoNewsT = null;
+function demoNews(html){
+  const b = $('#banner'); if (!b) return; b.dataset.news = '1';
+  b.innerHTML = `<b>Demo</b> · ${html} <span class="dim">· simulated characters, chain and Thera.</span> <a href="./">Leave the demo</a>`; b.classList.add('on');
+}
+// the demo map turns slowly on its own until you touch it
+let demoIdle = Date.now();
+function demoSpin(){
+  if (!DEMO) return;
+  ['pointerdown', 'wheel', 'keydown'].forEach(ev => addEventListener(ev, () => { demoIdle = Date.now(); }, { capture:true, passive:true }));
+  let last = performance.now();
+  const tick = t => {
+    const dt = Math.min(100, t - last); last = t;
+    if (!document.hidden && Date.now() - demoIdle > 5000 && R && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
+      keepPivot(() => { cam.yaw += dt * 0.00012; }); render();
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 /* ---------- EVE login, straight from this page (same tokens as the rest of the site) ---------- */
@@ -1054,7 +1084,7 @@ function assetsAt(sys){
 let pollT = null, lastErr = '', pollN = 0;
 async function poll(){
   clearTimeout(pollT);
-  if (DEMO && pollN % 2 === 0 && R) demoStep();
+  if (DEMO && R) demoStep();
   pollN++;
   const list = vaultChars();
   await Promise.all(list.map(async c => {
@@ -1069,7 +1099,7 @@ async function poll(){
   }));
   renderChars(); renderWho(); render(); renderChain();
   if (tok && share.charId !== tok.charId && !DEMO) shareConnect(); else sharePublish();
-  pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4500 : 6000);
+  pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4000 : 6000);
 }
 async function onMove(){
   if (!me.sys) return;
@@ -1084,7 +1114,7 @@ function renderWho(){
   const w = $('#who');
   w.innerHTML = tok ? `${esc(tok.charName)} · ${whereTxt(me.sys)}` : 'not logged in';
   const b = $('#banner');
-  if (DEMO){ b.innerHTML = `<b>Demo</b>: simulated characters, chain and Thera. <a href="./">Leave the demo</a> to use your own.`; b.classList.add('on'); }
+  if (DEMO){ if (!b.dataset.news){ b.innerHTML = `<b>Demo</b>: simulated characters, chain and Thera. <a href="./">Leave the demo</a> to use your own.`; } b.classList.add('on'); }
   else if (me.sys && isJ(me.sys)){ b.innerHTML = `You are in <b>${esc(sysName(me.sys))}</b> (wormhole space).`; b.classList.add('on'); }
   else b.classList.remove('on');
 }
@@ -2188,7 +2218,7 @@ function setupWidgets(){
   setupWidgets();
   try{ await loadIndex(); }catch(e){ $('#panel').innerHTML = `<p>${esc(e.message)}</p>`; return; }
   await handleCallback();
-  pickChar(); readMapper(); apLoad(); setupInput(); setupPilPop(); renderChars(); renderWho(); renderWhSel();
+  pickChar(); readMapper(); apLoad(); setupInput(); setupPilPop(); demoSpin(); renderChars(); renderWho(); renderWhSel();
   setInterval(() => { renderWhSel(); render(); }, 60000);   // holes age out even without a mapper change
   const q = new URLSearchParams(location.search);
   const qr = q.get('r'), qs = q.get('sys');
