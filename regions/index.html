@@ -755,6 +755,7 @@ async function loadScout(){
     scoutT = Date.now();
   }catch(e){}
   renderWhSel(); if (R){ computeRoute(); render(); renderPanel(); }
+  if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains();
 }
 nameCache['31000005'] = 'Thera'; nameCache.POCH = 'Pochven';
 /* every active hole: the mapper's chain plus EVE-Scout's Thera/Turnur connections (no duplicates) */
@@ -2439,12 +2440,15 @@ async function buildChains(){
     return { ids, set, home:homeId != null && set.has(String(homeId)), mine:ids.some(id => mine.has(id)), bridges:bridges.filter(b => set.has(b.a) && set.has(b.b)) };
   }).sort((a, b) => (b.home - a.home) || (b.mine - a.mine) || b.ids.length - a.ids.length);
   // no wormhole mapped: from home, the nearest Thera and the nearest Turnur connections (EVE-Scout), drawn the same way
-  if (hId && isK(hId) && !chainLinks().some(l => l.type !== 'gate')){
+  // always offered in the list (first when no wormhole is mapped)
+  const noWh = !chainLinks().some(l => l.type !== 'gate');
+  if (hId && isK(hId) && scout.length){
     const ids = [hId], extra = [], hb = [];
+    const note = $('#chainNote'); if (note && !chainGroups.length) note.textContent = 'Measuring the jumps from your home to Thera and Turnur…';
     for (const hub of ['31000005', '30002086']){
       const cands = scout.filter(l => String(l.a) === hub && isK(l.b) && whPhase(l) !== 'dead');
       if (!cands.length) continue;
-      const ds = await Promise.all(cands.slice(0, 40).map(l => jumps(hId, String(l.b)))); if (my !== chainBusy) return;
+      const ds = await Promise.all(cands.slice(0, 30).map(l => jumps(hId, String(l.b)))); if (my !== chainBusy) return;
       let bi = 0; ds.forEach((d, i) => { if (d < ds[bi]) bi = i; });
       const l = cands[bi], entry = String(l.b);
       if (ds[bi] >= 999) continue;
@@ -2455,8 +2459,8 @@ async function buildChains(){
     }
     if (ids.length > 1){
       const set = new Set(ids);
-      chainGroups = chainGroups.filter(g => !g.set.has(hId));
-      chainGroups.unshift({ ids, set, home:true, mine:ids.some(id => mine.has(id)), bridges:hb, extra, hubs:true });
+      const hg = { ids, set, home:true, mine:ids.some(id => mine.has(id)), bridges:hb, extra, hubs:true };
+      if (noWh){ chainGroups = chainGroups.filter(g => !g.set.has(hId) || g.ids.length > 1); chainGroups.unshift(hg); } else chainGroups.push(hg);
     }
   }
   // stay on the chain you were looking at (groups are re-sorted), or show the one a new system went into
