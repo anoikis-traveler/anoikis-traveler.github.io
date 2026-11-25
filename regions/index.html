@@ -2290,6 +2290,7 @@ function renderPanel(){
       <div class="row">
         ${s.ext ? `<button id="bReg" type="button">Go to ${esc(s.ext)}</button>` : ''}
         <a href="https://evemaps.dotlan.net/system/${encodeURIComponent(s.n.replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button">Dotlan</button></a>
+        <a href="https://zkillboard.com/system/${id}/" target="_blank" rel="noopener" title="Kills in ${esc(s.n)} on zKillboard"><button type="button">zKillboard${killsAt(id).length ? ` <span style="color:var(--c-kill)">☠ ${killsAt(id).length}</span>` : ''}</button></a>
       </div>
       <h3>Gates</h3><div>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
       ${jbList().some(j => String(j.a) === id || String(j.b) === id) ? `<h3>Jump bridge</h3><div>${jbList().filter(j => String(j.a) === id || String(j.b) === id).map(j => { const o = String(j.a) === id ? j.b : j.a; return `» <button class="lk" data-sys="${o}">${esc(sysName(o))}</button>${regionOf(o) && (!byId[String(o)] || byId[String(o)].ext) ? ` <span class="dim">(${esc(regionName(regionOf(o)))})</span>` : ''}`; }).join('<br>')}</div>` : ''}
@@ -2846,7 +2847,7 @@ function sysMenu(e, id){
     + item('dest', 'Set destination', '', !wpOk) + item('wp', 'Add waypoint', '', !wpOk) + '<hr>'
     + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
     + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('')
-    + '<hr>' + (assetsOn && assetsAt(id).length ? item('assets', '📦 Your assets here') : '') + (s && s.ext ? item('region', `Go to ${esc(s.ext)}`) : '') + item('dotlan', 'Dotlan ↗');
+    + '<hr>' + (assetsOn && assetsAt(id).length ? item('assets', '📦 Your assets here') : '') + (s && s.ext ? item('region', `Go to ${esc(s.ext)}`) : '') + item('dotlan', 'Dotlan ↗') + item('zkill', 'zKillboard ↗');
   m.hidden = false;
   const w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.min(e.clientX, innerWidth - w - 6) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - h - 6) + 'px';
@@ -2859,6 +2860,7 @@ function sysMenu(e, id){
     else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
     else if (act === 'assets') openAssets(id);
     else if (act === 'region') loadRegion(s.r).then(() => { select(id); centerOn(id); render(); });
+    else if (act === 'zkill') open(`https://zkillboard.com/system/${id}/`, '_blank', 'noopener');
     else if (act === 'dotlan') open(`https://evemaps.dotlan.net/system/${encodeURIComponent(sysName(id).replace(/ /g, '_'))}`, '_blank', 'noopener');
   };
 }
@@ -2878,7 +2880,7 @@ function chainMenu(e, id){
       + (isK(id) ? item('region', 'Open its region') + item('dest', 'Set destination') + item('wp', 'Add waypoint') + '<hr>' : '')
       + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
       + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('') + '<hr>'
-      + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + '<hr>' + item('del', 'Delete', 'danger');
+      + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + (/^\d+$/.test(id) ? item('zkill', 'zKillboard ↗') : '') + '<hr>' + item('del', 'Delete', 'danger');
   } else {
     html = item('add0', '+ Add a system') + (g ? item('all', 'Select the whole chain') : '') + (chainPicked.size ? item('clear', 'Clear selection') : '') + item('auto', 'Auto layout');
   }
@@ -2896,6 +2898,7 @@ function chainMenu(e, id){
     else if (act === 'wp') sendWaypoint(id, true);
     else if (act === 'add') openChainForm(id);
     else if (act === 'add0') openChainForm();
+    else if (act === 'zkill') open(`https://zkillboard.com/system/${id}/`, '_blank', 'noopener');
     else if (act === 'home') setHome(isHome(id) ? null : id);
     else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
     else if (act === 'link'){ linkFrom = id; chainSelect([id]); renderChainAct(); }
