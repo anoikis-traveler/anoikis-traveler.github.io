@@ -201,12 +201,13 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chaintools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim)}
 .chaintools select{max-width:230px;font-size:12.5px;padding:3px 6px}
 .chaintools input{width:52px;padding:2px 5px}
-#chainSvg{flex:1;min-height:0;width:100%;background:rgba(5,8,16,.6);border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+#chainSvg{user-select:none;-webkit-user-select:none;flex:1;min-height:0;width:100%;background:rgba(5,8,16,.6);border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
 .chainnote{font-size:11.5px}
-.cbox{cursor:pointer}
+.cbox{cursor:move}
 .cbox .cb{fill:#111a2c;stroke:#2c3a58;stroke-width:1}
 .cbox:hover .cb{stroke:#8b98b0}
 .cbox.here .cb{stroke:var(--ok);stroke-width:1.6}
+.cbox text{pointer-events:none}
 .cbadge{font-family:var(--mono);font-size:10px;font-weight:600;fill:#0b0f17}
 .cname{font-family:var(--body);font-size:12.5px;font-weight:600;fill:#e2e8f3}
 .csub{font-family:var(--mono);font-size:9.5px;fill:#8b98b0}
@@ -289,6 +290,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
     <div class="wb chainwb">
       <div class="chaintools">
         <select id="chainSel" aria-label="Chain"></select>
+        <button type="button" id="chainAuto" class="small" title="Forget the positions you set and lay the chain out again">Auto layout</button>
         <label title="Two groups of systems linked by wormholes are the same chain when their known-space systems are this many gate jumps apart or less">Same chain within <input id="chainX" type="number" min="0" max="40" step="1"> jumps</label>
       </div>
       <svg id="chainSvg" aria-label="Flat map of the chain"></svg>
@@ -1528,7 +1530,9 @@ function renderChainSel(){
 }
 let chainView = { k:1, x:0, y:0 };
 /* Classic mapper look: one card per system laid out as a tree from left to right, the hole type on each link */
-const BW = 156, BH = 50, CW = 214, RH = 68;
+const BW = 160, BH = 50, CW = 220, RH = 70, GRID = 10;   // layout units; boxes snap to the grid
+const chainPos = store.get('whmap.reg.chainpos', {});     // systems moved by hand
+let chainT = null, chainDrag = null;
 function chainLayout(g){
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
   const root = g.set.has(homeId) ? homeId : (me.sys && g.set.has(me.sys) ? me.sys : g.ids.find(isJ) || g.ids[0]);
@@ -1543,6 +1547,7 @@ function chainLayout(g){
     const ys = ks.map(k => place(k, d + 1)); pos[u] = { x:d * CW, y:(ys[0] + ys[ys.length - 1]) / 2 }; return pos[u].y; };
   place(root, 0);
   for (const id of g.ids) if (!pos[id]){ pos[id] = { x:0, y:row++ * RH }; }      // not reachable: listed under the tree
+  for (const id of g.ids) if (chainPos[id]) pos[id] = { ...chainPos[id] };
   return { pos, root };
 }
 function sysSub(id){
@@ -1561,8 +1566,16 @@ function renderChain(){
   if (!g){ $('#chainNote').textContent = DEMO ? '' : 'Your chain comes from the wormhole mapper of this site (same browser).'; return; }
   const { pos, root } = chainLayout(g), xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs) + BW, minY = Math.min(...ys), maxY = Math.max(...ys) + BH;
-  const fit = Math.min((W2 - 24) / Math.max(1, maxX - minX), (H2 - 24) / Math.max(1, maxY - minY), 1);
-  const k = fit * chainView.k, ox = 12 - minX * k + chainView.x + Math.max(0, (W2 - 24 - (maxX - minX) * k) / 2), oy = 12 - minY * k + chainView.y + Math.max(0, (H2 - 24 - (maxY - minY) * k) / 2);
+  if (!chainDrag){
+    const fit = Math.min((W2 - 24) / Math.max(1, maxX - minX), (H2 - 24) / Math.max(1, maxY - minY), 1);
+    const k = fit * chainView.k;
+    chainT = { k, ox:12 - minX * k + chainView.x + Math.max(0, (W2 - 24 - (maxX - minX) * k) / 2), oy:12 - minY * k + chainView.y + Math.max(0, (H2 - 24 - (maxY - minY) * k) / 2) };
+  }
+  const { k, ox, oy } = chainT;
+  // grid: a dot every two steps, in layout units so it moves and zooms with the boxes
+  const defsG = el('defs', {}, svg), pat = el('pattern', { id:'cgrid', width:GRID * 2 * k, height:GRID * 2 * k, patternUnits:'userSpaceOnUse', x:ox, y:oy }, defsG);
+  el('circle', { cx:1, cy:1, r:1, fill:'#26324c' }, pat);
+  el('rect', { width:W2, height:H2, fill:'url(#cgrid)' }, svg);
   const root_ = el('g', { transform:`translate(${ox} ${oy}) scale(${k})` }, svg);
   const gE = el('g', {}, root_), gL = el('g', {}, root_), gN = el('g', {}, root_);
   const L = (a, b) => { const pa = pos[a], pb = pos[b]; const left = pa.x <= pb.x ? [pa, pb] : [pb, pa];
@@ -1596,7 +1609,7 @@ function renderChain(){
     if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
-  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · drag to move, wheel to zoom, click a k-space system to open its region`;
+  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · drag a system to move it on the grid, drag the background to pan, wheel to zoom, click a k-space system to open its region`;
 }
 function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
@@ -1605,11 +1618,35 @@ function setupChain(){
   $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainView = { k:1, x:0, y:0 }; renderChain(); };
   $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
   let st = null;
-  svg.addEventListener('pointerdown', e => { if (e.target.closest('.cbox')) return; st = { x:e.clientX, y:e.clientY, vx:chainView.x, vy:chainView.y }; svg.setPointerCapture(e.pointerId); });
-  svg.addEventListener('pointermove', e => { if (!st) return; chainView.x = st.vx + e.clientX - st.x; chainView.y = st.vy + e.clientY - st.y; renderChain(); });
-  svg.addEventListener('pointerup', () => st = null);
+  svg.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.cbox');
+    if (b && chainT){ const g = chainGroups[chainPick || 0], { pos } = chainLayout(g), id = b.dataset.id;
+      chainDrag = { id, x:e.clientX, y:e.clientY, px:pos[id].x, py:pos[id].y, moved:false }; }
+    else st = { x:e.clientX, y:e.clientY, vx:chainView.x, vy:chainView.y };
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', e => {
+    if (chainDrag){
+      const dx = e.clientX - chainDrag.x, dy = e.clientY - chainDrag.y;
+      if (!chainDrag.moved && Math.hypot(dx, dy) < 4) return;
+      chainDrag.moved = true;
+      const snap = v => Math.round(v / GRID) * GRID;
+      chainPos[chainDrag.id] = { x:snap(chainDrag.px + dx / chainT.k), y:snap(chainDrag.py + dy / chainT.k) };
+      renderChain(); return;
+    }
+    if (!st) return; chainView.x = st.vx + e.clientX - st.x; chainView.y = st.vy + e.clientY - st.y; renderChain();
+  });
+  svg.addEventListener('pointerup', () => {
+    if (chainDrag){
+      const d = chainDrag; chainDrag = null;
+      if (d.moved) store.set('whmap.reg.chainpos', chainPos);
+      else if (isK(d.id)){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(d.id); }
+      else toast(`${sysName(d.id)}: wormhole space, no region map`);
+    }
+    st = null;
+  });
+  $('#chainAuto').onclick = () => { const g = chainGroups[chainPick || 0]; if (g) g.ids.forEach(id => delete chainPos[id]); store.set('whmap.reg.chainpos', chainPos); chainView = { k:1, x:0, y:0 }; renderChain(); };
   svg.addEventListener('wheel', e => { e.preventDefault(); chainView.k = Math.max(0.3, Math.min(6, chainView.k * Math.exp(-e.deltaY * 0.0015))); renderChain(); }, { passive:false });
-  svg.addEventListener('click', e => { const n = e.target.closest('.cbox'); if (!n) return; const id = n.dataset.id; if (isK(id)){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); } else toast(`${sysName(id)}: wormhole space, no region map`); });
   new ResizeObserver(() => renderChain()).observe(box.querySelector('.chainwb'));
   if (store.get('whmap.reg.chainOpen', false)) show(true);
   setInterval(() => { if (!box.hidden) buildChains(); }, 60000);
