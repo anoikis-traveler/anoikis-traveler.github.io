@@ -60,7 +60,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .legend span{display:inline-flex;align-items:center;gap:5px;margin:0 10px 4px 0;font-size:12px}
 .legend i{display:inline-block;width:18px;height:0;border-top:2px solid}
 /* SVG */
-.drop{stroke:#2a3552;stroke-width:1}
+.drop{stroke:#2a3552;stroke-width:1;opacity:.55}
+.drop.one{stroke:#55688f;opacity:.9;stroke-dasharray:3 3}
 .ground{fill:#3a4766}
 .gate{stroke:#3c4a66;stroke-width:1.6}
 .gate.xc{stroke:#55688f}
@@ -129,6 +130,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
     <option value="auto">Auto</option><option value="sec">Security</option><option value="const">Constellation</option></select></label>
   <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
   <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
+  <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane, to read heights">Height lines</button>
   <button id="btnReset" type="button">Recenter</button>
   <span class="grow"></span>
   <span id="who" class="dim">Not logged in</span>
@@ -192,6 +194,7 @@ let sel = null;              // selected system id (string)
 let route = null;            // { ids:[...], edges:Set }
 let follow = store.get('whmap.reg.follow', true);
 let colorMode = store.get('whmap.reg.color', 'auto');
+let drops = store.get('whmap.reg.drops', false);
 const cam = { yaw:0, pitch:58 * Math.PI / 180, zoom:1, px:0, py:0, hx:1 };
 let tok = null, clientId = '', me = { sys:null, name:'' };
 let mapper = { nodes:{}, links:{}, pilots:{} };
@@ -434,8 +437,12 @@ function draw(){
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
   const gDrop = el('g', {}, svg), gLinks = el('g', {}, svg), gConst = el('g', {}, svg), gWh = el('g', {}, svg), gNodes = el('g', {}, svg), gLbl = el('g', {}, svg);
   // drop lines to the region's mean plane: gives a sense of height, like the in-game map
+  // by default only for the selected system and your position; "Height lines" shows them all
   if (cam.pitch < 1.5){
-    for (const id in P){ const g = proj({ ...norm[id], y:0 }); el('line', { x1:P[id].x, y1:P[id].y, x2:g.x, y2:g.y, class:'drop' }, gDrop); el('circle', { cx:g.x, cy:g.y, r:1.2, class:'ground' }, gDrop); }
+    for (const id in P){
+      if (!drops && id !== sel && id !== me.sys) continue;
+      const g = proj({ ...norm[id], y:0 }); el('line', { x1:P[id].x, y1:P[id].y, x2:g.x, y2:g.y, class:'drop' + (drops ? '' : ' one') }, gDrop); el('circle', { cx:g.x, cy:g.y, r:1.2, class:'ground' }, gDrop);
+    }
   }
   // gates
   for (const [a, b] of R.links){
@@ -724,6 +731,8 @@ function setupInput(){
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
   $('#btnTop').onclick = () => { cam.yaw = 0; cam.pitch = Math.PI / 2; render(); };
+  const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
+  db.onclick = () => { drops = !drops; store.set('whmap.reg.drops', drops); db.setAttribute('aria-pressed', String(drops)); render(); };
   $('#regSel').onchange = e => { sel = null; loadRegion(e.target.value); };
   $('#whSel').onchange = async e => {
     const v = e.target.value; e.target.value = ''; if (!v) return;
