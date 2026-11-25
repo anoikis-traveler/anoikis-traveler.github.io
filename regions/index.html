@@ -17,7 +17,7 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14px;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14px;overflow:hidden}
 button,select,input{font:inherit;color:inherit}
 button{background:var(--panel-2);border:1px solid var(--line);padding:5px 10px;border-radius:3px;cursor:pointer}
 button:hover:not(:disabled){border-color:var(--accent)}
@@ -39,17 +39,16 @@ header .grow{flex:1}
 #whSel option.r{font-weight:600}
 #who b{color:var(--accent)}
 main{display:grid;grid-template-columns:1fr 330px;min-height:0}
-#stage{position:relative;min-width:0;min-height:0;overflow:hidden;touch-action:none}
+#stage{position:fixed;inset:0;overflow:hidden;touch-action:none}
 #map{width:100%;height:100%;display:block;cursor:grab;user-select:none}
 #map.dragging{cursor:grabbing}
 #hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--dim);pointer-events:none}
-#banner{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--eol);color:var(--text);padding:7px 14px;border-radius:4px;font-size:13px;display:none;z-index:3}
+#banner{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--eol);color:var(--text);padding:7px 14px;border-radius:4px;font-size:13px;display:none;z-index:3}
 #banner.on{display:block}
 #zoomBtns{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px}
 #zoomBtns button{width:34px;height:34px;padding:0;font-size:18px}
-aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:12px 14px}
-aside h2{font-family:var(--display);font-size:1.6rem;letter-spacing:.04em;margin:0 0 2px}
-aside h3{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:16px 0 6px}
+#panel h2{font-family:var(--display);font-size:1.6rem;letter-spacing:.04em;margin:0 0 2px}
+#panel h3{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:16px 0 6px}
 .row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .chip{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-radius:10px;font-size:12px;margin:0 4px 4px 0}
 ul.plain{list-style:none;margin:0;padding:0}
@@ -86,6 +85,9 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .me{fill:none;stroke:var(--ok);stroke-width:2.5}
 .mepulse{fill:none;stroke:var(--ok);stroke-width:2;animation:pulse 1.8s ease-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes pulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.6)}}
+.asset{fill:#d9a23f;stroke:#070a12;stroke-width:1}
+.assetl{stroke:#7a5414;stroke-width:1.2;fill:none}
+.assetn{font-family:var(--mono);font-size:10px;fill:#f2c46b;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
 .pil{font-family:var(--mono);font-size:10.5px;fill:var(--ok);paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
 .hublbl{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;paint-order:stroke;stroke:#070a12;stroke-width:4px;pointer-events:none}
 .jcard{fill:rgba(10,14,26,.88);stroke-width:1;stroke-opacity:.5}
@@ -106,7 +108,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .netlist .sc{font-family:var(--mono);font-size:12px}
 .stub{font-family:var(--mono);font-size:10.5px;fill:#cdb8ff;paint-order:stroke;stroke:#070a12;stroke-width:3px;cursor:pointer}
 /* Autopilot route widget */
-#apBox{position:absolute;left:12px;top:12px;z-index:4;width:250px;max-height:calc(100% - 60px);display:flex;flex-direction:column;background:rgba(14,20,36,.94);border:1px solid var(--line);border-left:3px solid var(--ap);border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#apBox{border-left:3px solid var(--ap)}
 #apBox[hidden]{display:none}
 #apHead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:none;border-radius:0;padding:8px 10px;font-size:13px}
 #apHead .car{display:inline-block;transition:transform .15s;color:var(--dim)}
@@ -115,6 +117,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #apHead .nx{display:block;font-size:12px;color:var(--dim);font-weight:400}
 #apBody{display:flex;flex-direction:column;min-height:0;border-top:1px solid var(--line)}
 #apBody[hidden]{display:none}
+#apBody.wb{padding:0}
 .aptools{display:flex;gap:6px;align-items:center;padding:6px 10px}
 .aptools select{flex:1;font-size:12px;padding:3px 5px}
 .aptools button{font-size:12px;padding:3px 8px}
@@ -134,48 +137,124 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #apMsg{padding:4px 10px 8px;font-size:12px;color:var(--dim)}
 .gate.ap,.whl.ap{stroke:var(--ap)!important;stroke-width:3;opacity:1;stroke-dasharray:none}
 .sys .apdot{fill:none;stroke:var(--ap);stroke-width:1.5}
-@media (max-width:820px){ main{grid-template-columns:1fr;grid-template-rows:1fr 40%} aside{border-left:none;border-top:1px solid var(--line)} }
+/* Thera / Turnur label: collapsible card with every connection */
+#hubCards{position:absolute;inset:0;pointer-events:none;z-index:3}
+.hubcard{position:absolute;pointer-events:auto;width:310px;background:rgba(10,14,26,.93);border:1px solid;border-radius:5px;box-shadow:0 6px 22px rgba(0,0,0,.45);font-size:12.5px;display:flex;flex-direction:column}
+.hubcard .hc-head{display:flex;align-items:baseline;gap:7px;width:100%;background:none;border:none;border-radius:0;padding:7px 10px;text-align:left}
+.hubcard .hc-head b{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase}
+.hubcard .hc-head .car{color:var(--dim);display:inline-block;transition:transform .15s}
+.hubcard .hc-head[aria-expanded="false"] .car{transform:rotate(-90deg)}
+.hubcard .hc-head .cnt{color:var(--dim);font-size:12px;margin-left:auto}
+.hubcard .hc-body{overflow:auto;border-top:1px solid var(--line);padding:2px 0 6px}
+.hubcard .hc-sec{font-family:var(--display);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:7px 10px 2px}
+.hubcard .hc-row{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;padding:3px 6px 3px 10px;cursor:pointer}
+.hubcard .hc-row:hover{background:var(--panel-2)}
+.hubcard .hc-row i{width:9px;height:9px;border-radius:50%;display:block}
+.hubcard .hc-row .hc-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hubcard .hc-row .hc-n small{color:var(--dim);font-family:var(--mono);font-size:10.5px;margin-left:5px}
+.hubcard .hc-row.on .hc-n{font-weight:600}
+.hubcard .hc-row.on i{box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+.hubcard .hc-wp{padding:1px 7px;font-size:12px;line-height:1.4}
+.hubcard .hc-chain{padding:0 10px 3px 29px;font-family:var(--mono);font-size:10.5px;color:#9aa6bd}
+/* ---------- Widgets: draggable, foldable windows over the full-screen map ---------- */
+.widget{position:absolute;z-index:5;background:rgba(12,17,30,.92);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.5);backdrop-filter:blur(6px);display:flex;flex-direction:column;max-height:calc(100vh - 24px);min-width:200px}
+.widget[hidden]{display:none}
+.widget .wh{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;cursor:grab;user-select:none;border-bottom:1px solid var(--line);touch-action:none}
+.widget.dragging .wh{cursor:grabbing}
+.widget .wt{font-family:var(--display);font-size:1.02rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.widget .wsub{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.widget .wcol{margin-left:auto;padding:0 8px;line-height:1.3;background:none;border-color:transparent;color:var(--dim)}
+.widget .wcol:hover{border-color:var(--line)}
+.widget .wb{padding:10px 11px;overflow:auto;min-height:0}
+.widget.folded .wb,.widget.folded #apHead{display:none}
+.widget.folded .wh{border-bottom:none}
+.brand{font-family:var(--display);font-size:1.2rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text);text-decoration:none}
+.brand b{color:var(--accent)}
+.wnav{display:flex;gap:2px;margin-left:6px}
+.wnav a{font-size:12px;color:var(--dim);text-decoration:none;padding:2px 7px;border-radius:3px}
+.wnav a:hover{color:var(--text);background:var(--panel-2)}
+.wb.tool{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.wb.tool select,.wb.tool input{max-width:220px}
+.wb.view{display:flex;flex-direction:column;gap:8px}
+.wb.view .btns{display:flex;gap:5px;flex-wrap:wrap}
+.wb.view button{font-size:12.5px;padding:4px 9px}
+#wInfo{width:330px}
+#wChars{width:300px}
+#apBox{width:270px}
+.chr{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid rgba(36,49,76,.6);cursor:pointer;border-radius:4px}
+.chr:hover{background:var(--panel-2)}
+.chr.on{background:rgba(242,167,75,.08);box-shadow:inset 2px 0 0 var(--accent)}
+.chr img{width:34px;height:34px;border-radius:4px;background:var(--bg)}
+.chr .nm{font-weight:600}
+.chr .loc{font-size:12px;color:var(--dim)}
+.chr .loc b{color:var(--text);font-weight:500}
+.chr .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#55606f;margin-right:5px;vertical-align:1px}
+.chr .dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.chr .x{background:none;border:none;color:var(--dim);padding:2px 6px}
+.chr .x:hover{color:var(--bad)}
+.chars-act{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.chars-act label{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center}
+.demo-tag{display:inline-block;font-size:10.5px;font-family:var(--mono);color:#1a1205;background:var(--accent);border-radius:3px;padding:0 5px;margin-left:6px;vertical-align:2px}
+@media (max-width:820px){ #wInfo,#wChars{width:min(330px,calc(100vw - 24px))} }
 </style>
 </head>
 <body>
-<header>
-  <h1><a href="../">Anoikis Traveler</a> <small>· Region</small></h1>
-  <label class="dim">Region <select id="regSel" aria-label="Region"></select></label>
-  <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions where your mapper has an active wormhole connection"></select>
-  <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system" size="16">
-  <datalist id="sysList"></datalist>
-  <label class="dim">Colour <select id="colorSel" aria-label="Colour systems by">
-    <option value="wh">Grey + wormholes</option><option value="sec">Security</option><option value="const">Constellation</option></select></label>
-  <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
-  <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
-  <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane, to read heights">Height lines</button>
-  <button id="btnReset" type="button">Recenter</button>
-  <span class="grow"></span>
-  <span id="who" class="dim">Not logged in</span>
-  <select id="charSel" aria-label="Character" hidden></select>
-  <a id="toMapper" href="../map/"><button type="button" class="primary">Wormhole mapper</button></a>
-</header>
-<main>
-  <div id="stage">
-    <svg id="map" aria-label="3D region map"></svg>
-    <div id="banner"></div>
-    <div id="apBox" hidden>
-      <button id="apHead" type="button" aria-expanded="true" aria-controls="apBody"></button>
-      <div id="apBody">
-        <div class="aptools">
-          <select id="apPref" aria-label="Route preference" title="Use the same setting as your in-game autopilot">
-            <option value="Shorter">Shortest</option><option value="Safer">Safer (high-sec)</option><option value="LessSecure">Less secure</option></select>
-          <button id="apClear" type="button" title="Forget this route (the in-game route is not changed)">Clear</button>
-        </div>
-        <ol id="apList"></ol>
-        <div id="apMsg"></div>
+<div id="stage">
+  <svg id="map" aria-label="3D region map"></svg>
+  <div id="banner"></div>
+  <div id="hubCards"></div>
+  <div id="hint">Drag to rotate · Shift+drag or right-drag to pan · Wheel to zoom · Click a system: rotation and zoom then turn around it</div>
+  <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
+
+  <section class="widget" id="wTool" data-title="Anoikis Traveler">
+    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <div class="wb tool">
+      <select id="regSel" aria-label="Region"></select>
+      <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
+      <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
+      <datalist id="sysList"></datalist>
+    </div>
+  </section>
+
+  <section class="widget" id="wView" data-title="View">
+    <header class="wh"><span class="wt">View</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <div class="wb view">
+      <label class="dim">Colour <select id="colorSel" aria-label="Colour systems by"><option value="wh">Grey + wormholes</option><option value="sec">Security</option><option value="const">Constellation</option></select></label>
+      <div class="btns">
+        <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
+        <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
+        <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
+        <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
+        <button id="btnReset" type="button">Recenter</button>
+        <button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button>
       </div>
     </div>
-    <div id="hint">Drag to rotate · Shift+drag or right-drag to pan · Wheel to zoom · Click a system: rotation and zoom then turn around it</div>
-    <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
-  </div>
-  <aside id="panel" aria-live="polite"></aside>
-</main>
+  </section>
+
+  <section class="widget" id="wChars" data-title="Characters">
+    <header class="wh"><span class="wt">Characters</span><span id="who" class="dim wsub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <div class="wb" id="charsBody"></div>
+  </section>
+
+  <section class="widget" id="wInfo" data-title="Info">
+    <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <div class="wb"><div id="panel" aria-live="polite"></div></div>
+  </section>
+
+  <section class="widget" id="apBox" data-title="Route" hidden>
+    <header class="wh"><span class="wt">Route</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <button id="apHead" type="button" aria-expanded="true" aria-controls="apBody"></button>
+    <div id="apBody" class="wb">
+      <div class="aptools">
+        <select id="apPref" aria-label="Route preference" title="Use the same setting as your in-game autopilot">
+          <option value="Shorter">Shortest</option><option value="Safer">Safer (high-sec)</option><option value="LessSecure">Less secure</option></select>
+        <button id="apClear" type="button" title="Forget this route (the in-game route is not changed)">Clear</button>
+      </div>
+      <ol id="apList"></ol>
+      <div id="apMsg"></div>
+    </div>
+  </section>
+</div>
 <div id="toast" role="status"></div>
 <script>
 (() => {
@@ -282,7 +361,7 @@ async function loadRegion(id, keepCam){
   $('#regSel').value = String(id);
   document.title = `${R.region.name} · Anoikis Traveler`;
   const slug = (index.regions.find(g => g.id === id) || {}).slug || id;
-  history.replaceState(null, '', `?r=${slug}`);
+  history.replaceState(null, '', `?r=${slug}${DEMO ? '&demo' : ''}`);
   store.set('whmap.reg.last', id);
   if (!keepCam){ cam.zoom = 1; cam.px = 0; cam.py = 0; }
   if (sel && !byId[sel]) sel = null;
@@ -291,6 +370,7 @@ async function loadRegion(id, keepCam){
 
 /* ---------- Mapper data (read-only, from the mapper's browser cache) ---------- */
 function readMapper(){
+  if (DEMO){ mapper = demoMapper(); return; }
   const cid = (tok && tok.charId) || store.get('whmap.lastChar', null);
   const slot = cid ? store.get(CK.slot + cid, null) : null;
   let m = slot && slot.mapOwner ? store.get('whmap.cache.' + slot.mapOwner, null) : null;
@@ -343,6 +423,7 @@ const HUB_CLASS = { '31000005':'THERA', '30002086':'TURNUR' };
 const SCOUT_SIZE = { small:'S', medium:'M', large:'L', xlarge:'XL', capital:'XL' };
 let scout = [], scoutT = 0;
 async function loadScout(){
+  if (DEMO){ scout = demoScout(); scoutT = Date.now(); renderWhSel(); if (R){ computeRoute(); render(); renderPanel(); } return; }
   try{
     const r = await fetch('https://api.eve-scout.com/v2/public/signatures'); if (!r.ok) throw 0;
     const j = await r.json();
@@ -363,28 +444,63 @@ function allHoles(){
   return out;
 }
 const isHubVirtual = id => HUB_LIST.includes(String(id)) && !byId[String(id)];
-const pilotsAt = id => Object.values(mapper.pilots).filter(p => p && String(p.sys) === String(id) && (!p.t || Date.now() - p.t < 30 * 60000));
+const pilotsAt = id => Object.values(mapper.pilots).filter(p => p && String(p.sys) === String(id) && (!p.t || Date.now() - p.t < 30 * 60000))
+  .concat(Object.values(chars).filter(c => c.sys === String(id) && (!tok || c.name !== tok.charName)).map(c => ({ name:c.name, sys:c.sys })))
+  .filter((p, i, a) => a.findIndex(q => q.name === p.name) === i);
 
-/* ---------- EVE login (shared with the mapper) ---------- */
+/* ---------- Demo mode (?demo): simulated characters, chain and Thera; nothing is read from or written to EVE ---------- */
+const DEMO = new URLSearchParams(location.search).has('demo');
+const DEMO_CHARS = [{ charId:90000001, charName:'Demo Pilot', demo:true, exp:Infinity }, { charId:90000002, charName:'Demo Scout', demo:true, exp:Infinity }];
+let demoPos = { 90000001:null, 90000002:'31000123' }, demoSeen = new Set();
+const sysByName = n => { for (const id in index.sys) if (index.sys[id][0] === n) return id; return null; };
+function demoMapper(){
+  const K = n => sysByName(n);
+  const nodes = { '31000123':{ id:31000123, name:'J000123', cls:'C3' }, '31000900':{ id:31000900, name:'J000900', cls:'C5' }, '31000901':{ id:31000901, name:'J000901', cls:'C2' } };
+  for (const n of ['KDG-TA', '4M-QXK', '5M2-KP']){ const id = K(n); if (id) nodes[id] = { id:Number(id), name:n, cls:'NS' }; }
+  const now = Date.now(), L = (id, a, b, o) => ({ id, a:Number(a), b:Number(b), type:'wh', mass:'fresh', eol:false, size:'L', created:now - 3600e3, ...o });
+  return { nodes, pilots:{ c1:{ name:'Corpmate', sys:K('4M-QXK'), ship:'Tengu', t:now } },
+    links:{ d1:L('d1', K('KDG-TA'), 31000123, { wh:'N062' }), d2:L('d2', 31000123, 31000900, { wh:'H296', size:'XL' }), d3:L('d3', 31000900, 31000901, { wh:'D382', mass:'reduced' }),
+            d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }) } };
+}
+function demoScout(){
+  const now = Date.now(), K = n => Number(sysByName(n)), S = (i, hub, b, wh, size, h, cls) => ({ id:'demo' + i, a:hub, b, type:'wh', src:'eve-scout', wh, size, expires:now + h * 3600e3, mass:'fresh', eol:false, outSig:'ABC-' + (100 + i), inSig:'XYZ-' + (200 + i), clsTxt:cls || '' });
+  nameCache['31000456'] = 'J000456'; nameCache['31002002'] = 'J002002';
+  return [S(1, 31000005, K('TTP-2B'), 'Q063', 'L', 9), S(2, 31000005, K('Perimeter'), 'Q063', 'XL', 14), S(3, 31000005, K('Amarr'), 'Q063', 'L', 5), S(4, 31000005, K('Dodixie'), 'Q063', 'M', 2),
+          S(5, 31000005, 31000123, 'Q063', 'L', 11, 'c3'), S(6, 31000005, 31000456, 'Q063', 'L', 7, 'c5'), S(7, 31000005, 31002002, 'Q063', 'M', 3, 'c6'),
+          S(8, 30002086, K('O-9G5Y'), 'Q063', 'L', 12), S(9, 30002086, K('Jita'), 'Q063', 'XL', 16)].filter(l => l.a && l.b);
+}
+function demoStep(){                       // the demo pilot flies a gate every few seconds, never back where it just was
+  const cur = demoPos[90000001];
+  if (!cur || !adj[cur]){ demoPos[90000001] = sysByName('5M2-KP') || (R && String(R.systems[0].id)); return; }
+  const next = adj[cur].filter(n => byId[n] && !byId[n].ext);
+  const fresh = next.filter(n => !demoSeen.has(n));
+  const pick = (fresh.length ? fresh : next)[Math.floor(Math.random() * (fresh.length ? fresh : next).length)];
+  if (pick){ demoSeen.add(cur); if (demoSeen.size > 12) demoSeen = new Set([...demoSeen].slice(-12)); demoPos[90000001] = pick; }
+}
+
+/* ---------- EVE login, straight from this page (same tokens as the rest of the site) ---------- */
+const ROOT = location.origin + location.pathname.replace(/regions\/(index\.html)?$/, '');   // the callback registered with EVE
+const SCOPES = 'esi-location.read_location.v1 esi-location.read_online.v1 esi-location.read_ship_type.v1';
+const AS_SCOPE = 'esi-assets.read_assets.v1', ST_SCOPE = 'esi-universe.read_structures.v1';
+const chars = {};                          // charId -> { sys, online }
 function jwt(t){ try{ return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }catch(e){ return {}; } }
-const scopes = () => { if (!tok) return []; const s = jwt(tok.access_token).scp; return Array.isArray(s) ? s : (s ? [s] : []); };
-const canWp = () => scopes().includes(WP_SCOPE);
+const scopesOf = t => { if (!t || !t.access_token) return []; const s = jwt(t.access_token).scp; return Array.isArray(s) ? s : (s ? [s] : []); };
+const canWp = () => DEMO || (!!tok && scopesOf(tok).includes(WP_SCOPE));
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 function vaultChars(){
+  if (DEMO) return DEMO_CHARS;
   const out = [];
   try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith(CK.tok)){ const t = store.get(k, null); if (t && t.charId) out.push(t); } } }catch(e){}
   return out.sort((a, b) => String(a.charName).localeCompare(String(b.charName)));
 }
 function pickChar(){
-  const chars = vaultChars();
+  const list = vaultChars();
   let id = Number(sess.get('whmap.tabChar')) || store.get('whmap.lastChar', null);
-  if (!chars.some(c => c.charId === id)) id = chars.length ? chars[0].charId : null;
-  tok = id ? store.get(CK.tok + id, null) : null;
+  if (!list.some(c => c.charId === id)) id = list.length ? list[0].charId : null;
+  tok = DEMO ? (list.find(c => c.charId === id) || null) : (id ? store.get(CK.tok + id, null) : null);
   if (id) sess.set('whmap.tabChar', String(id));
-  const cs = $('#charSel');
-  cs.hidden = chars.length < 2;
-  cs.innerHTML = chars.map(c => `<option value="${c.charId}"${c.charId === id ? ' selected' : ''}>${esc(c.charName)}</option>`).join('');
-  const cached = id ? store.get(CK.me + id, null) : null;
-  me = { sys:cached && cached.current != null && /^\d+$/.test(String(cached.current)) ? String(cached.current) : null, name:tok ? tok.charName : '' };
+  const cached = !DEMO && id ? store.get(CK.me + id, null) : null;
+  me = { sys:DEMO ? (demoPos[id] || null) : chars[id] && chars[id].sys ? chars[id].sys : cached && cached.current != null && /^\d+$/.test(String(cached.current)) ? String(cached.current) : null, name:tok ? tok.charName : '' };
 }
 async function getClientId(){
   if (clientId) return clientId;
@@ -392,53 +508,164 @@ async function getClientId(){
   try{ const r = await fetch('../site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j.clientId) clientId = j.clientId; } }catch(e){}
   return clientId;
 }
-async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
-async function ensureToken(){
-  if (!tok) throw new Error('Not logged in');
-  const latest = store.get(CK.tok + tok.charId, null);
-  if (!latest){ tok = null; throw new Error('Logged out in the mapper'); }
-  if (latest.exp > tok.exp) tok = latest;
-  if (Date.now() < tok.exp - 60000) return;
-  // same lock name as the mapper: only one tab renews the token, the others pick up the result
-  await withLock('whmap-tok-' + tok.charId, async () => {
-    const l2 = store.get(CK.tok + tok.charId, null);
-    if (l2 && l2.exp > tok.exp) tok = l2;
-    if (Date.now() < tok.exp - 60000) return;
-    const cid = await getClientId();
-    const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-      body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:tok.refresh_token, client_id:cid }) });
-    if (!r.ok) throw new Error('EVE session expired: log in again in the mapper');
-    const j = await r.json(), claims = jwt(j.access_token);
-    tok = { access_token:j.access_token, refresh_token:j.refresh_token, exp:(claims.exp || 0) * 1000,
-            charId:Number(String(claims.sub || '').split(':').pop()), charName:claims.name || '' };
-    store.set(CK.tok + tok.charId, tok);
-  });
+async function login(){
+  if (DEMO){ location.href = './'; return; }
+  const cid = await getClientId();
+  if (!cid){ toast('The site has no EVE application configured (site.json).', true); return; }
+  if (!window.crypto || !crypto.subtle){ toast('This browser blocks login here: use the https address.', true); return; }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = 'rg' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "rg": the site root sends the answer back here
+  sess.set('whmap.reg.pkce', JSON.stringify({ verifier, state }));
+  const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true);
+  const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as ? ` ${AS_SCOPE} ${ST_SCOPE}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
+  location.href = `${SSO}/authorize/?${p}`;
 }
-async function esiAuth(path, opts = {}){
-  await ensureToken();
-  const r = await fetch(ESI + path, { ...opts, headers:{ Accept:'application/json', Authorization:'Bearer ' + tok.access_token }, cache:'no-store' });
+async function tokenRequest(params){
+  const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams(params) });
+  if (!r.ok) throw new Error('EVE refused the login (' + r.status + ')');
+  const j = await r.json(), claims = jwt(j.access_token);
+  return { access_token:j.access_token, refresh_token:j.refresh_token, exp:(claims.exp || 0) * 1000, charId:Number(String(claims.sub || '').split(':').pop()), charName:claims.name || '' };
+}
+async function handleCallback(){
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code') && !q.has('error')) return;
+  let saved = null; try{ saved = JSON.parse(sess.get('whmap.reg.pkce') || 'null'); }catch(e){}
+  history.replaceState(null, '', location.pathname);
+  if (q.has('error')){ toast('Login cancelled', true); return; }
+  if (!saved || saved.state !== q.get('state')){ toast('Login interrupted, try again.', true); return; }
+  try{
+    const t = await tokenRequest({ grant_type:'authorization_code', code:q.get('code'), client_id:await getClientId(), code_verifier:saved.verifier });
+    store.set(CK.tok + t.charId, t); store.set('whmap.lastChar', t.charId); sess.set('whmap.tabChar', String(t.charId));
+    toast(`Logged in: ${t.charName}${scopesOf(t).includes(WP_SCOPE) ? '' : ' (without Set destination)'}`);
+  }catch(e){ toast(e.message, true); }
+}
+function logout(id){
+  try{ localStorage.removeItem(CK.tok + id); }catch(e){}
+  delete chars[id];
+  if (tok && tok.charId === id){ sess.set('whmap.tabChar', ''); pickChar(); }
+  renderChars(); renderWho(); render();
+}
+function switchChar(id){
+  sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
+  pickChar(); readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
+}
+async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
+/* a fresh access token for any stored character; one tab renews it, the others pick it up (same lock as the mapper) */
+async function freshTok(t){
+  if (t.demo) return t;
+  let cur = store.get(CK.tok + t.charId, null);
+  if (!cur) throw new Error('Logged out');
+  if (Date.now() < cur.exp - 60000) return cur;
+  await withLock('whmap-tok-' + t.charId, async () => {
+    cur = store.get(CK.tok + t.charId, null) || cur;
+    if (Date.now() < cur.exp - 60000) return;
+    try{ cur = await tokenRequest({ grant_type:'refresh_token', refresh_token:cur.refresh_token, client_id:await getClientId() }); store.set(CK.tok + cur.charId, cur); }
+    catch(e){ throw new Error(`${t.charName}: EVE session expired, log in again`); }
+  });
+  return cur;
+}
+async function ensureToken(){ if (!tok) throw new Error('Not logged in'); tok = await freshTok(tok); }
+async function esiFor(t, path, opts = {}){
+  if (DEMO){
+    const id = t.charId;
+    if (/\/location\//.test(path)) return { solar_system_id:Number(demoPos[id]) };
+    if (/\/online\//.test(path)) return { online:true };
+    return null;
+  }
+  const f = await freshTok(t); if (tok && f.charId === tok.charId) tok = f;
+  const r = await fetch(ESI + path, { ...opts, headers:{ Accept:'application/json', Authorization:'Bearer ' + f.access_token }, cache:'no-store' });
   if (!r.ok) throw new Error('ESI ' + r.status);
   return r.status === 204 ? null : r.json();
 }
+async function esiAuth(path, opts = {}){ if (!tok) throw new Error('Not logged in'); return esiFor(tok, path, opts); }
 async function lookupName(id){
   id = String(id); if (byId[id] || (index.sys[id]) || nameCache[id]) return;
   try{ const r = await fetch(`${ESI}/universe/systems/${id}/`); if (r.ok){ nameCache[id] = (await r.json()).name; } }catch(e){}
 }
 
-/* ---------- Live position ---------- */
-let pollT = null, lastErr = '';
+/* ---------- Assets: where your characters have things (same cache as the mapper, refreshed hourly like CCP's) ---------- */
+let assetsOn = store.get('whmap.reg.assets', false), assetData = {};
+const stationSys = store.get('whmap.stations', {}), structSys = store.get('whmap.structs', {});
+async function esiPages(t, path){
+  const f = await freshTok(t), out = []; let page = 1, pages = 1;
+  do{
+    const r = await fetch(`${ESI}${path}${path.includes('?') ? '&' : '?'}page=${page}`, { headers:{ Authorization:'Bearer ' + f.access_token }, cache:'no-store' });
+    if (!r.ok) throw new Error('ESI ' + r.status);
+    pages = Number(r.headers.get('X-Pages') || 1); out.push(...await r.json()); page++;
+  } while (page <= pages && page <= 50);
+  return out;
+}
+async function placeSystem(locId, type, t){
+  if (type === 'solar_system') return locId;
+  if (type === 'station' || (locId >= 60000000 && locId < 64000000)){
+    if (stationSys[locId] == null){ try{ const r = await fetch(`${ESI}/universe/stations/${locId}/`); stationSys[locId] = r.ok ? (await r.json()).system_id : 0; store.set('whmap.stations', stationSys); }catch(e){ return null; } }
+    return stationSys[locId] || null;
+  }
+  if (locId >= 1e12){
+    if (structSys[locId] === undefined){
+      if (!scopesOf(t).includes(ST_SCOPE)) return null;
+      try{ const f = await freshTok(t), r = await fetch(`${ESI}/universe/structures/${locId}/`, { headers:{ Authorization:'Bearer ' + f.access_token } }); structSys[locId] = r.ok ? (await r.json()).solar_system_id : 0; }catch(e){ structSys[locId] = 0; }
+      store.set('whmap.structs', structSys);
+    }
+    return structSys[locId] || null;
+  }
+  return null;
+}
+async function loadAssets(force){
+  if (DEMO){
+    const K = n => sysByName(n), d = {};
+    [['5M2-KP', 14], ['KDG-TA', 3], ['Jita', 52], ['O-9G5Y', 6]].forEach(([n, c]) => { const id = K(n); if (id) d[id] = c; });
+    assetData = { 90000001:{ name:'Demo Pilot', t:Date.now(), bySys:d } }; render(); renderPanel(); return;
+  }
+  for (const c of vaultChars()){
+    const cached = assetData[c.charId] || store.get('whmap.assets.' + c.charId, null);
+    if (cached) assetData[c.charId] = cached;
+    if (!force && cached && !cached.err && Date.now() - cached.t < 60 * 60e3) continue;
+    if (!scopesOf(store.get(CK.tok + c.charId, c)).includes(AS_SCOPE)){ assetData[c.charId] = { name:c.charName, t:Date.now(), bySys:{}, err:'scope' }; continue; }
+    try{
+      const list = await esiPages(c, `/characters/${c.charId}/assets/`);
+      const byItem = {}; for (const a of list) byItem[a.item_id] = a;
+      const bySys = {}, roots = {};
+      for (const a of list){
+        let x = a, guard = 0;
+        while (x.location_type === 'item' && byItem[x.location_id] && guard++ < 10) x = byItem[x.location_id];
+        if (x !== a) continue;                       // top-level items only: ships, containers, hangar stacks
+        const key = x.location_type + ':' + x.location_id;
+        if (!(key in roots)) roots[key] = await placeSystem(x.location_id, x.location_type, c);
+        const sys = roots[key]; if (sys) bySys[sys] = (bySys[sys] || 0) + 1;
+      }
+      assetData[c.charId] = { name:c.charName, t:Date.now(), bySys };
+      store.set('whmap.assets.' + c.charId, assetData[c.charId]);
+    }catch(e){ assetData[c.charId] = { ...(assetData[c.charId] || { bySys:{} }), name:c.charName, err:String(e.message || e) }; }
+  }
+  render(); renderPanel();
+}
+function assetsAt(sys){
+  if (!assetsOn) return [];
+  const ids = new Set(vaultChars().map(c => String(c.charId)));
+  return Object.entries(assetData).filter(([id, d]) => ids.has(id) && d && d.bySys && d.bySys[sys]).map(([id, d]) => ({ name:d.name, n:d.bySys[sys] }));
+}
+
+/* ---------- Live positions: the active character follows the map, the others are shown on it ---------- */
+let pollT = null, lastErr = '', pollN = 0;
 async function poll(){
   clearTimeout(pollT);
-  if (tok){
+  if (DEMO && pollN % 2 === 0 && R) demoStep();
+  pollN++;
+  const list = vaultChars();
+  await Promise.all(list.map(async c => {
     try{
-      const loc = await esiAuth(`/characters/${tok.charId}/location/`);
+      const loc = await esiFor(c, `/characters/${c.charId}/location/`);
+      let online = null; try{ const o = await esiFor(c, `/characters/${c.charId}/online/`); online = !!(o && o.online); }catch(e){}
       const sys = String(loc.solar_system_id);
-      lastErr = '';
-      if (sys !== me.sys){ me.sys = sys; onMove(); }
-    }catch(e){ if (e.message !== lastErr){ lastErr = e.message; if (!/ESI 5/.test(e.message)) toast(e.message, true); } }
-    renderWho();
-  }
-  pollT = setTimeout(poll, document.hidden ? 20000 : 6000);
+      if (isJ(sys) || !regionOf(sys)) await lookupName(sys);
+      chars[c.charId] = { sys, online, name:c.charName };
+      if (tok && c.charId === tok.charId){ lastErr = ''; if (sys !== me.sys){ me.sys = sys; onMove(); } }
+    }catch(e){ if (tok && c.charId === tok.charId && e.message !== lastErr){ lastErr = e.message; if (!/ESI 5/.test(e.message)) toast(e.message, true); } }
+  }));
+  renderChars(); renderWho(); render();
+  pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4500 : 6000);
 }
 async function onMove(){
   if (!me.sys) return;
@@ -448,14 +675,35 @@ async function onMove(){
   else if (follow && byId[me.sys]) centerOn(me.sys, true);
   computeRoute(); render(); renderPanel(); renderWho(); computeAp();
 }
+const whereTxt = sys => !sys ? '<span class="dim">locating…</span>' : `<b>${esc(sysName(sys))}</b>${byId[sys] && !byId[sys].ext ? '' : regionOf(sys) ? ` <span class="dim">· ${esc(regionName(regionOf(sys)))}</span>` : isJ(sys) ? ' <span class="dim">· J-space</span>' : ''}`;
 function renderWho(){
   const w = $('#who');
-  if (!tok){ w.innerHTML = `Not logged in · <a href="${MAPPER}">log in through the mapper</a>`; return; }
-  const where = me.sys ? `<b>${esc(sysName(me.sys))}</b>${byId[me.sys] && !byId[me.sys].ext ? '' : regionOf(me.sys) ? ` <span class="dim">(${esc(regionName(regionOf(me.sys)))})</span>` : isJ(me.sys) ? ' <span class="dim">(J-space)</span>' : ''}` : '<span class="dim">locating…</span>';
-  w.innerHTML = `${esc(tok.charName)} · ${where}`;
+  w.innerHTML = tok ? `${esc(tok.charName)} · ${whereTxt(me.sys)}` : 'not logged in';
   const b = $('#banner');
-  if (me.sys && isJ(me.sys)){ b.innerHTML = `You are in <b>${esc(sysName(me.sys))}</b> (wormhole space). <a href="${MAPPER}?sys=${me.sys}">Open the chain in the mapper</a>`; b.classList.add('on'); }
+  if (DEMO){ b.innerHTML = `<b>Demo</b>: simulated characters, chain and Thera. <a href="./">Leave the demo</a> to use your own.`; b.classList.add('on'); }
+  else if (me.sys && isJ(me.sys)){ b.innerHTML = `You are in <b>${esc(sysName(me.sys))}</b> (wormhole space).`; b.classList.add('on'); }
   else b.classList.remove('on');
+}
+function renderChars(){
+  const box = $('#charsBody'); if (!box) return;
+  const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
+  box.innerHTML = (list.length ? list.map(c => { const st = chars[c.charId] || {}, on = tok && tok.charId === c.charId;
+      return `<div class="chr${on ? ' on' : ''}" data-char="${c.charId}" title="${on ? 'Active: the map follows this character' : 'Make this character active'}">
+        ${c.demo ? '<img alt="" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 34 34%22%3E%3Crect width=%2234%22 height=%2234%22 fill=%22%23141c30%22/%3E%3Ccircle cx=%2217%22 cy=%2213%22 r=%226%22 fill=%22%2355688f%22/%3E%3Cpath d=%22M6 32c2-8 20-8 22 0%22 fill=%22%2355688f%22/%3E%3C/svg%3E">' : `<img alt="" loading="lazy" src="https://images.evetech.net/characters/${c.charId}/portrait?size=64">`}
+        <div><div class="nm">${esc(c.charName)}${c.demo ? '<span class="demo-tag">DEMO</span>' : ''}</div>
+          <div class="loc"><span class="dot${st.online ? ' on' : ''}" title="${st.online ? 'Online' : st.online === false ? 'Offline' : 'Unknown'}"></span>${whereTxt(st.sys)}${!c.demo && !scopesOf(c).includes(WP_SCOPE) ? ' <span class="dim" title="Logged in without Set destination">· no autopilot</span>' : ''}</div></div>
+        ${c.demo ? '<span></span>' : `<button class="x" type="button" data-logout="${c.charId}" title="Log this character out of this browser" aria-label="Log out ${esc(c.charName)}">✕</button>`}</div>`; }).join('')
+    : '<p class="dim" style="margin:0 0 4px">No character yet. Log in to show your position, set destinations and follow your jumps.</p>')
+    + `<div class="chars-act">${DEMO ? '<a href="./"><button type="button" class="primary" style="width:100%">Leave the demo</button></a>'
+      : `<button type="button" class="primary" id="bLogin">${list.length ? 'Add a character' : 'Log in with EVE'}</button>
+         <label><input type="checkbox" id="askWp"${wpAsk ? ' checked' : ''}> Allow "Set destination" (autopilot)</label>
+         <label><input type="checkbox" id="askAs"${store.get('whmap.reg.askassets', true) ? ' checked' : ''}> Allow reading assets (shown on the map, stays in this browser)</label>`}
+      <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span></div>`;
+  box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
+  box.querySelectorAll('[data-logout]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); logout(Number(b.dataset.logout)); }));
+  const bl = $('#bLogin'); if (bl) bl.onclick = login;
+  const aw = $('#askWp'); if (aw) aw.onchange = () => store.set('whmap.reg.askwp', aw.checked);
+  const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
 }
 const regionName = id => (index.regions.find(g => g.id === Number(id)) || {}).name || id;
 
@@ -534,44 +782,62 @@ function chainBehind(start, hub){
   }
   return out;
 }
-function drawHubJ(h, p, gLine, gTxt){
-  const js = allHoles().filter(l => (String(l.a) === h && isJ(l.b) && !HUB_LIST.includes(String(l.b))) || (String(l.b) === h && isJ(l.a) && !HUB_LIST.includes(String(l.a))))
-    .map(l => { const o = String(String(l.a) === h ? l.b : l.a); return { l, o, chain:mapper.nodes[o] ? chainBehind(o, h) : [] }; });
-  if (!js.length) return;
-  js.sort((x, y) => y.chain.length - x.chain.length || classOf(x.o).localeCompare(classOf(y.o)));
-  // a small card on the side away from the region, one line per J-space system
+const hubOpen = store.get('whmap.reg.hubopen', {});
+const hubPos = store.get('whmap.reg.hubpos', {}), hubEls = {}, hubSeen = new Set();
+let hubDragged = false;
+function dragHub(box, h){
+  let st = null;
+  box.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.hc-head') || e.target.closest('[data-wp]')) return;
+    st = { x:e.clientX, y:e.clientY, l:box.offsetLeft, t:box.offsetTop, moved:false }; box.setPointerCapture(e.pointerId); e.stopPropagation();
+  });
+  box.addEventListener('pointermove', e => {
+    if (!st) return; const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (!st.moved && Math.hypot(dx, dy) < 4) return; st.moved = true;
+    hubPos[h] = { x:Math.max(4, Math.min(innerWidth - box.offsetWidth - 4, st.l + dx)), y:Math.max(4, Math.min(innerHeight - 40, st.t + dy)) };
+    render();
+  });
+  box.addEventListener('pointerup', () => { if (st && st.moved){ store.set('whmap.reg.hubpos', hubPos); hubDragged = true; setTimeout(() => hubDragged = false, 0); } st = null; });
+}
+function hubCard(h, p, gLine){
+  const col = hubColour(h), now = Date.now();
+  const rows = allHoles().filter(l => String(l.a) === h || String(l.b) === h).map(l => {
+    const o = String(String(l.a) === h ? l.b : l.a), here = byId[o] && !byId[o].ext, j = isJ(o) && !HUB_LIST.includes(o);
+    return { o, l, kind:here ? 0 : j ? 1 : 2, chain:j && mapper.nodes[o] ? chainBehind(o, h) : [], reg:regionOf(o) };
+  }).sort((x, y) => x.kind - y.kind || y.chain.length - x.chain.length || (x.kind === 2 ? regionName(x.reg).localeCompare(regionName(y.reg)) : 0) || sysName(x.o).localeCompare(sysName(y.o)));
+  const open = hubOpen[h] !== false, wpOk = tok && canWp();
+  const sec = { 0:`In ${R.region.name}`, 1:'J-space', 2:'Other regions' };
+  let html = '', last = -1;
+  for (const r of rows){
+    if (r.kind !== last){ html += `<div class="hc-sec">${esc(sec[r.kind])} · ${rows.filter(x => x.kind === r.kind).length}</div>`; last = r.kind; }
+    const s2 = secOf(r.o), cc = r.kind === 1 ? (WH_COL[classOf(r.o)] || WH_COL.J) : (s2 != null ? secCol(s2) : WH_COL.J);
+    const tag = r.kind === 1 ? classOf(r.o) : s2 != null ? secR(s2).toFixed(1) : '';
+    const meta = [r.kind === 2 ? regionName(r.reg) : '', r.l.wh, r.l.size && r.l.size !== '?' ? r.l.size : '', r.l.expires ? leftTxt(r.l.expires - now) : ''].filter(Boolean).join(' · ');
+    const canGo = r.kind !== 1;
+    html += `<div class="hc-row${r.chain.length ? ' on' : ''}" data-go="${r.o}" title="${r.kind === 1 ? 'Wormhole space' : 'Show on the map'}">
+      <i style="background:${cc}"></i><span class="hc-n" style="${r.chain.length ? `color:${cc}` : ''}">${esc(sysName(r.o))} <small>${esc(tag)}</small> <small>${esc(meta)}</small></span>
+      ${canGo ? `<button type="button" class="hc-wp" data-wp="${r.o}" ${wpOk ? '' : 'disabled'} title="${wpOk ? 'Set destination in EVE (Shift+click: add waypoint)' : 'Log in through the mapper with the waypoint option'}">➤</button>` : '<span></span>'}</div>`;
+    if (r.chain.length) html += `<div class="hc-chain">↳ your chain: ${esc(r.chain.slice(0, 5).map(c => `${sysName(c.id)} ${classOf(c.id)}`).join(', '))}${r.chain.length > 5 ? ` +${r.chain.length - 5}` : ''}</div>`;
+  }
+  let box = hubEls[h];
+  if (!box){ box = hubEls[h] = document.createElement('div'); box.className = 'hubcard'; box.dataset.hub = h; $('#hubCards').appendChild(box); dragHub(box, h); }
+  box.style.borderColor = col;
+  const htmlNew = `<button type="button" class="hc-head" aria-expanded="${open}" data-tog="${h}"><span class="car">▾</span><b style="color:${col}">${esc(sysName(h))}</b><span class="cnt">${rows.length} connection${rows.length > 1 ? 's' : ''}</span>
+      ${h === '30002086' ? `<span class="hc-wp" role="button" data-wp="${h}" title="Set destination: Turnur" style="border:1px solid var(--line);border-radius:3px">➤</span>` : ''}</button>
+    <div class="hc-body"${open ? '' : ' hidden'} style="max-height:${Math.max(120, Math.min(420, H - 80))}px">${html}</div>`;
+  if (box._html !== htmlNew){ box.innerHTML = htmlNew; box._html = htmlNew; }
+  hubSeen.add(h);
+  // place it beside the hub, away from the region; below the hub when there is no room; always in view
   let cxs = 0, k = 0;
   for (const id in byId){ if (byId[id].ext || !norm[id]) continue; cxs += proj(norm[id]).x; k++; }
-  const side = p.x >= cxs / k ? 1 : -1;
-  const lines = [];
-  for (const j of js){
-    const left = j.l.expires ? leftTxt(j.l.expires - Date.now()) : '';
-    lines.push({ j, txt:`${sysName(j.o)}  ${classOf(j.o)}${j.l.wh ? '  ' + j.l.wh : ''}${left ? '  ' + left : ''}`, main:true });
-    if (j.chain.length) lines.push({ j, txt:`↳ your chain: ${j.chain.slice(0, 4).map(c => `${sysName(c.id)} ${classOf(c.id)}`).join(', ')}${j.chain.length > 4 ? ` +${j.chain.length - 4}` : ''}`, main:false });
-  }
-  const LH = 17, pad = 9, w = Math.max(...lines.map(L => L.txt.length)) * 6.3 + pad * 2 + 14, hgt = lines.length * LH + pad * 2 + 14;
-  // beside the hub, away from the region; below it when there is no room on that side; always inside the view
-  let x0 = side > 0 ? p.x + 42 : p.x - 42 - w, y0 = p.y - hgt / 2, below = false;
-  if (x0 < 4 || x0 + w > W - 4){ below = true; x0 = p.x - w / 2; y0 = p.y + 30; }
-  x0 = Math.max(4, Math.min(W - w - 4, x0)); y0 = Math.max(4, Math.min(H - hgt - 4, y0));
-  if (below) el('line', { x1:p.x, y1:p.y + 14, x2:p.x, y2:y0, stroke:hubColour(h), 'stroke-width':1.2, opacity:.7 }, gLine);
-  else el('line', { x1:p.x + side * 14, y1:p.y, x2:side > 0 ? x0 : x0 + w, y2:p.y, stroke:hubColour(h), 'stroke-width':1.2, opacity:.7 }, gLine);
-  el('rect', { x:x0, y:y0, width:w, height:hgt, rx:4, class:'jcard', style:`stroke:${hubColour(h)}` }, gTxt);
-  const hd = el('text', { x:x0 + pad, y:y0 + pad + 8, class:'jhead' }, gTxt); hd.textContent = `J-space via ${sysName(h)}`;
-  lines.forEach((L, i) => {
-    const y = y0 + pad + 14 + (i + 0.5) * LH, cc = WH_COL[classOf(L.j.o)] || WH_COL.J, on = L.j.chain.length > 0;
-    const g = el('g', { class:'jrow', 'data-j':L.j.o }, gTxt);
-    el('rect', { x:x0 + 2, y:y - LH / 2, width:w - 4, height:LH, fill:'transparent' }, g);
-    if (L.main){
-      if (on) el('circle', { cx:x0 + pad + 4, cy:y, r:7, fill:cc, opacity:.25 }, g);
-      el('circle', { cx:x0 + pad + 4, cy:y, r:on ? 4.5 : 3.5, fill:cc }, g);
-    }
-    const t = el('text', { x:x0 + pad + 14, y:y + 4, class:'jline' + (on && L.main ? ' on' : '') + (L.main ? '' : ' sub'), style:L.main ? `fill:${on ? cc : '#c9d2e3'}` : '' }, g);
-    t.textContent = L.txt;
-    el('title', {}, g).textContent = `${sysName(L.j.o)} ${classOf(L.j.o)}: click to open it in the mapper`;
-    g.addEventListener('click', ev => { ev.stopPropagation(); location.href = `${MAPPER}?sys=${L.j.o}`; });
-    g.addEventListener('pointerdown', ev => ev.stopPropagation());
-  });
+  const side = p.x >= cxs / k ? 1 : -1, w = box.offsetWidth, hh = box.offsetHeight;
+  let x0 = side > 0 ? p.x + 40 : p.x - 40 - w, y0 = p.y - 18, below = false;
+  if (x0 < 4 || x0 + w > W - 4){ below = true; x0 = p.x - w / 2; y0 = p.y + 28; }
+  if (hubPos[h]){ below = false; x0 = hubPos[h].x; y0 = hubPos[h].y; }          // moved by hand: stays there
+  x0 = Math.max(4, Math.min(W - w - 4, x0)); y0 = Math.max(4, Math.min(H - hh - 4, y0));
+  box.style.left = x0 + 'px'; box.style.top = y0 + 'px';
+  const ex = Math.max(x0, Math.min(x0 + w, p.x)), ey = Math.max(y0, Math.min(y0 + hh, p.y));
+  el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, stroke:col, 'stroke-width':1.2, opacity:.7 }, gLine);
 }
 /* ---------- Render ---------- */
 let rafId = 0;
@@ -594,6 +860,7 @@ function draw(){
   el('stop', { offset:'75%', 'stop-color':'#000', 'stop-opacity':'.15' }, sh); el('stop', { offset:'100%', 'stop-color':'#000', 'stop-opacity':'.55' }, sh);
   const zs = Math.max(0.85, Math.min(1.9, Math.pow(cam.zoom, 0.4)));
   placeHubs();
+  hubSeen.clear();
   const P = {}; for (const id in norm) P[id] = proj(norm[id]);
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
   touch = whTouch();
@@ -641,8 +908,7 @@ function draw(){
       const node = mapper.nodes[other] || {};
       const t = el('text', { x:ex + 7, y:ey - 5, class:'stub', style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
       t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${label ? ' · ' + label : ''}`;
-      t.addEventListener('click', ev => { ev.stopPropagation(); location.href = `${MAPPER}?sys=${other}`; });
-      el('title', {}, t).textContent = 'Open in the wormhole mapper';
+      el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
     }
   }
   // Thera / Turnur hubs
@@ -659,8 +925,9 @@ function draw(){
     el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (EVE-Scout). Click for the whole network.`;
     const t = el('text', { x:p.x, y:p.y - 34, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
     const t2 = el('text', { x:p.x, y:p.y - 21, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
-    drawHubJ(h, p, gWh, gLbl);
+    hubCard(h, p, gWh);
   }
+  for (const h in hubEls) if (!hubSeen.has(h)){ hubEls[h].remove(); delete hubEls[h]; }
   // systems, far to near; labels are placed afterwards, skipping those that would overlap (zoom in to see them all)
   const labels = [];
   const order = R.systems.slice().sort((a, b) => P[b.id].d - P[a.id].d);
@@ -676,6 +943,10 @@ function draw(){
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none' }, g);
     el('title', {}, g).textContent = s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`;
+    const as = assetsAt(id);
+    if (as.length){ const n = as.reduce((m, a) => m + a.n, 0), bx = p.x - r - 13, by = p.y - r - 11;
+      el('rect', { x:bx, y:by, width:14, height:11, rx:2, class:'asset' }, g); el('path', { d:`M${bx} ${by + 4}h14M${bx + 7} ${by}v4`, class:'assetl' }, g);
+      const at = el('text', { x:bx - 2, y:by + 9, 'text-anchor':'end', class:'assetn' }, g); at.textContent = n > 999 ? '999+' : n; }
     if (me.sys === id){ el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'me' }, g); el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'mepulse' }, g); }
     const pil = pilotsAt(id).filter(x => !tok || x.name !== tok.charName);
     const pri = (sel === id ? 0 : me.sys === id ? 1 : pil.length || (route && route.ids.includes(id)) || apNodes.has(id) ? 2 : mapper.nodes[id] ? 3 : s.ext ? 5 : 4);
@@ -709,13 +980,14 @@ function hubHtml(h){
     return `<li data-sys="${c.o}">${cls}<span class="nm">${esc(sysName(c.o))}</span><span class="dim" style="font-size:11.5px">${esc(info)}</span></li>`; };
   return `<h2 style="color:${col}">${esc(name)}</h2>
     <div class="dim">${conns.length} connection${conns.length > 1 ? 's' : ''} in New Eden · ${here.length} into ${esc(R.region.name)}${scoutT ? ` · EVE-Scout, ${new Date(scoutT).toLocaleTimeString([], { timeStyle:'short' })}` : ''}</div>
-    <div class="row"><a href="${MAPPER}?sys=${h}"><button type="button">Open in mapper</button></a><button id="bClose" type="button">Back to region</button></div>
+    <div class="row"><button id="bClose" type="button">Back to region</button></div>
     ${names.map(n => `<h3>${esc(n)} <span class="dim" style="font-size:.85rem">(${groups[n].length})</span></h3><ul class="plain netlist">${groups[n].sort((a, b) => (b.s ?? -9) - (a.s ?? -9)).map(row).join('')}</ul>`).join('')}
     <p class="dim" style="font-size:12px">Signatures: ${esc(name)} side › other side. Click a system to open its region.</p>`;
 }
 function renderPanel(){
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
+  $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
   if (sel && isHubVirtual(sel) && norm[sel]){
     P.innerHTML = hubHtml(sel);
     $('#bClose').onclick = () => select(null);
@@ -765,21 +1037,16 @@ function renderPanel(){
         <button id="bWp" ${wpOk ? '' : 'disabled'} title="${esc(wpTitle)}">Add waypoint</button>
       </div>
       <div class="row">
-        <a href="${MAPPER}?sys=${id}"><button type="button">Open in mapper</button></a>
         ${s.ext ? `<button id="bReg" type="button">Go to ${esc(s.ext)}</button>` : ''}
         <a href="https://evemaps.dotlan.net/system/${encodeURIComponent(s.n.replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button">Dotlan</button></a>
       </div>
       <h3>Gates</h3><div>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
       <h3>Wormholes</h3>${whs.length ? `<ul class="plain">${whs.map(l => { const o = String(l.a) === id ? l.b : l.a;
-        return `<li>→ <a href="${MAPPER}?sys=${o}">${esc(sysName(o))}</a> <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
+        return `<li>→ ${regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : esc(sysName(o))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
+      ${assetsOn && assetsAt(id).length ? `<h3>Your assets here</h3><ul class="plain">${assetsAt(id).map(a => `<li>${esc(a.name)} · <b>${a.n}</b> item${a.n > 1 ? 's' : ''} (ships, containers, stacks)</li>`).join('')}</ul>` : ''}
       <h3>Pilots here</h3>${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)}${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">—</div>'}
       <div class="row" style="margin-top:14px"><button id="bClose" type="button">Back to region</button></div>`;
-    const wp = async add => {
-      try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:id });
-        await esiAuth(`/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(add ? `Waypoint added: ${s.n}` : `Destination set: ${s.n}`);
-        apSetFrom(id, add); }
-      catch(e){ toast('EVE refused the waypoint (' + e.message + '). Is the character online?', true); }
-    };
+    const wp = add => sendWaypoint(id, add);
     $('#bDest').onclick = () => wp(false);
     $('#bWp').onclick = () => wp(true);
     $('#bClose').onclick = () => select(null);
@@ -788,11 +1055,22 @@ function renderPanel(){
   P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
   P.querySelectorAll('[data-reg]').forEach(b => b.addEventListener('click', () => loadRegion(b.dataset.reg)));
 }
+/* Destination / waypoint in the EVE client (needs the mapper's login with the waypoint option) */
+async function sendWaypoint(id, add){
+  id = String(id);
+  if (DEMO){ toast(`Demo: ${add ? 'waypoint added' : 'destination set'}: ${sysName(id)}`); apSetFrom(id, add); return; }
+  if (!tok){ toast('Log in with EVE first (Characters window)', true); return; }
+  if (!canWp()){ toast('This character was logged in without "Set destination": log in again with that option ticked', true); return; }
+  try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:id });
+    await esiAuth(`/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(add ? `Waypoint added: ${sysName(id)}` : `Destination set: ${sysName(id)}`);
+    apSetFrom(id, add); }
+  catch(e){ toast('EVE refused the waypoint (' + e.message + '). Is the character online?', true); }
+}
 function select(id){ sel = id == null ? null : String(id); computeRoute(); render(); renderPanel(); }
 async function goTo(id){
   id = String(id);
   if (isHubVirtual(id) && norm[id]){ select(id); return; }
-  if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ location.href = `${MAPPER}?sys=${id}`; return; } await loadRegion(r); }
+  if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ toast(`${sysName(id)} is in wormhole space: no region map`); return; } await loadRegion(r); }
   select(id); centerOn(id); render();
 }
 
@@ -865,7 +1143,7 @@ function apSetFrom(id, add){
 function renderAp(){
   const box = $('#apBox');
   if (!ap){ box.hidden = true; return; }
-  box.hidden = false;
+  if (box.hidden){ box.hidden = false; placeWidget(box); }
   const open = ap.open !== false;
   const path = ap.path || [], whp = ap.whp || {};
   const fin = ap.dests.length ? ap.dests[ap.dests.length - 1] : ap.arrived;
@@ -951,6 +1229,10 @@ function setupInput(){
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
+  const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
+  ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
+    if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
+      if (miss.length) toast(`No asset permission for ${miss.join(', ')}: log in again with "Allow reading assets" ticked`, true); } };
   const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
   db.onclick = () => { drops = !drops; store.set('whmap.reg.drops', drops); db.setAttribute('aria-pressed', String(drops)); render(); };
   $('#regSel').onchange = e => { sel = null; loadRegion(e.target.value); };
@@ -970,7 +1252,6 @@ function setupInput(){
     if (hit){ follow = false; store.set('whmap.reg.follow', false); fb.setAttribute('aria-pressed', 'false'); goTo(hit[0]); e.target.value = ''; }
     else toast('No system called ' + e.target.value, true);
   });
-  $('#charSel').onchange = e => { sess.set('whmap.tabChar', e.target.value); store.set('whmap.lastChar', Number(e.target.value)); pickChar(); readMapper(); renderWhSel(); apLoad(); renderWho(); poll(); render(); renderPanel(); computeAp(true); };
   // the mapper (other tab) updates its cache, pilots and tokens: follow along
   window.addEventListener('storage', e => {
     if (!e.key || !e.key.startsWith('whmap.')) return;
@@ -980,14 +1261,66 @@ function setupInput(){
   $('#apHead').onclick = () => { if (!ap) return; ap.open = ap.open === false; apSave(); renderAp(); };
   $('#apPref').onchange = e => { if (!ap) return; ap.pref = e.target.value; store.set('whmap.reg.pref', ap.pref); apSave(); computeAp(true); };
   $('#apClear').onclick = () => { ap = null; apSave(); renderAp(); render(); };
+  $('#hubCards').addEventListener('click', e => {
+    const tg = e.target.closest('[data-tog]'), wpb = e.target.closest('[data-wp]'), go = e.target.closest('[data-go]');
+    if (wpb){ e.stopPropagation(); if (!wpb.disabled) sendWaypoint(wpb.dataset.wp, e.shiftKey); return; }
+    if (tg){ if (hubDragged) return; hubOpen[tg.dataset.tog] = hubOpen[tg.dataset.tog] === false; store.set('whmap.reg.hubopen', hubOpen); render(); return; }
+    if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); } }
+  });
   window.addEventListener('resize', render);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 }
 
+/* ---------- Widgets: every window floats over the map; drag by its title bar, fold with –, positions remembered ---------- */
+let wstate = store.get('whmap.reg.widgets', {}), wz = 10;
+function defaultPos(id, el){
+  const W0 = innerWidth, H0 = innerHeight, w = el.offsetWidth || 300;
+  const below = (other, fallback) => { const o = $('#' + other); return o && !o.hidden ? o.offsetTop + o.offsetHeight + 8 : fallback; };
+  return { wTool:{ x:12, y:12 }, wView:{ x:12, y:below('wTool', 96) }, apBox:{ x:12, y:below('wView', 220) },
+           wChars:{ x:W0 - w - 12, y:12 }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) } }[id] || { x:40, y:40 };
+}
+function placeWidget(el){
+  const st = wstate[el.id] || {}, d = defaultPos(el.id, el);
+  el.classList.toggle('folded', !!st.folded);
+  const x = st.x != null ? st.x : d.x, y = st.y != null ? st.y : d.y;
+  el.style.left = Math.max(4, Math.min(innerWidth - Math.min(el.offsetWidth, innerWidth - 8) - 4, x)) + 'px';
+  el.style.top = Math.max(4, Math.min(innerHeight - 36, y)) + 'px';
+}
+function initWidget(el){
+  const head = el.querySelector('.wh'), fold = el.querySelector('.wcol');
+  let st = null;
+  el.addEventListener('pointerdown', () => { el.style.zIndex = ++wz; });
+  head.addEventListener('pointerdown', e => {
+    if (e.target.closest('button,a,select,input')) return;
+    st = { x:e.clientX, y:e.clientY, l:el.offsetLeft, t:el.offsetTop }; head.setPointerCapture(e.pointerId); el.classList.add('dragging');
+  });
+  head.addEventListener('pointermove', e => {
+    if (!st) return;
+    el.style.left = Math.max(4 - el.offsetWidth + 60, Math.min(innerWidth - 60, st.l + e.clientX - st.x)) + 'px';
+    el.style.top = Math.max(4, Math.min(innerHeight - 36, st.t + e.clientY - st.y)) + 'px';
+  });
+  const end = () => { if (!st) return; st = null; el.classList.remove('dragging'); wstate[el.id] = { ...(wstate[el.id] || {}), x:el.offsetLeft, y:el.offsetTop }; store.set('whmap.reg.widgets', wstate); };
+  head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+  head.addEventListener('dblclick', e => { if (!e.target.closest('button,a,select,input')) fold.click(); });
+  fold.addEventListener('click', () => { const f = !el.classList.contains('folded'); el.classList.toggle('folded', f); fold.textContent = f ? '+' : '–'; wstate[el.id] = { ...(wstate[el.id] || {}), folded:f }; store.set('whmap.reg.widgets', wstate); });
+  if ((wstate[el.id] || {}).folded) fold.textContent = '+';
+  placeWidget(el);
+}
+// windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
+function relayoutDefaults(){ ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function setupWidgets(){
+  ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => placeWidget($('#' + id))));
+  $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
+    ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+}
+
 /* ---------- Start ---------- */
 (async function init(){
+  setupWidgets();
   try{ await loadIndex(); }catch(e){ $('#panel').innerHTML = `<p>${esc(e.message)}</p>`; return; }
-  pickChar(); readMapper(); apLoad(); setupInput(); renderWho(); renderWhSel();
+  await handleCallback();
+  pickChar(); readMapper(); apLoad(); setupInput(); renderChars(); renderWho(); renderWhSel();
   setInterval(() => { renderWhSel(); render(); }, 60000);   // holes age out even without a mapper change
   const q = new URLSearchParams(location.search);
   const qr = q.get('r'), qs = q.get('sys');
@@ -995,15 +1328,18 @@ function setupInput(){
   if (qr){ const g = index.regions.find(x => x.slug === qr.toLowerCase() || String(x.id) === qr || x.name.toLowerCase() === qr.toLowerCase()); if (g) reg = g.id; }
   if (!reg && qs && regionOf(qs)) reg = regionOf(qs);
   if (!reg && me.sys && regionOf(me.sys)) reg = regionOf(me.sys);
-  if (!reg) reg = store.get('whmap.reg.last', null);
+  if (!reg && !DEMO) reg = store.get('whmap.reg.last', null);
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
   if (qs){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
+  if (DEMO){ demoStep(); pickChar(); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
-  poll();
+  relayoutDefaults();
+  poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
+  if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
 })();
 })();
 </script>

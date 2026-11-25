@@ -107,6 +107,7 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
 <header class="top"><div class="wrap">
   <a class="brand" href="#">Anoikis <b>Traveler</b></a>
   <nav class="links">
+    <a href="#map3d" data-i18n="nav_map"></a>
     <a href="#features" data-i18n="nav_features"></a>
     <a href="#tutorial" data-i18n="nav_tutorial"></a>
     <a href="#request" data-i18n="nav_request"></a>
@@ -123,13 +124,31 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
   <p class="tag" data-i18n="hero_tag"></p>
   <p class="sub" data-i18n="hero_sub"></p>
   <div class="btns">
-    <a class="btn primary" href="../map/?demo" data-i18n="btn_demo"></a>
-    <a class="btn" href="../map/" data-i18n="btn_open"></a>
+    <a class="btn primary" href="../regions/?demo" data-i18n="btn_demo"></a>
+    <a class="btn" href="../regions/" data-i18n="btn_open"></a>
     <a class="btn" href="#request" data-i18n="btn_request"></a>
     <a class="btn don" href="#support" data-i18n="btn_support"></a>
   </div>
   <div class="shot"><img src="img/overview.jpg" width="1600" height="900" data-i18n-alt="alt_overview" alt=""></div>
 </div></div>
+
+<section id="map3d"><div class="wrap">
+  <h2 data-i18n="m_title"></h2>
+  <p class="lead" data-i18n="m_lead"></p>
+  <div class="grid">
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">🌌</div><h3 data-i18n="m1_t"></h3><p data-i18n="m1_p"></p></div>
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">🧑‍🚀</div><h3 data-i18n="m2_t"></h3><p data-i18n="m2_p"></p></div>
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">🌀</div><h3 data-i18n="m3_t"></h3><p data-i18n="m3_p"></p></div>
+    <div class="card new"><span class="nb" data-i18n="new_b"></span><div class="ic">📈</div><h3 data-i18n="m4_t"></h3><p data-i18n="m4_p"></p></div>
+  </div>
+  <div class="steps">
+    <div class="step"><div><h3 data-i18n="ms1_t"></h3><div data-i18n="ms1_p"></div></div></div>
+    <div class="step"><div><h3 data-i18n="ms2_t"></h3><div data-i18n="ms2_p"></div></div></div>
+    <div class="step"><div><h3 data-i18n="ms3_t"></h3><div data-i18n="ms3_p"></div></div></div>
+    <div class="step"><div><h3 data-i18n="ms4_t"></h3><div data-i18n="ms4_p"></div></div></div>
+  </div>
+  <p><a class="btn primary" href="../regions/?demo" data-i18n="m_demo"></a> <a class="btn" href="../regions/" data-i18n="m_open"></a> <a class="btn" href="../appraisal/" data-i18n="m_appr"></a></p>
+</div></section>
 
 <section id="features"><div class="wrap">
   <h2 data-i18n="feat_title"></h2>
@@ -190,7 +209,7 @@ table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;w
   <div class="two">
     <div class="box"><h3 data-i18n="req_how"></h3><ol data-i18n="req_steps"></ol></div>
     <div class="box"><h3 data-i18n="req_what"></h3><div data-i18n="req_what_p"></div>
-      <p><a class="btn primary" href="../map/" data-i18n="req_open">Open the map</a></p></div>
+      <p><a class="btn primary" href="../regions/" data-i18n="req_open">Open the map</a></p></div>
   </div>
   <div class="box why"><h3>❤️ <span data-i18n="why_t"></span></h3><div data-i18n="why_p"></div></div>
 </div></section>
@@ -234,6 +253,28 @@ const RAF = 'b5f2b5a8-f7f6-41a0-a7d1-8d18d73bc63e';
 const T = {
 en:{
 nav_features:'Features',nav_tutorial:'Tutorial',nav_request:'Get a map',nav_faq:'FAQ',nav_support:'Support',
+nav_map:"The map",
+m_title:"The map",
+m_lead:"Every region of New Eden in 3D, at its real coordinates: your characters, your jumps, the wormholes and the Thera and Turnur network, on a full-screen map with movable windows.",
+m1_t:"3D region maps",
+m1_p:"Real positions, gates and neighbouring regions. Known space in shades of grey (high-sec light, null-sec dark); systems with an open wormhole take the colour of where it leads.",
+m2_t:"Your characters, live",
+m2_p:"Log in with EVE right on the map, add your alts. The map follows the active character from jump to jump and shows where the others are.",
+m3_t:"Thera & Turnur",
+m3_p:"When Thera or Turnur reaches the region, it shows up above the map with its connections there, its J-space exits and your chain behind them. One click sets the destination.",
+m4_t:"Appraisal",
+m4_p:"Paste any item list: real value in Jita, Amarr, Dodixie, Rens or Hek from the order book, hub comparison, reprocessing, freight, corp buyback.",
+ms1_t:"1. Log in",
+ms1_p:"Open the map, then <b>Log in with EVE</b> in the <i>Characters</i> window. Tick <i>Allow Set destination</i> to send routes to your autopilot. <b>Add a character</b> for your alts.",
+ms2_t:"2. Arrange the windows",
+ms2_p:"Every window floats over the map: drag it by its title, fold it with <b>–</b>. The map remembers where you put them; <i>Reset windows</i> puts them back.",
+ms3_t:"3. Move around",
+ms3_p:"Drag to rotate, wheel to zoom, Shift+drag to pan. Click a system: rotation and zoom then turn around it. <i>Follow me</i> switches region when you jump.",
+ms4_t:"4. Fly",
+ms4_p:"Click a system then <b>Set destination</b>, or <b>➤</b> on a Thera/Turnur connection. The <i>Route</i> window lists the jumps left and crosses them off as you fly; wormholes are marked ⟿.",
+m_demo:"Try the demo",
+m_open:"Open the map",
+m_appr:"Appraisal",
 hero_tag:'A shared wormhole mapper for EVE Online that follows your trail through Anoikis.',
 hero_sub:'Log in with EVE and fly: every jump is added to your group\'s map in real time. Thera and Turnur connections, routes to trade hubs, nearby markets and a 3D view are built in. Private, nothing to install, and free.',
 btn_demo:'Try the demo',btn_open:'Open the map',btn_request:'Get your own map',btn_support:'❤️ Support the site',
@@ -295,6 +336,28 @@ rights:'All rights reserved.',ccp:'EVE Online and all related names and images a
 },
 fr:{
 nav_features:'Fonctions',nav_tutorial:'Tutoriel',nav_request:'Avoir une carte',nav_faq:'FAQ',nav_support:'Soutenir',
+nav_map:"La carte",
+m_title:"La carte",
+m_lead:"Chaque région de New Eden en 3D, à ses vraies coordonnées : tes personnages, tes sauts, les wormholes et le réseau de Thera et Turnur, sur une carte plein écran aux fenêtres déplaçables.",
+m1_t:"Cartes de région 3D",
+m1_p:"Vraies positions, gates et régions voisines. Le known space en gris (high-sec clair, null-sec sombre) ; les systèmes avec un wormhole ouvert prennent la couleur de sa destination.",
+m2_t:"Tes personnages, en direct",
+m2_p:"Connecte-toi avec EVE directement sur la carte et ajoute tes alts. La carte suit le personnage actif de saut en saut et montre où sont les autres.",
+m3_t:"Thera & Turnur",
+m3_p:"Quand Thera ou Turnur touche la région, il apparaît au-dessus de la carte avec ses connexions, ses sorties J-space et ta chaîne derrière. Un clic pose la destination.",
+m4_t:"Appraisal",
+m4_p:"Colle n'importe quelle liste d'objets : vraie valeur à Jita, Amarr, Dodixie, Rens ou Hek d'après le carnet d'ordres, comparaison des hubs, retraitement, fret, buyback de corp.",
+ms1_t:"1. Se connecter",
+ms1_p:"Ouvre la carte, puis <b>Log in with EVE</b> dans la fenêtre <i>Characters</i>. Coche <i>Allow Set destination</i> pour envoyer les routes à ton autopilot. <b>Add a character</b> pour tes alts.",
+ms2_t:"2. Ranger les fenêtres",
+ms2_p:"Chaque fenêtre flotte sur la carte : déplace-la par son titre, replie-la avec <b>–</b>. La carte retient leur place ; <i>Reset windows</i> les remet en place.",
+ms3_t:"3. Naviguer",
+ms3_p:"Glisser pour tourner, molette pour zoomer, Maj+glisser pour déplacer. Clique un système : la rotation et le zoom se font alors autour de lui. <i>Follow me</i> change de région quand tu sautes.",
+ms4_t:"4. Voler",
+ms4_p:"Clique un système puis <b>Set destination</b>, ou <b>➤</b> sur une connexion Thera/Turnur. La fenêtre <i>Route</i> liste les sauts restants et les raye au fil du vol ; les wormholes sont marqués ⟿.",
+m_demo:"Essayer la démo",
+m_open:"Ouvrir la carte",
+m_appr:"Appraisal",
 hero_tag:'Une carte de wormholes partagée pour EVE Online, qui suit votre trace à travers Anoikis.',
 hero_sub:'Connectez-vous avec EVE et volez : chaque saut s\'ajoute en direct à la carte de votre groupe. Connexions Thera et Turnur, routes vers les hubs de commerce, marchés à proximité et vue 3D sont inclus. Privé, rien à installer, et gratuit.',
 btn_demo:'Essayer la démo',btn_open:'Ouvrir la carte',btn_request:'Avoir sa propre carte',btn_support:'❤️ Soutenir le site',
@@ -356,6 +419,28 @@ rights:'Tous droits réservés.',ccp:'EVE Online ainsi que les noms et images as
 },
 de:{
 nav_features:'Funktionen',nav_tutorial:'Anleitung',nav_request:'Eigene Karte',nav_faq:'FAQ',nav_support:'Unterstützen',
+nav_map:"Die Karte",
+m_title:"Die Karte",
+m_lead:"Jede Region von New Eden in 3D, an ihren echten Koordinaten: deine Charaktere, deine Sprünge, die Wurmlöcher und das Netz von Thera und Turnur, auf einer Vollbildkarte mit verschiebbaren Fenstern.",
+m1_t:"3D-Regionskarten",
+m1_p:"Echte Positionen, Gates und Nachbarregionen. Known Space in Grautönen (Highsec hell, Nullsec dunkel); Systeme mit offenem Wurmloch tragen die Farbe seines Ziels.",
+m2_t:"Deine Charaktere, live",
+m2_p:"Melde dich direkt auf der Karte mit EVE an und füge deine Alts hinzu. Die Karte folgt dem aktiven Charakter von Sprung zu Sprung und zeigt, wo die anderen sind.",
+m3_t:"Thera & Turnur",
+m3_p:"Erreicht Thera oder Turnur die Region, erscheint es über der Karte mit seinen Verbindungen, seinen J-Space-Ausgängen und deiner Kette dahinter. Ein Klick setzt das Ziel.",
+m4_t:"Appraisal",
+m4_p:"Füge eine beliebige Itemliste ein: echter Wert in Jita, Amarr, Dodixie, Rens oder Hek aus dem Orderbuch, Hub-Vergleich, Reprocessing, Fracht, Corp-Buyback.",
+ms1_t:"1. Anmelden",
+ms1_p:"Öffne die Karte, dann <b>Log in with EVE</b> im Fenster <i>Characters</i>. Hake <i>Allow Set destination</i> an, um Routen an deinen Autopiloten zu senden. <b>Add a character</b> für deine Alts.",
+ms2_t:"2. Fenster anordnen",
+ms2_p:"Jedes Fenster schwebt über der Karte: am Titel ziehen, mit <b>–</b> einklappen. Die Karte merkt sich die Positionen; <i>Reset windows</i> setzt sie zurück.",
+ms3_t:"3. Bewegen",
+ms3_p:"Ziehen zum Drehen, Mausrad zum Zoomen, Umschalt+Ziehen zum Verschieben. Klicke ein System: Drehung und Zoom erfolgen dann um es herum. <i>Follow me</i> wechselt die Region, wenn du springst.",
+ms4_t:"4. Fliegen",
+ms4_p:"Klicke ein System und dann <b>Set destination</b>, oder <b>➤</b> bei einer Thera/Turnur-Verbindung. Das Fenster <i>Route</i> listet die restlichen Sprünge und streicht sie im Flug ab; Wurmlöcher sind mit ⟿ markiert.",
+m_demo:"Demo testen",
+m_open:"Karte öffnen",
+m_appr:"Appraisal",
 hero_tag:'Ein gemeinsamer Wurmloch-Mapper für EVE Online, der deiner Spur durch Anoikis folgt.',
 hero_sub:'Mit EVE einloggen und losfliegen: Jeder Sprung landet live auf der Karte deiner Gruppe. Thera- und Turnur-Verbindungen, Routen zu den Handelszentren, Märkte in der Nähe und eine 3D-Ansicht sind dabei. Privat, nichts zu installieren und kostenlos.',
 btn_demo:'Demo ausprobieren',btn_open:'Karte öffnen',btn_request:'Eigene Karte anfragen',btn_support:'❤️ Seite unterstützen',
@@ -417,6 +502,28 @@ rights:'Alle Rechte vorbehalten.',ccp:'EVE Online sowie alle zugehörigen Namen 
 },
 es:{
 nav_features:'Funciones',nav_tutorial:'Tutorial',nav_request:'Tu mapa',nav_faq:'FAQ',nav_support:'Apoyar',
+nav_map:"El mapa",
+m_title:"El mapa",
+m_lead:"Cada región de New Eden en 3D, en sus coordenadas reales: tus personajes, tus saltos, los agujeros de gusano y la red de Thera y Turnur, en un mapa a pantalla completa con ventanas móviles.",
+m1_t:"Mapas de región 3D",
+m1_p:"Posiciones reales, gates y regiones vecinas. El known space en grises (high-sec claro, null-sec oscuro); los sistemas con un agujero abierto toman el color de su destino.",
+m2_t:"Tus personajes, en directo",
+m2_p:"Inicia sesión con EVE directamente en el mapa y añade tus alts. El mapa sigue al personaje activo de salto en salto y muestra dónde están los demás.",
+m3_t:"Thera y Turnur",
+m3_p:"Cuando Thera o Turnur llega a la región, aparece sobre el mapa con sus conexiones, sus salidas a J-space y tu cadena detrás. Un clic fija el destino.",
+m4_t:"Appraisal",
+m4_p:"Pega cualquier lista de objetos: valor real en Jita, Amarr, Dodixie, Rens o Hek según el libro de órdenes, comparación de hubs, reprocesado, transporte, buyback de corp.",
+ms1_t:"1. Conectarse",
+ms1_p:"Abre el mapa y pulsa <b>Log in with EVE</b> en la ventana <i>Characters</i>. Marca <i>Allow Set destination</i> para enviar rutas a tu piloto automático. <b>Add a character</b> para tus alts.",
+ms2_t:"2. Ordenar las ventanas",
+ms2_p:"Cada ventana flota sobre el mapa: arrástrala por su título, pliégala con <b>–</b>. El mapa recuerda su sitio; <i>Reset windows</i> las recoloca.",
+ms3_t:"3. Moverse",
+ms3_p:"Arrastra para girar, rueda para hacer zoom, Mayús+arrastrar para desplazar. Haz clic en un sistema: el giro y el zoom pasan a hacerse a su alrededor. <i>Follow me</i> cambia de región al saltar.",
+ms4_t:"4. Volar",
+ms4_p:"Haz clic en un sistema y luego <b>Set destination</b>, o <b>➤</b> en una conexión de Thera/Turnur. La ventana <i>Route</i> lista los saltos restantes y los tacha al volar; los agujeros se marcan con ⟿.",
+m_demo:"Probar la demo",
+m_open:"Abrir el mapa",
+m_appr:"Appraisal",
 hero_tag:'Un mapa de agujeros de gusano compartido para EVE Online que sigue tu rastro por Anoikis.',
 hero_sub:'Inicia sesión con EVE y vuela: cada salto se añade en directo al mapa de tu grupo. Conexiones de Thera y Turnur, rutas a los centros comerciales, mercados cercanos y vista 3D incluidos. Privado, sin instalar nada y gratis.',
 btn_demo:'Probar la demo',btn_open:'Abrir el mapa',btn_request:'Pedir tu propio mapa',btn_support:'❤️ Apoyar el sitio',
