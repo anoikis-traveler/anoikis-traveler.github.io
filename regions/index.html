@@ -391,6 +391,7 @@ body.nf #hint{transform:translateY(-16px)}
 .chars-act label{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center}
 .payid{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:7px}
 .payid code{color:var(--accent);font-family:var(--mono)}
+.payid .payto b{color:var(--text)}
 .payid button{font-size:11.5px;padding:1px 7px}
 .demo-tag{display:inline-block;font-size:10.5px;font-family:var(--mono);color:#1a1205;background:var(--accent);border-radius:3px;padding:0 5px;margin-left:6px;vertical-align:2px}
 @media (max-width:820px){ #wInfo,#wChars{width:min(330px,calc(100vw - 24px))} }
@@ -1569,8 +1570,8 @@ function renderChars(){
          <label title="Finds the Ansiblex your character can use (the EVE application of the site must allow esi-search.search_structures.v1)"><input type="checkbox" id="askJb"${store.get('whmap.reg.askjb', false) ? ' checked' : ''}> Allow importing jump bridges</label>`}
       <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
-      ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5. Put this in the reason of your ISK transfer to Sava Yesh: the number at the end is how many characters you pay for, so the amount gives the weeks.">Pay for <select id="payTier">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option value="${n}"${n === store.get('whmap.reg.payTier', 10) ? ' selected' : ''}>${n} characters</option>`).join('')}</select>
-        <code id="payCode">AT-${esc((tok || list[0]).charName)}-${store.get('whmap.reg.payTier', 10)}</code><button type="button" class="small" id="bPayId">Copy</button>
+      ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5. The number at the end is how many characters you pay for, so the amount gives the weeks."><span class="payto">Send ISK to <b>Sava Yesh</b></span> for <select id="payTier">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option value="${n}"${n === store.get('whmap.reg.payTier', 10) ? ' selected' : ''}>${n} characters</option>`).join('')}</select>
+        <span class="payto">with this reason:</span> <code id="payCode">AT-${esc((tok || list[0]).charName)}-${store.get('whmap.reg.payTier', 10)}</code><button type="button" class="small" id="bPayId">Copy</button>
         <span id="payPrice">${(store.get('whmap.reg.payTier', 10) - 5) / 5 * 50} M ISK / week</span> · <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a></div>` : ''}</div>`;
   box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
   box.querySelectorAll('[data-logout]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); logout(Number(b.dataset.logout)); }));
