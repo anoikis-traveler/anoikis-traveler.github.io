@@ -253,6 +253,22 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
+.homeg{font-size:15px;fill:#f2a74b;paint-order:stroke;stroke:#070a12;stroke-width:3px;font-weight:700}
+.mtag rect{fill:#4cc97a}
+.mtag.enter rect{fill:#f5c542}
+.mtag text{font-family:var(--mono);font-size:9.5px;font-weight:800;fill:#06210f}
+.mtag.enter text{fill:#2b1d00}
+.mkpulse{transform-box:fill-box;transform-origin:center;animation:mkpulse 1.8s ease-in-out infinite}
+.mkpulse.enter{filter:drop-shadow(0 0 4px rgba(245,197,66,.85))}
+.mkpulse.exit{filter:drop-shadow(0 0 4px rgba(76,201,122,.75))}
+@keyframes mkpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+@media (prefers-reduced-motion:reduce){.mkpulse{animation:none}}
+.marks{display:flex;gap:6px;flex-wrap:wrap}
+.marks .mk-enter{border-color:#8a7020;color:#f5c542}
+.marks .mk-exit{border-color:#2e6b4a;color:#7fe0a6}
+.marks .on{background:rgba(245,197,66,.12)}
+.marks .mk-exit.on{background:rgba(76,201,122,.12)}
+#btnExit{border-color:#2e6b4a;color:#7fe0a6}
 .cband{fill:rgba(242,167,75,.12);stroke:var(--accent);stroke-dasharray:4 3;pointer-events:none}
 .cmenu{position:fixed;z-index:9999;min-width:190px;padding:4px;background:rgba(12,17,30,.97);border:1px solid var(--line);border-radius:7px;box-shadow:0 10px 28px rgba(0,0,0,.55);display:flex;flex-direction:column}
 .cmenu[hidden]{display:none}
@@ -334,6 +350,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
+        <button id="btnHome" type="button">⌂ Home</button>
+        <button id="btnExit" type="button" hidden>EXIT</button>
         <button id="btnReset" type="button">Recenter</button>
         <button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button>
       </div>
@@ -523,17 +541,18 @@ function applyEdits(){
   for (const id of E().del){ delete mapper.nodes[id]; for (const k in mapper.links){ const l = mapper.links[k]; if (l && (String(l.a) === id || String(l.b) === id)) delete mapper.links[k]; } }
 }
 function readMapper(){
-  if (DEMO){ mapper = demoMapper(); applyEdits(); return; }
+  if (DEMO){ mapper = demoMapper(); const loc = store.get('whmap.reg.marks.demo', {}); for (const k of ['enter', 'exit']) if (k in loc) mapper[k] = loc[k]; applyEdits(); return; }
   if (share.map){ const d = share.map.data || {};
     const objs = v => Array.isArray(v) ? Object.fromEntries(v.filter(Boolean).map(x => [x.id, x])) : (v || {});
-    mapper = { nodes:{ ...(d.nodes || {}) }, links:{ ...objs(d.links) }, pilots:{ ...(share.map.pilots || {}) } }; applyEdits(); return; }
+    mapper = { nodes:{ ...(d.nodes || {}) }, links:{ ...objs(d.links) }, pilots:{ ...(share.map.pilots || {}) }, enter:d.enter || null, exit:d.exit || null }; applyEdits(); return; }
   const cid = (tok && tok.charId) || store.get('whmap.lastChar', null);
   const slot = cid ? store.get(CK.slot + cid, null) : null;
   let m = slot && slot.mapOwner ? store.get('whmap.cache.' + slot.mapOwner, null) : null;
   if (!m) m = store.get('whmap.map', null);
   m = m || {};
   const objs = v => Array.isArray(v) ? Object.fromEntries(v.filter(Boolean).map(x => [x.id, x])) : (v || {});
-  mapper = { nodes:{ ...(m.nodes || {}) }, links:{ ...objs(m.links) }, pilots:m.pilots || {} };
+  mapper = { nodes:{ ...(m.nodes || {}) }, links:{ ...objs(m.links) }, pilots:m.pilots || {}, enter:m.enter || null, exit:m.exit || null };
+  const loc = store.get('whmap.reg.marks', {}); for (const k of ['enter', 'exit']) if (k in loc) mapper[k] = loc[k];
   applyEdits();
 }
 /* Same rule as the mapper: past its estimated lifetime a wormhole blinks for 1 h, then it no longer counts.
@@ -635,7 +654,7 @@ function demoMapper(){
   const nodes = { '31000123':{ id:31000123, name:'J000123', cls:'C3' }, '31000900':{ id:31000900, name:'J000900', cls:'C5' }, '31000901':{ id:31000901, name:'J000901', cls:'C2' } };
   for (const n of ['KDG-TA', '4M-QXK', '5M2-KP']){ const id = K(n); if (id) nodes[id] = { id:Number(id), name:n, cls:'NS' }; }
   const now = Date.now(), L = (id, a, b, o) => ({ id, a:Number(a), b:Number(b), type:'wh', mass:'fresh', eol:false, size:'L', created:now - 3600e3, ...o });
-  return { nodes, pilots:{ c1:{ name:'Corpmate', sys:K('4M-QXK'), ship:'Tengu', online:true, t:now }, c2:{ name:'Hauler', sys:K('KDG-TA'), ship:'Epithal', online:false, t:now - 60000 },
+  return { nodes, exit:K('KDG-TA') ? { id:Number(K('KDG-TA')), name:'KDG-TA' } : null, enter:{ id:31000900, name:'J000900' }, pilots:{ c1:{ name:'Corpmate', sys:K('4M-QXK'), ship:'Tengu', online:true, t:now }, c2:{ name:'Hauler', sys:K('KDG-TA'), ship:'Epithal', online:false, t:now - 60000 },
              c3:{ name:'Old Scout', sys:K('4M-QXK'), ship:'Buzzard', online:false, t:now - 12 * 60000 },
              c4:{ name:'Logi', sys:K('4M-QXK'), ship:'Scimitar', online:true, t:now } },
     links:{ d1:L('d1', K('KDG-TA'), 31000123, { wh:'N062' }), d2:L('d2', 31000123, 31000900, { wh:'H296', size:'XL' }), d3:L('d3', 31000900, 31000901, { wh:'D382', mass:'reduced' }),
@@ -818,7 +837,7 @@ function shareApply(path, data){
   if (path === '/' || path === ''){ const d = data || {}; share.map = { data:d.data || {}, pilots:d.pilots || {} }; }
   else { const parts = path.replace(/^\//, '').split('/'); if (parts[0] === 'data' || parts[0] === 'pilots'){ if (parts.length === 1) share.map[parts[0]] = data || {}; else setAtPath(share.map, parts, data); } }
   shareState('on');
-  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }, 120);
+  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }, 120);
 }
 function shareState(st, txt){ share.state = st; if (txt !== undefined || st !== 'err') share.txt = txt; txt = share.txt; const e = $('#shareSt'); if (!e) return;
   e.className = 'share-st ' + st; e.textContent = st === 'on' ? '● Shared map · live' + (share.ownerName ? ' (' + share.ownerName + ')' : '') : st === 'err' ? '● Shared map: ' + (txt || 'error') : st === 'wait' ? '● Shared map: connecting…' : st === 'none' ? '○ No shared map for this character' : '';
@@ -859,6 +878,35 @@ async function sharePublish(force){
   if (!force && key === share.pubKey && now - share.pubT < 60000) return;
   share.pubKey = key; share.pubT = now;
   shareSend({ op:'put', path:`maps/${share.owner}/pilots/${share.uid}`, data:{ ...rec, t:{ '.sv':'timestamp' } } }).catch(() => {});
+}
+
+/* ---------- Home (your permanent base, this browser, same setting as the mapper) and the chain's ENTER / EXIT ----------
+   ENTER and EXIT belong to the shared chain (everybody on the map sees them); without a shared map they stay in this browser. */
+const MARKS = { enter:{ label:'ENTER', col:'#f5c542' }, exit:{ label:'EXIT', col:'#4cc97a' } };
+const homeOf = () => { const h = (store.get('whmap.cfg', {}) || {}).home; return h && h.id ? h : null; };
+const isHome = id => { const h = homeOf(); return !!h && String(h.id) === String(id); };
+function setHome(id){
+  const c = store.get('whmap.cfg', {}) || {};
+  if (id == null){ delete c.home; store.set('whmap.cfg', c); toast('Home removed'); }
+  else { c.home = { id:Number(id), name:sysName(id) }; store.set('whmap.cfg', c); toast(`⌂ Home set to ${sysName(id)}`); }
+  renderHomeBtn(); render(); renderPanel(); if (!$('#wChain').hidden) buildChains();
+}
+function markAt(id){ return ['enter', 'exit'].filter(k => mapper[k] && String(mapper[k].id) === String(id)); }
+async function setMark(kind, id){
+  const val = id == null ? null : { id:Number(id), name:sysName(id), by:tok ? tok.charName : '', t:Date.now() };
+  if (!DEMO && share.owner && share.ws){
+    try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/${kind}`, data:val }); }
+    catch(e){ toast(e.status === 403 || /refus|denied|permission/i.test(e.message) ? 'You have read-only access to this map: ENTER / EXIT not changed.' : 'The shared map did not accept the change: ' + e.message, true); return; }
+    if (share.map){ share.map.data = share.map.data || {}; if (val) share.map.data[kind] = val; else delete share.map.data[kind]; }
+  } else {
+    const key = DEMO ? 'whmap.reg.marks.demo' : 'whmap.reg.marks', loc = store.get(key, {}); loc[kind] = val; store.set(key, loc);
+  }
+  readMapper(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain(); renderHomeBtn();
+  toast(val ? `${MARKS[kind].label} set to ${sysName(id)}` : `${MARKS[kind].label} removed`);
+}
+function renderHomeBtn(){
+  const h = homeOf(), b = $('#btnHome'); if (b){ b.textContent = h ? `⌂ ${h.name}` : '⌂ Home'; b.title = h ? `Show ${h.name} (your home)` : 'No home yet: select a system and click "Set as home"'; }
+  const x = $('#btnExit'); if (x){ x.hidden = !mapper.exit; if (mapper.exit) x.title = `Show the EXIT: ${sysName(mapper.exit.id)}`; }
 }
 
 async function freshTok(t){
@@ -1501,8 +1549,13 @@ function draw(){
       el('rect', { x:bx, y:by, width:14, height:11, rx:2, class:'asset', 'pointer-events':'none' }, g); el('path', { d:`M${bx} ${by + 4}h14M${bx + 7} ${by}v4`, class:'assetl' }, g);
       const at = el('text', { x:bx - 2, y:by + 9, 'text-anchor':'end', class:'assetn' }, g); at.textContent = n > 999 ? '999+' : n; }
     if (me.sys === id){ el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'me' }, g); el('circle', { cx:p.x, cy:p.y, r:r + 3, class:'mepulse' }, g); }
+    const mk = markAt(id), hm = isHome(id);
+    if (hm){ const ht = el('text', { x:p.x, y:p.y - r - 6, 'text-anchor':'middle', class:'homeg' }, g); ht.textContent = '⌂'; el('title', {}, ht).textContent = 'Your home'; }
+    mk.forEach((k, i) => { const w = k === 'enter' ? 44 : 36, tx = p.x - w / 2, ty = p.y + r + 4 + i * 16;
+      const tg = el('g', { class:'mtag mkpulse ' + k, 'pointer-events':'none' }, g); el('rect', { x:tx, y:ty, width:w, height:13, rx:3 }, tg);
+      const tt = el('text', { x:p.x, y:ty + 10, 'text-anchor':'middle' }, tg); tt.textContent = MARKS[k].label; });
     const pil = pilotsAt(id);
-    const pri = (sel === id ? 0 : me.sys === id ? 1 : pil.length || (route && route.ids.includes(id)) || apNodes.has(id) ? 2 : mapper.nodes[id] ? 3 : s.ext ? 5 : 4);
+    const pri = (sel === id ? 0 : me.sys === id || mk.length || hm ? 1 : pil.length || (route && route.ids.includes(id)) || apNodes.has(id) ? 2 : mapper.nodes[id] ? 3 : s.ext ? 5 : 4);
     labels.push({ id, s, p, r, pil, pri });
   }
   const placed = [];
@@ -1623,16 +1676,22 @@ function renderPanel(){
     const wpOk = tok && canWp();
     const wpTitle = !tok ? 'Log in through the mapper first' : !wpOk ? 'Turn on waypoints in the mapper (log in again with the waypoint option)' : '';
     let rt = '';
+    const tags = (isHome(id) ? '<span class="chip" style="border-color:var(--accent);color:var(--accent)">⌂ Home</span> ' : '') + markAt(id).map(k => `<span class="chip" style="border-color:${MARKS[k].col};color:${MARKS[k].col}">${MARKS[k].label}</span>`).join(' ');
     if (me.sys === id) rt = '<div class="chip" style="border-color:var(--ok);color:var(--ok)">You are here</div>';
     else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${route.edges.size && [...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}</div>
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
     P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
       <div class="dim">${s.ext ? `${esc(s.ext)} (neighbouring region)` : `${esc(R.constellations[s.c] || '')} · ${esc(R.region.name)}`}</div>
+      ${tags ? `<div style="margin-top:6px">${tags}</div>` : ''}
       <div style="margin-top:10px">${rt}</div>
       <div class="row">
         <button id="bDest" class="primary" ${wpOk ? '' : 'disabled'} title="${esc(wpTitle)}">Set destination</button>
         <button id="bWp" ${wpOk ? '' : 'disabled'} title="${esc(wpTitle)}">Add waypoint</button>
+      </div>
+      <div class="row marks">
+        <button type="button" id="bHome" class="${isHome(id) ? 'on' : ''}" title="Your permanent home system (kept in this browser, used by the mapper too)">${isHome(id) ? '⌂ Remove home' : '⌂ Set as home'}</button>
+        ${mapper.nodes[id] ? ['enter', 'exit'].map(k => `<button type="button" class="mk-${k}${markAt(id).includes(k) ? ' on' : ''}" data-mark="${k}" title="${markAt(id).includes(k) ? 'Remove' : 'Set'} the chain's ${MARKS[k].label}${share.owner ? ' (shared with your map)' : ''}">${markAt(id).includes(k) ? 'Remove ' + MARKS[k].label : 'Set as ' + MARKS[k].label}</button>`).join('') : '<span class="dim" style="font-size:11.5px">ENTER / EXIT: for systems on your chain</span>'}
       </div>
       <div class="row">
         ${s.ext ? `<button id="bReg" type="button">Go to ${esc(s.ext)}</button>` : ''}
@@ -1647,6 +1706,8 @@ function renderPanel(){
     const wp = add => sendWaypoint(id, add);
     $('#bDest').onclick = () => wp(false);
     $('#bWp').onclick = () => wp(true);
+    $('#bHome').onclick = () => setHome(isHome(id) ? null : id);
+    P.querySelectorAll('[data-mark]').forEach(b => b.onclick = () => setMark(b.dataset.mark, markAt(id).includes(b.dataset.mark) ? null : id));
     $('#bClose').onclick = () => select(null);
     if ($('#bReg')) $('#bReg').onclick = async () => { await loadRegion(s.r); select(id); centerOn(id); render(); };
   }
@@ -1826,6 +1887,9 @@ function setupInput(){
   }, { passive:false });
   const zoomBy = f => zoomAround(f, 0, 0);
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
+  $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Select a system, then "⌂ Set as home" in its window', true); return; } follow = false; store.set('whmap.reg.follow', false); $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(h.id); };
+  $('#btnExit').onclick = () => { if (!mapper.exit) return; follow = false; store.set('whmap.reg.follow', false); $('#btnFollow').setAttribute('aria-pressed', 'false'); if (regionOf(mapper.exit.id)) goTo(mapper.exit.id); else { $('#btnChain').getAttribute('aria-pressed') === 'true' || $('#btnChain').click(); toast(`EXIT: ${sysName(mapper.exit.id)} (wormhole space, see the Chain window)`); } };
+  renderHomeBtn();
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
@@ -1854,7 +1918,7 @@ function setupInput(){
   // the mapper (other tab) updates its cache, pilots and tokens: follow along
   window.addEventListener('storage', e => {
     if (!e.key || !e.key.startsWith('whmap.')) return;
-    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); renderWatch(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }
+    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }
     else if (e.key.startsWith(CK.tok) && !tok){ pickChar(); renderWho(); poll(); }
   });
   $('#apHead').onclick = () => { if (!ap) return; ap.open = ap.open === false; apSave(); renderAp(); };
@@ -2015,6 +2079,7 @@ function renderChain(){
     const tb = el('text', { x:10 + bw / 2, y:19, 'text-anchor':'middle', class:'cbadge' }, n); tb.textContent = badge;
     const tn = el('text', { x:16 + bw, y:20, class:'cname' }, n); tn.textContent = sysName(id) + (id === homeId ? '  ⌂' : '');
     const ts = el('text', { x:10, y:39, class:'csub' }, n); ts.textContent = sysSub(id).slice(0, 30);
+    { let tx = BW - 6; for (const k of markAt(id)){ const w = k === 'enter' ? 44 : 36; tx -= w; const tg = el('g', { class:'mtag mkpulse ' + k }, n); el('rect', { x:tx, y:BH - 17, width:w, height:13, rx:3 }, tg); const tt = el('text', { x:tx + w / 2, y:BH - 7, 'text-anchor':'middle' }, tg); tt.textContent = MARKS[k].label; tx -= 4; } }
     if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
@@ -2066,6 +2131,8 @@ function chainMenu(e, id){
     if (!chainPicked.has(id)) chainSelect([id]);
     html = `<div class="cmh">${esc(sysName(id))} <span>${esc(classOf(id))}</span></div>`
       + (isK(id) ? item('region', 'Open its region') + item('dest', 'Set destination') + item('wp', 'Add waypoint') + '<hr>' : '')
+      + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
+      + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('') + '<hr>'
       + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + '<hr>' + item('del', 'Delete', 'danger');
   } else {
     html = item('add0', '+ Add a system') + (g ? item('all', 'Select the whole chain') : '') + (chainPicked.size ? item('clear', 'Clear selection') : '') + item('auto', 'Auto layout');
@@ -2084,6 +2151,8 @@ function chainMenu(e, id){
     else if (act === 'wp') sendWaypoint(id, true);
     else if (act === 'add') openChainForm(id);
     else if (act === 'add0') openChainForm();
+    else if (act === 'home') setHome(isHome(id) ? null : id);
+    else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
     else if (act === 'link'){ linkFrom = id; chainSelect([id]); renderChainAct(); }
     else if (act === 'linked'){ const ids = [id]; for (const l of chainLinks()){ if (String(l.a) === id) ids.push(String(l.b)); if (String(l.b) === id) ids.push(String(l.a)); } chainSelect(ids.filter(x => !g || g.set.has(x))); renderChainAct(); renderChain(); }
     else if (act === 'all'){ if (g) chainSelect(g.ids); renderChainAct(); renderChain(); }
