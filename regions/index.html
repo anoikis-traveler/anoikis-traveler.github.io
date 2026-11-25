@@ -203,6 +203,14 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chaintools input{width:52px;padding:2px 5px}
 #chainSvg{user-select:none;-webkit-user-select:none;flex:1;min-height:0;width:100%;background:rgba(5,8,16,.6);border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
 .chainnote{font-size:11.5px}
+.chainact{display:flex;gap:6px;align-items:center;font-size:12.5px;flex-wrap:wrap}
+.chainact b{color:var(--accent)}
+.chainact button{font-size:12px;padding:2px 8px}
+.chainact .danger{border-color:#6a2c2c;color:#ff9a9a}
+.chainform{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px}
+.chainform input,.chainform select{font-size:12px;padding:3px 6px}
+.chainform #cfName{width:150px}
+.cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
 .cbox .cb{fill:#111a2c;stroke:#2c3a58;stroke-width:1}
 .cbox:hover .cb{stroke:#8b98b0}
@@ -290,9 +298,20 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
     <div class="wb chainwb">
       <div class="chaintools">
         <select id="chainSel" aria-label="Chain"></select>
+        <button type="button" id="chainAdd" class="small primary">+ System</button>
+        <button type="button" id="chainRestore" class="small" hidden title="Bring back the systems you deleted here">Restore deleted</button>
         <button type="button" id="chainAuto" class="small" title="Forget the positions you set and lay the chain out again">Auto layout</button>
         <label title="Two groups of systems linked by wormholes are the same chain when their known-space systems are this many gate jumps apart or less">Same chain within <input id="chainX" type="number" min="0" max="40" step="1"> jumps</label>
       </div>
+      <div class="chainact" id="chainAct" hidden></div>
+      <form class="chainform" id="chainForm" hidden autocomplete="off">
+        <input id="cfName" list="sysList" placeholder="System (e.g. J123456, Jita)" required aria-label="System to add">
+        <label>linked to <select id="cfTo" aria-label="Linked to"></select></label>
+        <input id="cfWh" placeholder="Hole (K162…)" size="7" aria-label="Wormhole type">
+        <select id="cfSize" aria-label="Size"><option value="?">size ?</option><option>S</option><option>M</option><option>L</option><option>XL</option></select>
+        <select id="cfKind" aria-label="Link"><option value="wh">wormhole</option><option value="gate">gate</option></select>
+        <button type="submit" class="small primary">Add</button><button type="button" class="small" id="cfCancel">Cancel</button>
+      </form>
       <svg id="chainSvg" aria-label="Flat map of the chain"></svg>
       <div class="dim chainnote" id="chainNote"></div>
     </div>
@@ -431,15 +450,26 @@ async function loadRegion(id, keepCam){
 }
 
 /* ---------- Mapper data (read-only, from the mapper's browser cache) ---------- */
+/* Systems added or deleted in the Chain widget: kept in this browser, applied on top of the mapper's chain */
+let edits_ = null;                                   // read on first use (the demo flag is set further down)
+const EDK = () => DEMO ? 'whmap.reg.chainEdits.demo' : 'whmap.reg.chainEdits';
+const E = () => edits_ || (edits_ = store.get(EDK(), { nodes:{}, links:{}, del:[] }));
+const saveEdits = () => store.set(EDK(), E());
+function applyEdits(){
+  Object.assign(mapper.nodes, E().nodes);
+  Object.assign(mapper.links, E().links);
+  for (const id of E().del){ delete mapper.nodes[id]; for (const k in mapper.links){ const l = mapper.links[k]; if (l && (String(l.a) === id || String(l.b) === id)) delete mapper.links[k]; } }
+}
 function readMapper(){
-  if (DEMO){ mapper = demoMapper(); return; }
+  if (DEMO){ mapper = demoMapper(); applyEdits(); return; }
   const cid = (tok && tok.charId) || store.get('whmap.lastChar', null);
   const slot = cid ? store.get(CK.slot + cid, null) : null;
   let m = slot && slot.mapOwner ? store.get('whmap.cache.' + slot.mapOwner, null) : null;
   if (!m) m = store.get('whmap.map', null);
   m = m || {};
   const objs = v => Array.isArray(v) ? Object.fromEntries(v.filter(Boolean).map(x => [x.id, x])) : (v || {});
-  mapper = { nodes:m.nodes || {}, links:objs(m.links), pilots:m.pilots || {} };
+  mapper = { nodes:{ ...(m.nodes || {}) }, links:{ ...objs(m.links) }, pilots:m.pilots || {} };
+  applyEdits();
 }
 /* Same rule as the mapper: past its estimated lifetime a wormhole blinks for 1 h, then it no longer counts.
    Lifetime by type from the mapper's wormhole data (same browser storage), 48 h if the type is unknown; 4 h after EOL. */
@@ -1498,6 +1528,7 @@ async function buildChains(){
     for (let i = 0; i < c.length; i++) for (const v of adjm[c[i]]) if (!seen.has(v) && !HUB_LIST.includes(v)){ seen.add(v); c.push(v); }
     if (c.length > 1) comps.push(c);                 // at least one link besides Thera / Turnur
   }
+  for (const id in E().nodes) if (!seen.has(id) && mapper.nodes[id]) comps.push([id]);   // added here without a link yet
   // merge groups whose known-space systems are close enough by gates
   const par = comps.map((_, i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i]));
   const bridges = [];
@@ -1532,7 +1563,7 @@ let chainView = { k:1, x:0, y:0 };
 /* Classic mapper look: one card per system laid out as a tree from left to right, the hole type on each link */
 const BW = 160, BH = 50, CW = 220, RH = 70, GRID = 10;   // layout units; boxes snap to the grid
 const chainPos = store.get('whmap.reg.chainpos', {});     // systems moved by hand
-let chainT = null, chainDrag = null;
+let chainT = null, chainDrag = null, chainSel = null, linkFrom = null;
 function chainLayout(g){
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
   const root = g.set.has(homeId) ? homeId : (me.sys && g.set.has(me.sys) ? me.sys : g.ids.find(isJ) || g.ids[0]);
@@ -1597,7 +1628,7 @@ function renderChain(){
   for (const id of g.ids){
     const p = pos[id]; if (!p) continue;
     const cl = classOf(id), col = WH_COL[cl] || WH_COL.J, here = mine[id] || (me.sys === id ? [me.name] : null);
-    const n = el('g', { class:'cbox' + (here ? ' here' : ''), 'data-id':id, transform:`translate(${p.x} ${p.y})` }, gN);
+    const n = el('g', { class:'cbox' + (here ? ' here' : '') + (chainSel === id ? ' sel' : ''), 'data-id':id, transform:`translate(${p.x} ${p.y})` }, gN);
     el('rect', { width:BW, height:BH, rx:5, class:'cb' }, n);
     el('rect', { width:4, height:BH, rx:2, fill:col }, n);
     const badge = isK(id) ? secR(secOf(id)).toFixed(1) : cl;
@@ -1609,7 +1640,69 @@ function renderChain(){
     if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
-  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · drag a system to move it on the grid, drag the background to pan, wheel to zoom, click a k-space system to open its region`;
+  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · click a system for its actions, double-click a k-space one to open its region, drag to move it on the grid · your additions and deletions stay in this browser`;
+}
+function openRegionOf(id){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); }
+function afterEdit(){ renderWhSel(); computeRoute(); render(); renderPanel(); buildChains(); }
+function renderChainAct(){
+  const a = $('#chainAct'), id = chainSel;
+  $('#chainRestore').hidden = !E().del.length;
+  if (!id){ a.hidden = true; return; }
+  a.hidden = false;
+  a.innerHTML = linkFrom ? `Click the system to link <b>${esc(sysName(linkFrom))}</b> to · <button type="button" id="caCancel">Cancel</button>`
+    : `<b>${esc(sysName(id))}</b> <span class="dim">${esc(classOf(id))}</span>
+       ${isK(id) ? '<button type="button" id="caOpen">Open region</button>' : ''}
+       <button type="button" id="caAdd">+ System from here</button><button type="button" id="caLink">Link to…</button><button type="button" id="caDel" class="danger">Delete</button>`;
+  const on = (sel, fn) => { const b = a.querySelector(sel); if (b) b.onclick = fn; };
+  on('#caOpen', () => openRegionOf(id));
+  on('#caAdd', () => openChainForm(id));
+  on('#caLink', () => { linkFrom = id; renderChainAct(); });
+  on('#caCancel', () => { linkFrom = null; renderChainAct(); });
+  on('#caDel', () => deleteSystem(id));
+}
+function deleteSystem(id){
+  id = String(id);
+  if (E().nodes[id]){ delete E().nodes[id]; for (const k in E().links){ const l = E().links[k]; if (String(l.a) === id || String(l.b) === id) delete E().links[k]; } }
+  else if (!E().del.includes(id)) E().del.push(id);
+  saveEdits(); chainSel = null; readMapper(); renderChainAct(); afterEdit();
+  toast(`${sysName(id)} removed from your chain${E().del.includes(id) ? ' (Restore deleted to undo)' : ''}`);
+}
+function addLink(a, b, o = {}){
+  const id = 'loc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  E().links[id] = { id, a:Number(a), b:Number(b), type:o.type || 'wh', wh:o.wh || '', size:o.size || '?', mass:'fresh', eol:false, created:Date.now(), local:true };
+  saveEdits(); readMapper(); afterEdit(); toast(`Linked ${sysName(a)} ↔ ${sysName(b)}`);
+}
+function openChainForm(from){
+  const g = chainGroups[chainPick || 0], f = $('#chainForm');
+  $('#cfTo').innerHTML = '<option value="">(not linked)</option>' + (g ? g.ids : []).map(id => `<option value="${id}">${esc(sysName(id))}</option>`).join('');
+  $('#cfTo').value = from || chainSel || (g ? g.ids[0] : '');
+  f.hidden = false; $('#cfName').value = ''; $('#cfName').focus();
+}
+const J_REGION_CLASS = { A:'C1', B:'C2', C:'C3', D:'C4', E:'C5', F:'C6', G:'THERA', H:'C13', K:'DRIFT' };
+async function resolveSystemName(name){
+  name = name.trim(); if (!name) return null;
+  for (const id in index.sys) if (index.sys[id][0].toLowerCase() === name.toLowerCase()) return { id, name:index.sys[id][0], cls:classOf(id) };
+  try{
+    const r = await fetch(`${ESI}/universe/ids/?language=en`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([name]) });
+    const j = r.ok ? await r.json() : {}, sys = (j.systems || [])[0]; if (!sys) return null;
+    let cls = 'J';
+    try{ const s2 = await (await fetch(`${ESI}/universe/systems/${sys.id}/`)).json(), c2 = await (await fetch(`${ESI}/universe/constellations/${s2.constellation_id}/`)).json(),
+             r2 = await (await fetch(`${ESI}/universe/regions/${c2.region_id}/`)).json(); cls = J_REGION_CLASS[String(r2.name)[0]] || 'J'; }catch(e){}
+    nameCache[String(sys.id)] = sys.name;
+    return { id:String(sys.id), name:sys.name, cls };
+  }catch(e){ return null; }
+}
+async function submitChainForm(){
+  const name = $('#cfName').value, to = $('#cfTo').value;
+  const s2 = await resolveSystemName(name);
+  if (!s2){ toast(`No system called "${name}"`, true); return; }
+  if (!mapper.nodes[s2.id]) E().nodes[s2.id] = { id:Number(s2.id), name:s2.name, cls:s2.cls, local:true };
+  E().del = E().del.filter(x => x !== s2.id);
+  if (to && to !== s2.id){
+    if (chainPos[to]) chainPos[s2.id] = { x:chainPos[to].x + CW, y:chainPos[to].y + RH / 2 };
+    addLink(to, s2.id, { type:$('#cfKind').value, wh:$('#cfWh').value.trim().toUpperCase(), size:$('#cfSize').value });
+  } else { saveEdits(); readMapper(); afterEdit(); }
+  $('#chainForm').hidden = true; chainSel = s2.id; renderChainAct();
 }
 function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
@@ -1640,11 +1733,16 @@ function setupChain(){
     if (chainDrag){
       const d = chainDrag; chainDrag = null;
       if (d.moved) store.set('whmap.reg.chainpos', chainPos);
-      else if (isK(d.id)){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(d.id); }
-      else toast(`${sysName(d.id)}: wormhole space, no region map`);
+      else if (linkFrom && linkFrom !== d.id){ addLink(linkFrom, d.id); linkFrom = null; }
+      else { chainSel = chainSel === d.id ? null : d.id; linkFrom = null; renderChainAct(); renderChain(); }
     }
     st = null;
   });
+  svg.addEventListener('dblclick', e => { const b = e.target.closest('.cbox'); if (b && isK(b.dataset.id)) openRegionOf(b.dataset.id); });
+  $('#chainAdd').onclick = () => openChainForm();
+  $('#cfCancel').onclick = () => { $('#chainForm').hidden = true; };
+  $('#chainForm').onsubmit = e => { e.preventDefault(); submitChainForm(); };
+  $('#chainRestore').onclick = () => { E().del = []; saveEdits(); readMapper(); afterEdit(); toast('Deleted systems restored'); };
   $('#chainAuto').onclick = () => { const g = chainGroups[chainPick || 0]; if (g) g.ids.forEach(id => delete chainPos[id]); store.set('whmap.reg.chainpos', chainPos); chainView = { k:1, x:0, y:0 }; renderChain(); };
   svg.addEventListener('wheel', e => { e.preventDefault(); chainView.k = Math.max(0.3, Math.min(6, chainView.k * Math.exp(-e.deltaY * 0.0015))); renderChain(); }, { passive:false });
   new ResizeObserver(() => renderChain()).observe(box.querySelector('.chainwb'));
