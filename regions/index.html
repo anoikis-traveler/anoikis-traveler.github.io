@@ -1015,11 +1015,11 @@ async function shareConnect(){
     const access = await shareGet(`access/${share.uid}`).catch(() => null) || {};
     const isOwner = share.uid === site.owner || !!(await shareGet(`owners/${share.uid}`).catch(() => null));
     if (!(owner && (owner === share.uid ? isOwner : access[owner]))) owner = isOwner ? share.uid : access[site.owner] ? site.owner : Object.keys(access)[0] || '';
-    if (!owner){ share.owner = ''; share.map = null; shareState('none'); readMapper(); render(); renderWatch(); return; }
+    if (!owner){ share.owner = ''; share.map = null; shareState('none'); readMapper(); render(); renderWatch(); renderChars(); return; }
     share.owner = owner;
     share.ownerName = owner === share.uid ? share.name : await shareGet(`maps/${owner}/ownerName`).catch(() => '') || '';
     const [data, pilots] = await Promise.all([shareGet(`maps/${owner}/data`), shareGet(`maps/${owner}/pilots`)]);
-    shareApply('/', { data, pilots });
+    shareApply('/', { data, pilots }); store.set('whmap.reg.payMap', payMapName()); renderChars();
     await shareSend({ op:'sub', map:owner }).catch(e => { if (e.status === 403){ shareState('err', 'access removed'); } });
     sharePublish(true);
   }catch(e){ shareState('err', /refused|auth/i.test(e.message) ? 'log in again' : 'unreachable'); }
@@ -1553,6 +1553,10 @@ function renderWatch(){
   const d = box.querySelector('details'); if (d) d.addEventListener('toggle', () => store.set('whmap.reg.watchOff', d.open));
   box.querySelectorAll('.wn[data-wsys]:not([disabled])').forEach(b => b.onclick = () => goTo(b.dataset.wsys));
 }
+// payment reason: it names the MAP (its owner), so any member can pay for the whole group
+const payMapName = () => share.owner ? (share.ownerName || (share.owner === share.uid ? share.name : '')) : '';
+const payV = () => `Anoikis-${payMapName()}-${store.get('whmap.reg.payTier', 10)}`;
+
 function renderChars(){
   renderWatch();
   const box = $('#charsBody'); if (!box) return;
@@ -1571,9 +1575,10 @@ function renderChars(){
          <label title="Finds the Ansiblex your character can use (the EVE application of the site must allow esi-search.search_structures.v1)"><input type="checkbox" id="askJb"${store.get('whmap.reg.askjb', false) ? ' checked' : ''}> Allow importing jump bridges</label>`}
       <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
-      ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5. The number at the end is how many characters you pay for, so the amount gives the weeks."><span class="payto">Send ISK to <b>Sava Yesh</b></span> for <select id="payTier">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option value="${n}"${n === store.get('whmap.reg.payTier', 10) ? ' selected' : ''}>${n} characters</option>`).join('')}</select>
-        <span class="payto">with this reason:</span> <code id="payCode">Anoikis-${esc((tok || list[0]).charName)}-${store.get('whmap.reg.payTier', 10)}</code><button type="button" class="small" id="bPayId">Copy</button>
-        <span id="payPrice">${(store.get('whmap.reg.payTier', 10) - 5) / 5 * 50} M ISK / week</span> · <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a></div>` : ''}</div>`;
+      ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters on a map, then 50 M ISK a week per block of 5. Anyone on the map can pay: the reason names the map (its owner), the number is how many characters you pay for, the amount gives the weeks.">${payMapName() ? `<span class="payto">Map of <b>${esc(payMapName())}</b>: send ISK to <b>Sava Yesh</b> for</span> <select id="payTier">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option value="${n}"${n === store.get('whmap.reg.payTier', 10) ? ' selected' : ''}>${n} characters</option>`).join('')}</select>
+        <span class="payto">with this reason:</span> <code id="payCode">${esc(payV())}</code><button type="button" class="small" id="bPayId">Copy</button>
+        <span id="payPrice">${(store.get('whmap.reg.payTier', 10) - 5) / 5 * 50} M ISK / week</span> · <span class="payto">pays for the whole map, whoever sends it</span> · <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a>`
+        : `<span class="payto">${share.state === 'wait' ? 'Connecting to your shared map…' : 'No shared map for this character: nothing to pay.'}</span> <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a>`}</div>` : ''}</div>`;
   box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
   box.querySelectorAll('[data-logout]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); logout(Number(b.dataset.logout)); }));
   const bl = $('#bLogin'); if (bl) bl.onclick = login;
@@ -1581,7 +1586,6 @@ function renderChars(){
   const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
   const aj = $('#askJb'); if (aj) aj.onchange = () => store.set('whmap.reg.askjb', aj.checked);
   shareState(share.state);
-  const payV = () => `Anoikis-${(tok || list[0]).charName}-${store.get('whmap.reg.payTier', 10)}`;
   const pt = $('#payTier'); if (pt) pt.onchange = () => { const n = Number(pt.value); store.set('whmap.reg.payTier', n); $('#payCode').textContent = payV(); $('#payPrice').textContent = `${(n - 5) / 5 * 50} M ISK / week`; };
   const pb = $('#bPayId'); if (pb) pb.onclick = async () => { const v = payV(); try{ await navigator.clipboard.writeText(v); toast('Copied: ' + v); }catch(e){ toast(v); } };
 }
