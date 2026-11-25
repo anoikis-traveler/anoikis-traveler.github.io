@@ -236,6 +236,17 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .as-sell b{font-family:var(--display);font-size:1.35rem;color:var(--ok);letter-spacing:.02em}
 .asset-hit{cursor:pointer}
 #wChain{width:460px}
+.allwb{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;overflow:auto;resize:both;width:min(560px,calc(100vw - 40px));height:330px;min-width:270px;min-height:160px;max-width:calc(100vw - 30px);max-height:calc(100vh - 80px);align-content:start}
+.allwb .ac{border:1px solid var(--line);border-radius:5px;background:rgba(5,8,16,.6);cursor:pointer;display:flex;flex-direction:column}
+.allwb .ac:hover{border-color:#8b98b0}
+.allwb .ac.on{border-color:var(--accent)}
+.allwb .ach{display:flex;justify-content:space-between;gap:6px;padding:5px 8px 3px;font-size:12px}
+.allwb .ach b{font-family:var(--display);letter-spacing:.05em;text-transform:uppercase;font-size:13px}
+.allwb .ach span{color:var(--dim)}
+.allwb svg{width:100%;height:150px;display:block}
+.allwb .an{font-family:var(--mono);font-size:9.5px;fill:#c9d2e3;paint-order:stroke;stroke:#05080f;stroke-width:2.5px}
+.allwb .empty{color:var(--dim);font-size:12.5px;padding:6px}
+#wChains .wcol + .wcol{margin-left:0}
 .chainwb{display:flex;flex-direction:column;gap:6px;resize:both;overflow:hidden;width:min(680px,calc(100vw - 40px));height:380px;min-width:280px;min-height:200px;max-width:calc(100vw - 30px);max-height:calc(100vh - 80px)}
 #wChain{width:auto}
 .chaintools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim)}
@@ -349,6 +360,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
+        <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
         <button id="btnHome" type="button">⌂ Home</button>
         <button id="btnExit" type="button" hidden>EXIT</button>
@@ -366,6 +378,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <section class="widget" id="wWatch" data-title="Pilots">
     <header class="wh"><span class="wt">Pilots</span><span class="wsub dim" id="watchSub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb" id="watchBody"></div>
+  </section>
+
+  <section class="widget" id="wChains" data-title="All chains" hidden>
+    <header class="wh"><span class="wt">All chains</span><span class="wsub dim" id="allSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="allClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb allwb" id="allBody"></div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -837,7 +854,7 @@ function shareApply(path, data){
   if (path === '/' || path === ''){ const d = data || {}; share.map = { data:d.data || {}, pilots:d.pilots || {} }; }
   else { const parts = path.replace(/^\//, '').split('/'); if (parts[0] === 'data' || parts[0] === 'pilots'){ if (parts.length === 1) share.map[parts[0]] = data || {}; else setAtPath(share.map, parts, data); } }
   shareState('on');
-  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }, 120);
+  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }, 120);
 }
 function shareState(st, txt){ share.state = st; if (txt !== undefined || st !== 'err') share.txt = txt; txt = share.txt; const e = $('#shareSt'); if (!e) return;
   e.className = 'share-st ' + st; e.textContent = st === 'on' ? '● Shared map · live' + (share.ownerName ? ' (' + share.ownerName + ')' : '') : st === 'err' ? '● Shared map: ' + (txt || 'error') : st === 'wait' ? '● Shared map: connecting…' : st === 'none' ? '○ No shared map for this character' : '';
@@ -889,7 +906,7 @@ function setHome(id){
   const c = store.get('whmap.cfg', {}) || {};
   if (id == null){ delete c.home; store.set('whmap.cfg', c); toast('Home removed'); }
   else { c.home = { id:Number(id), name:sysName(id) }; store.set('whmap.cfg', c); toast(`⌂ Home set to ${sysName(id)}`); }
-  renderHomeBtn(); render(); renderPanel(); if (!$('#wChain').hidden) buildChains();
+  renderHomeBtn(); render(); renderPanel(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains();
 }
 function markAt(id){ return ['enter', 'exit'].filter(k => mapper[k] && String(mapper[k].id) === String(id)); }
 async function setMark(kind, id){
@@ -1149,12 +1166,35 @@ async function poll(){
   if (tok && share.charId !== tok.charId && !DEMO) shareConnect(); else sharePublish();
   pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4000 : 6000);
 }
+function setFollow(v){ follow = !!v; store.set('whmap.reg.follow', follow); const b = $('#btnFollow'); if (b) b.setAttribute('aria-pressed', String(follow)); }
+// the part of the screen not hidden by a window
+function coveredAt(x, y, m = 40){
+  for (const w of document.querySelectorAll('.widget, .hubcard')){ if (w.hidden || w.offsetParent === null) continue; const r = w.getBoundingClientRect(); if (x > r.left - m && x < r.right + m && y > r.top - m && y < r.bottom + m) return true; }
+  return false;
+}
+function freeCentre(){
+  let best = { x:W / 2, y:H / 2 }, bd = Infinity;
+  for (let y = H * 0.15; y <= H * 0.85; y += 30) for (let x = W * 0.12; x <= W * 0.88; x += 30){
+    if (coveredAt(x, y, 70)) continue; const d = Math.hypot(x - W / 2, (y - H / 2) * 1.3); if (d < bd){ bd = d; best = { x, y }; } }
+  return best;
+}
+let camAnim = 0;
+function followTo(id, soft){
+  const p = norm[String(id)]; if (!p) return;
+  const q = proj(p);
+  if (soft && q.x > W * 0.12 && q.x < W * 0.88 && q.y > H * 0.12 && q.y < H * 0.88 && !coveredAt(q.x, q.y, 30)) return;   // still well in view
+  const t = freeCentre(), dx = t.x - q.x, dy = t.y - q.y, x0 = cam.px, y0 = cam.py, t0 = performance.now(), my = ++camAnim;
+  const step = now => { if (my !== camAnim) return; const k = Math.min(1, (now - t0) / 450), e = 1 - Math.pow(1 - k, 3);
+    cam.px = x0 + dx * e; cam.py = y0 + dy * e; render(); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 async function onMove(){
   if (!me.sys) return;
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
-  if (follow && reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(me.sys); }
-  else if (follow && byId[me.sys]) centerOn(me.sys, true);
+  if (follow && reg && (!R || reg !== R.region.id)){ await loadRegion(reg); sel = null; centerOn(me.sys); followTo(me.sys); }
+  else if (follow && byId[me.sys] && !byId[me.sys].ext)followTo(me.sys, true);
+  else if (follow && me.sys && isJ(me.sys) && !$('#wChain').hidden){ const i = chainGroups.findIndex(g => g.set.has(me.sys)); if (i >= 0 && i !== (chainPick || 0)){ chainPick = i; chainKey = chainGroups[i].ids[0]; renderChainSel(); renderChain(); } }
   computeRoute(); render(); renderPanel(); renderWho(); computeAp();
 }
 const whereTxt = sys => !sys ? '<span class="dim">locating…</span>' : `<b>${esc(sysName(sys))}</b>${byId[sys] && !byId[sys].ext ? '' : regionOf(sys) ? ` <span class="dim">· ${esc(regionName(regionOf(sys)))}</span>` : isJ(sys) ? ' <span class="dim">· J-space</span>' : ''}`;
@@ -1890,8 +1930,8 @@ function setupInput(){
   }, { passive:false });
   const zoomBy = f => zoomAround(f, 0, 0);
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
-  $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Select a system, then "⌂ Set as home" in its window', true); return; } follow = false; store.set('whmap.reg.follow', false); $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(h.id); };
-  $('#btnExit').onclick = () => { if (!mapper.exit) return; follow = false; store.set('whmap.reg.follow', false); $('#btnFollow').setAttribute('aria-pressed', 'false'); if (regionOf(mapper.exit.id)) goTo(mapper.exit.id); else { $('#btnChain').getAttribute('aria-pressed') === 'true' || $('#btnChain').click(); toast(`EXIT: ${sysName(mapper.exit.id)} (wormhole space, see the Chain window)`); } };
+  $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Select a system, then "⌂ Set as home" in its window', true); return; } setFollow(false); goTo(h.id); };
+  $('#btnExit').onclick = () => { if (!mapper.exit) return; setFollow(false); if (regionOf(mapper.exit.id)) goTo(mapper.exit.id); else { $('#btnChain').getAttribute('aria-pressed') === 'true' || $('#btnChain').click(); toast(`EXIT: ${sysName(mapper.exit.id)} (wormhole space, see the Chain window)`); } };
   renderHomeBtn();
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
@@ -1904,24 +1944,24 @@ function setupInput(){
   $('#regSel').onchange = e => { sel = null; loadRegion(e.target.value); };
   $('#whSel').onchange = async e => {
     const v = e.target.value; e.target.value = ''; if (!v) return;
-    follow = false; store.set('whmap.reg.follow', false); $('#btnFollow').setAttribute('aria-pressed', 'false');
+    setFollow(false);
     if (v.startsWith('r:')){ sel = null; await loadRegion(v.slice(2)); }
     else await goTo(v.slice(2));
   };
   $('#colorSel').value = colorMode;
   $('#colorSel').onchange = e => { colorMode = e.target.value; store.set('whmap.reg.color', colorMode); render(); renderPanel(); };
   const fb = $('#btnFollow'); fb.setAttribute('aria-pressed', String(follow));
-  fb.onclick = () => { follow = !follow; store.set('whmap.reg.follow', follow); fb.setAttribute('aria-pressed', String(follow)); if (follow) onMove(); };
+  fb.onclick = () => { setFollow(!follow); if (follow){ if (me.sys){ const reg = regionOf(me.sys); if (reg && R && reg === R.region.id && byId[me.sys]) followTo(me.sys); else onMove(); } else toast('Position not known yet: log in with EVE in the Characters window', true); } };
   $('#search').addEventListener('change', e => {
     const q = e.target.value.trim().toLowerCase(); if (!q) return;
     const hit = Object.entries(index.sys).find(([, v]) => v[0].toLowerCase() === q) || Object.entries(index.sys).find(([, v]) => v[0].toLowerCase().startsWith(q));
-    if (hit){ follow = false; store.set('whmap.reg.follow', false); fb.setAttribute('aria-pressed', 'false'); goTo(hit[0]); e.target.value = ''; }
+    if (hit){ setFollow(false); goTo(hit[0]); e.target.value = ''; }
     else toast('No system called ' + e.target.value, true);
   });
   // the mapper (other tab) updates its cache, pilots and tokens: follow along
   window.addEventListener('storage', e => {
     if (!e.key || !e.key.startsWith('whmap.')) return;
-    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }
+    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }
     else if (e.key.startsWith(CK.tok) && !tok){ pickChar(); renderWho(); poll(); }
   });
   $('#apHead').onclick = () => { if (!ap) return; ap.open = ap.open === false; apSave(); renderAp(); };
@@ -1931,7 +1971,7 @@ function setupInput(){
     const tg = e.target.closest('[data-tog]'), wpb = e.target.closest('[data-wp]'), go = e.target.closest('[data-go]');
     if (wpb){ e.stopPropagation(); if (!wpb.disabled) sendWaypoint(wpb.dataset.wp, e.shiftKey); return; }
     if (tg) return;                                   // handled on pointerup (drag or fold)
-    if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); } }
+    if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { setFollow(false); goTo(id); } }
   });
   window.addEventListener('resize', render);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
@@ -1940,7 +1980,7 @@ function setupInput(){
 /* ---------- Chain widget: flat map of the mapper's chains ----------
    Systems linked by wormholes (and the gates you mapped) form a group. Two groups are the same chain when their
    known-space systems are within X gate jumps (X set by the player); otherwise the other ones are secondary chains. */
-let chainX = store.get('whmap.reg.chainX', 5), chainPick = null, chainGroups = [], chainBusy = 0;
+let chainX = store.get('whmap.reg.chainX', 5), chainPick = null, chainGroups = [], chainBusy = 0, chainKey = null, chainFocus = null;
 const jumpCache = store.get('whmap.reg.jumps', {});
 async function jumps(a, b){
   const k = a < b ? a + '>' + b : b + '>' + a;
@@ -1983,7 +2023,12 @@ async function buildChains(){
     const set = new Set(ids);
     return { ids, set, home:homeId != null && set.has(String(homeId)), mine:ids.some(id => mine.has(id)), bridges:bridges.filter(b => set.has(b.a) && set.has(b.b)) };
   }).sort((a, b) => (b.home - a.home) || (b.mine - a.mine) || b.ids.length - a.ids.length);
-  renderChainSel(); renderChain();
+  // stay on the chain you were looking at (groups are re-sorted), or show the one a new system went into
+  const want = chainFocus || chainKey;
+  if (want){ const i = chainGroups.findIndex(g => g.set.has(String(want))); if (i >= 0){ chainPick = i; if (chainFocus){ chainSelect([chainFocus]); renderChainAct(); } } }
+  chainFocus = null;
+  if (chainGroups[chainPick || 0]) chainKey = chainGroups[chainPick || 0].ids[0];
+  renderChainSel(); renderChain(); renderAllChains();
 }
 function chainName(g, i){
   const named = g.ids.find(id => isJ(id)) || g.ids[0];
@@ -2088,7 +2133,52 @@ function renderChain(){
   }
   $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · click a system for its actions, right-click for the menu, Ctrl/Shift+click or Shift+drag to select several, drag to move them on the grid, Delete to remove · your additions and deletions stay in this browser`;
 }
-function openRegionOf(id){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); }
+/* All chains: one small flat map per chain; a click opens it in the Chain window */
+function renderAllChains(){
+  const box = $('#wChains'); if (!box || box.hidden) return;
+  const body = $('#allBody');
+  $('#allSub').textContent = chainGroups.length ? `${chainGroups.length} chain${chainGroups.length > 1 ? 's' : ''}` : '';
+  if (!chainGroups.length){ body.innerHTML = '<div class="empty">No chain yet: they come from your shared map (or the mapper).</div>'; return; }
+  body.innerHTML = '';
+  const NS = 'http://www.w3.org/2000/svg';
+  chainGroups.forEach((g, i) => {
+    const card = document.createElement('div'); card.className = 'ac' + ((chainPick || 0) === i && !$('#wChain').hidden ? ' on' : '');
+    const nJ = g.ids.filter(isJ).length, nK = g.ids.length - nJ;
+    card.innerHTML = `<div class="ach"><b>${esc(i === 0 ? 'Main chain' : 'Secondary ' + i)}</b><span>${g.ids.length} systems · ${nJ} J · ${nK} k${g.home ? ' · ⌂' : ''}${g.mine ? ' · you' : ''}</span></div>`;
+    const svg = document.createElementNS(NS, 'svg'); card.appendChild(svg);
+    body.appendChild(card);
+    const Wc = svg.clientWidth || 250, Hc = 150;
+    svg.setAttribute('viewBox', `0 0 ${Wc} ${Hc}`);
+    const { pos } = chainLayout(g), xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs) + BW, minY = Math.min(...ys), maxY = Math.max(...ys) + BH;
+    const k = Math.min((Wc - 16) / Math.max(1, maxX - minX), (Hc - 16) / Math.max(1, maxY - minY), 0.85);
+    const ox = 8 - minX * k + Math.max(0, (Wc - 16 - (maxX - minX) * k) / 2), oy = 8 - minY * k + Math.max(0, (Hc - 16 - (maxY - minY) * k) / 2);
+    const P = id => ({ x:ox + (pos[id].x + BW / 2) * k, y:oy + (pos[id].y + BH / 2) * k });
+    for (const l of chainLinks()){ const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b) || !pos[a] || !pos[b]) continue;
+      const pa = P(a), pb = P(b), col = l.type === 'gate' ? '#55688f' : l.eol ? 'var(--eol)' : l.mass === 'critical' ? 'var(--bad)' : l.mass === 'reduced' ? 'var(--warn)' : 'var(--wh)';
+      el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, stroke:col, 'stroke-width':1.4, opacity:.85 }, svg); }
+    for (const br of g.bridges){ if (!pos[br.a] || !pos[br.b]) continue; const pa = P(br.a), pb = P(br.b); el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, stroke:'#8b98b0', 'stroke-width':1, 'stroke-dasharray':'3 3' }, svg); }
+    const mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
+    const showNames = g.ids.length <= 14;
+    for (const id of g.ids){ if (!pos[id]) continue; const q = P(id), cl = classOf(id), col = isK(id) ? secCol(secOf(id)) : (WH_COL[cl] || WH_COL.J);
+      if (mine.has(id)) el('circle', { cx:q.x, cy:q.y, r:7.5, fill:'none', stroke:'var(--ok)', 'stroke-width':1.6 }, svg);
+      el('circle', { cx:q.x, cy:q.y, r:4.5, fill:col, stroke:'#05080f', 'stroke-width':1 }, svg);
+      const mk = markAt(id); if (mk.length || isHome(id)){ const t = el('text', { x:q.x, y:q.y - 8, 'text-anchor':'middle', class:'an', style:'fill:' + (mk.includes('exit') ? '#4cc97a' : mk.includes('enter') ? '#f5c542' : '#f2a74b') }, svg); t.textContent = [isHome(id) ? '⌂' : '', ...mk.map(x => MARKS[x].label)].filter(Boolean).join(' '); }
+      if (showNames){ const t = el('text', { x:q.x, y:q.y + 14, 'text-anchor':'middle', class:'an' }, svg); t.textContent = sysName(id); }
+      el('title', {}, svg.lastChild).textContent = sysName(id); }
+    card.onclick = () => { chainPick = i; chainKey = g.ids[0]; chainView = { k:1, x:0, y:0 };
+      if ($('#wChain').hidden) $('#btnChain').click(); else { renderChainSel(); renderChain(); } renderAllChains(); };
+  });
+}
+function setupAllChains(){
+  const box = $('#wChains'), btn = $('#btnAll');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.allOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; if (chainGroups.length) renderAllChains(); else buildChains(); } };
+  btn.onclick = () => show(box.hidden);
+  $('#allClose').onclick = () => show(false);
+  new ResizeObserver(() => renderAllChains()).observe($('#allBody'));
+  if (store.get('whmap.reg.allOpen', false)) show(true);
+}
+function openRegionOf(id){ setFollow(false); goTo(id); }
 function afterEdit(){ renderWhSel(); computeRoute(); render(); renderPanel(); buildChains(); }
 function renderChainAct(){
   const a = $('#chainAct'), id = chainSel;
@@ -2219,6 +2309,8 @@ async function submitChainForm(){
   const name = $('#cfName').value, to = $('#cfTo').value;
   const s2 = await resolveSystemName(name);
   if (!s2){ toast(`No system called "${name}"`, true); return; }
+  chainFocus = s2.id; chainView = { k:1, x:0, y:0 };
+  if (!to || HUB_LIST.includes(String(to))) toast(`${s2.name} added${to ? ' (linked to ' + sysName(to) + ' only: shown as its own chain)' : ' on its own: link it to show it in a chain'}`);
   if (!mapper.nodes[s2.id]) E().nodes[s2.id] = { id:Number(s2.id), name:s2.name, cls:s2.cls, local:true };
   E().del = E().del.filter(x => x !== s2.id);
   if (to && to !== s2.id){
@@ -2231,7 +2323,7 @@ function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.chainOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; buildChains(); } };
   btn.onclick = () => show(box.hidden);
-  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainView = { k:1, x:0, y:0 }; renderChain(); };
+  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? chainGroups[chainPick].ids[0] : null; chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
   $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
   let st = null, band = null;
   const menu = $('#chainMenu');
@@ -2298,7 +2390,7 @@ function setupChain(){
   svg.addEventListener('wheel', e => { e.preventDefault(); chainView.k = Math.max(0.3, Math.min(6, chainView.k * Math.exp(-e.deltaY * 0.0015))); renderChain(); }, { passive:false });
   new ResizeObserver(() => renderChain()).observe(box.querySelector('.chainwb'));
   if (store.get('whmap.reg.chainOpen', false)) show(true);
-  setInterval(() => { if (!box.hidden) buildChains(); }, 60000);
+  setInterval(() => { if (!box.hidden || !$('#wChains').hidden) buildChains(); }, 60000);
 }
 
 /* ---------- Widgets: every window floats over the map; drag by its title bar, fold with –, positions remembered ---------- */
@@ -2309,6 +2401,7 @@ function defaultPos(id, el){
   return { wTool:{ x:12, y:12 }, wView:{ x:12, y:below('wTool', 96) }, apBox:{ x:12, y:below('wView', 220) },
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
+           wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
            wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
 function placeWidget(el){
@@ -2339,13 +2432,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -2363,14 +2456,14 @@ function setupWidgets(){
   if (!reg && me.sys && regionOf(me.sys)) reg = regionOf(me.sys);
   if (!reg && !DEMO) reg = store.get('whmap.reg.last', null);
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
-  if (qs){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); }   // a system link is a deliberate look elsewhere
+  if (qs){ setFollow(false); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
   if (DEMO){ demoStep(); pickChar(); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain();
+  setupChain(); setupAllChains();
   poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
   if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
