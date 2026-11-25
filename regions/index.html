@@ -1365,6 +1365,7 @@ function demoKills(){
 }
 function renderKillBar(){
   const bar = $('#killBar'); if (!bar) return;
+  bar.innerHTML = ''; return;      // no alarm banner: the blinking red halo on the system is the alarm
   const items = [];
   for (const id in killMap){ const ks = killsAt(id); if (!ks.length || (killHidden[id] && killHidden[id] >= ks[0].time)) continue;
     const here = byId[id] && !byId[id].ext, onChain = !!mapper.nodes[id];
