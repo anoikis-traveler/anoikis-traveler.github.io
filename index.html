@@ -9,6 +9,7 @@
   const q = new URLSearchParams(location.search);
   if (/^rg/.test(q.get('state') || '')) location.replace('regions/' + location.search);              // login started from the map
   else if (/^py/.test(q.get('state') || '')) location.replace('pay/' + location.search);            // the payee linking the wallet
+  else if (/^ad/.test(q.get('state') || '')) location.replace('admin/' + location.search);          // the site owner's map list
   else if (q.has('demo') && [...q.keys()].length === 1) location.replace('regions/?demo');          // the demo is the map's
   else if (location.search || /^#(config|a)=/.test(location.hash)) location.replace('map/' + location.search + location.hash);
 })();
