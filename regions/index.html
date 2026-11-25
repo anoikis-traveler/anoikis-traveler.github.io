@@ -320,6 +320,7 @@ body.nf #hint{transform:translateY(-16px)}
 #wJb .wcol + .wcol{margin-left:0}
 .goldring{fill:none;stroke:#e8c25a;stroke-width:2.2;animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
 .goldglow{fill:rgba(232,194,90,.18);stroke:none;filter:blur(3px);animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
+.ce.k.hm{stroke:#e8c25a!important;opacity:.8}
 .goldbox{fill:none;stroke:#e8c25a;stroke-width:2;filter:drop-shadow(0 0 5px rgba(232,194,90,.7));animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
 .gtag rect{fill:#d9ad45;stroke:#fff3c9;stroke-width:.6}
 .gtag text{font-family:var(--mono);font-size:9.5px;font-weight:800;fill:#241803}
@@ -2413,6 +2414,19 @@ async function buildChains(){
     for (const a of ki) for (const b of kj){ const d = await jumps(a, b); if (my !== chainBusy) return; if (!best || d < best.d) best = { a, b, d }; }
     if (best && best.d <= chainX){ par[find(i)] = find(j); bridges.push(best); }
   }
+  // your home pulls in every chain it can reach by gates: one link HOME ↔ the chain's way in, labelled with the jumps
+  const hId = String((store.get('whmap.cfg', {}).home || {}).id || '');
+  if (hId && isK(hId)){
+    let hi = comps.findIndex(c => c.includes(hId));
+    if (hi < 0){ comps.push([hId]); par.push(par.length); hi = comps.length - 1; }
+    for (let j = 0; j < comps.length; j++){
+      if (find(j) === find(hi)) continue;
+      const kj = comps[j].filter(isK).slice(0, 8); if (!kj.length) continue;
+      let best = null;
+      for (const b of kj){ const d = await jumps(hId, b); if (my !== chainBusy) return; if (!best || d < best.d) best = { a:hId, b, d }; }
+      if (best && best.d < 999){ par[find(j)] = find(hi); bridges.push({ ...best, home:true }); }
+    }
+  }
   const groups = {};
   comps.forEach((c, i) => (groups[find(i)] = groups[find(i)] || []).push(...c));
   const homeId = (store.get('whmap.cfg', {}).home || {}).id, mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
@@ -2509,7 +2523,7 @@ function renderChain(){
     const txt = l.type === 'gate' ? 'gate' : [l.wh || 'WH', l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : ''].filter(Boolean).join(' ');
     pill(r.mx, r.my, txt, col);
   }
-  for (const br of g.bridges){ if (!pos[br.a] || !pos[br.b]) continue; const r = L(br.a, br.b); el('path', { d:r.d, class:'ce k' }, gE); pill(r.mx, r.my, `${br.d} jumps`, '#8b98b0'); }
+  for (const br of g.bridges){ if (!pos[br.a] || !pos[br.b]) continue; const r = L(br.a, br.b); el('path', { d:r.d, class:'ce k' + (br.home ? ' hm' : '') }, gE); pill(r.mx, r.my, `${br.home ? '⌂ ' : ''}${br.d} jump${br.d === 1 ? '' : 's'}`, br.home ? '#e8c25a' : '#8b98b0'); }
   const mine = {}; for (const c of Object.values(chars)) if (c.sys) (mine[c.sys] = mine[c.sys] || []).push(c.name);
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
   for (const id of g.ids){
