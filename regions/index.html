@@ -337,7 +337,10 @@ body.nf #hint{transform:translateY(-16px)}
 .marks .mk-exit{border-color:#2e6b4a;color:#7fe0a6}
 .marks .on{background:rgba(245,197,66,.12)}
 .marks .mk-exit.on{background:rgba(76,201,122,.12)}
-#btnExit{border-color:#2e6b4a;color:#7fe0a6}
+.marksbar{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%}
+.gbtn{border-color:#8a6a1e;color:#f0cd6e;background:rgba(232,194,90,.08);font-weight:600}
+.gbtn:hover{background:rgba(232,194,90,.2);border-color:#e8c25a}
+.gbtn.unset{color:var(--dim);border-color:var(--line);background:none;font-weight:400}
 .cband{fill:rgba(242,167,75,.12);stroke:var(--accent);stroke-dasharray:4 3;pointer-events:none}
 .cmenu{position:fixed;z-index:9999;min-width:190px;padding:4px;background:rgba(12,17,30,.97);border:1px solid var(--line);border-radius:7px;box-shadow:0 10px 28px rgba(0,0,0,.55);display:flex;flex-direction:column}
 .cmenu[hidden]{display:none}
@@ -407,6 +410,7 @@ body.nf #hint{transform:translateY(-16px)}
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
       <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
       <datalist id="sysList"></datalist>
+      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button></div>
     </div>
   </section>
 
@@ -424,8 +428,6 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
         <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
-        <button id="btnHome" type="button">⌂ Home</button>
-        <button id="btnExit" type="button" hidden>EXIT</button>
         <button id="btnReset" type="button">Recenter</button>
         <button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button>
       </div>
@@ -1056,8 +1058,15 @@ async function setMark(kind, id){
   toast(val ? `${MARKS[kind].label} set to ${sysName(id)}` : `${MARKS[kind].label} removed`);
 }
 function renderHomeBtn(){
-  const h = homeOf(), b = $('#btnHome'); if (b){ b.textContent = h ? `⌂ ${h.name}` : '⌂ Home'; b.title = h ? `Show ${h.name} (your home)` : 'No home yet: select a system and click "Set as home"'; }
-  const x = $('#btnExit'); if (x){ x.hidden = !mapper.exit; if (mapper.exit) x.title = `Show the EXIT: ${sysName(mapper.exit.id)}`; }
+  const h = homeOf(), b = $('#btnHome'); if (b){ b.textContent = h ? `⌂ HOME · ${h.name}` : '⌂ Home'; b.classList.toggle('unset', !h); b.title = h ? `Centre the map on ${h.name} (your home)` : 'No home yet: right-click a system → Set as home'; }
+  for (const k of ['enter', 'exit']){ const x = $(k === 'enter' ? '#btnEnter' : '#btnExit'), m = mapper[k]; if (!x) continue;
+    x.hidden = !m; if (m){ x.textContent = `${MARKS[k].label} · ${sysName(m.id)}`; x.title = `Centre the map on the ${MARKS[k].label}: ${sysName(m.id)}`; } }
+}
+// show a marked system centred on its own region map (wormhole space: in the Chain window)
+async function goMark(id){
+  id = String(id); setFollow(false);
+  if (!regionOf(id)){ chainFocus = id; chainView = { k:1, x:0, y:0 }; if ($('#wChain').hidden) $('#btnChain').click(); else buildChains(); $('#wChain').style.zIndex = ++wz; toast(`${sysName(id)}: wormhole space, shown in the Chain window`); return; }
+  await goTo(id); followTo(id);
 }
 
 /* ---------- Jump bridges (Ansiblex): pasted, imported from EVE, or shared on your map ---------- */
@@ -2304,8 +2313,9 @@ function setupInput(){
   }, { passive:false });
   const zoomBy = f => zoomAround(f, 0, 0);
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
-  $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Select a system, then "⌂ Set as home" in its window', true); return; } setFollow(false); goTo(h.id); };
-  $('#btnExit').onclick = () => { if (!mapper.exit) return; setFollow(false); if (regionOf(mapper.exit.id)) goTo(mapper.exit.id); else { $('#btnChain').getAttribute('aria-pressed') === 'true' || $('#btnChain').click(); toast(`EXIT: ${sysName(mapper.exit.id)} (wormhole space, see the Chain window)`); } };
+  $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Right-click a system → "⌂ Set as home"', true); return; } goMark(h.id); };
+  $('#btnEnter').onclick = () => { if (mapper.enter) goMark(mapper.enter.id); };
+  $('#btnExit').onclick = () => { if (mapper.exit) goMark(mapper.exit.id); };
   renderHomeBtn();
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
