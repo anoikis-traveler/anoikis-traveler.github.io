@@ -327,7 +327,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <div id="pilPop" hidden></div>
   <div id="banner"></div>
   <div id="hubCards"></div>
-  <div id="hint">Drag to rotate · Shift+drag or right-drag to pan · Wheel to zoom · Click a system: rotation and zoom then turn around it</div>
+  <div id="hint">Drag to rotate · Shift+drag or right-drag to pan · Wheel to zoom · Click a system: rotation and zoom then turn around it · Right-click a system: destination, home, ENTER / EXIT</div>
   <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
 
   <section class="widget" id="wTool" data-title="Anoikis Traveler">
@@ -1691,7 +1691,7 @@ function renderPanel(){
       </div>
       <div class="row marks">
         <button type="button" id="bHome" class="${isHome(id) ? 'on' : ''}" title="Your permanent home system (kept in this browser, used by the mapper too)">${isHome(id) ? '⌂ Remove home' : '⌂ Set as home'}</button>
-        ${mapper.nodes[id] ? ['enter', 'exit'].map(k => `<button type="button" class="mk-${k}${markAt(id).includes(k) ? ' on' : ''}" data-mark="${k}" title="${markAt(id).includes(k) ? 'Remove' : 'Set'} the chain's ${MARKS[k].label}${share.owner ? ' (shared with your map)' : ''}">${markAt(id).includes(k) ? 'Remove ' + MARKS[k].label : 'Set as ' + MARKS[k].label}</button>`).join('') : '<span class="dim" style="font-size:11.5px">ENTER / EXIT: for systems on your chain</span>'}
+        ${['enter', 'exit'].map(k => `<button type="button" class="mk-${k}${markAt(id).includes(k) ? ' on' : ''}" data-mark="${k}" title="${markAt(id).includes(k) ? 'Remove' : 'Set'} the chain's ${MARKS[k].label}${share.owner ? ' (shared with your map)' : ''}">${markAt(id).includes(k) ? 'Remove ' + MARKS[k].label : 'Set as ' + MARKS[k].label}</button>`).join('')}
       </div>
       <div class="row">
         ${s.ext ? `<button id="bReg" type="button">Go to ${esc(s.ext)}</button>` : ''}
@@ -1857,7 +1857,7 @@ function setupInput(){
     svg.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = { d:Math.hypot(a.x - b.x, a.y - b.y), z:cam.zoom }; }
-    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
+    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, right:e.button === 2, target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
     moved = false;
   });
   svg.addEventListener('pointermove', e => {
@@ -1874,7 +1874,10 @@ function setupInput(){
   const up = e => {
     ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
     svg.classList.remove('dragging');
-    if (!moved && start && ptrs.size === 0){ if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
+    if (!moved && start && ptrs.size === 0){
+      if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
+      else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
+    }
     if (ptrs.size === 0) start = null;
   };
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
@@ -2120,6 +2123,33 @@ function deleteSystems(ids){
   const undo = ids.some(id => E().del.includes(id)) ? ' (Restore deleted to undo)' : '';
   toast(ids.length > 1 ? `${ids.length} systems removed from your chain${undo}` : `${sysName(ids[0])} removed from your chain${undo}`);
 }
+/* Right-click menu of a system on the region map */
+function sysMenu(e, id){
+  const m = $('#chainMenu'), s = byId[id], wpOk = DEMO || (tok && canWp());
+  const item = (act, label, cls, dis) => `<button type="button" role="menuitem" data-act="${act}"${cls ? ` class="${cls}"` : ''}${dis ? ' disabled style="opacity:.45;pointer-events:none"' : ''}>${label}</button>`;
+  m.innerHTML = `<div class="cmh">${esc(sysName(id))} <span>${s && !isJ(id) ? secR(s.s).toFixed(1) : esc(classOf(id))}</span></div>`
+    + item('dest', 'Set destination', '', !wpOk) + item('wp', 'Add waypoint', '', !wpOk) + '<hr>'
+    + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
+    + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('')
+    + '<hr>' + (assetsOn && assetsAt(id).length ? item('assets', '📦 Your assets here') : '') + (s && s.ext ? item('region', `Go to ${esc(s.ext)}`) : '') + item('dotlan', 'Dotlan ↗');
+  m.hidden = false;
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.min(e.clientX, innerWidth - w - 6) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - h - 6) + 'px';
+  m.onclick = ev => {
+    const b = ev.target.closest('[data-act]'); if (!b) return; m.hidden = true;
+    const act = b.dataset.act;
+    if (act === 'dest') sendWaypoint(id, false);
+    else if (act === 'wp') sendWaypoint(id, true);
+    else if (act === 'home') setHome(isHome(id) ? null : id);
+    else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
+    else if (act === 'assets') openAssets(id);
+    else if (act === 'region') loadRegion(s.r).then(() => { select(id); centerOn(id); render(); });
+    else if (act === 'dotlan') open(`https://evemaps.dotlan.net/system/${encodeURIComponent(sysName(id).replace(/ /g, '_'))}`, '_blank', 'noopener');
+  };
+}
+document.addEventListener('pointerdown', e => { const m = $('#chainMenu'); if (m && !m.hidden && !e.target.closest('#chainMenu')) m.hidden = true; }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ const m = $('#chainMenu'); if (m) m.hidden = true; } });
+
 /* Right-click menu of the Chain widget */
 function chainMenu(e, id){
   const m = $('#chainMenu'), g = chainGroups[chainPick || 0];
