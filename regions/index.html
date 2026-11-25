@@ -1064,7 +1064,7 @@ function renderHomeBtn(){
 }
 // show a marked system centred on its own region map (wormhole space: in the Chain window)
 async function goMark(id){
-  id = String(id); setFollow(false);
+  id = String(id); lookAway();
   if (!regionOf(id)){ chainFocus = id; chainView = { k:1, x:0, y:0 }; if ($('#wChain').hidden) $('#btnChain').click(); else buildChains(); $('#wChain').style.zIndex = ++wz; toast(`${sysName(id)}: wormhole space, shown in the Chain window`); return; }
   await goTo(id); followTo(id);
 }
@@ -1134,7 +1134,7 @@ function renderJb(){
       return `<div class="jbr"><button type="button" class="lk" data-sys="${j.a}">${esc(sysName(j.a))}</button> <span class="dim">»</span> <button type="button" class="lk" data-sys="${j.b}">${esc(sysName(j.b))}</button>
         <span class="dim jbw">${esc(regionName(regionOf(j.a)) || '')}${sh[k] ? ' · shared' : ''}</span>${loc[k] ? `<button type="button" class="x" data-jbdel="${k}" title="Remove">✕</button>` : '<span></span>'}</div>`; }).join('')
     : '<div class="dim">No jump bridge yet. Paste your list above (in game: the Ansiblex names, one per line) or import them from EVE.</div>';
-  $('#jbList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { setFollow(false); goTo(b.dataset.sys); });
+  $('#jbList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { lookAway(); goTo(b.dataset.sys); });
   $('#jbList').querySelectorAll('[data-jbdel]').forEach(b => b.onclick = () => { const o = jbLocal(); delete o[b.dataset.jbdel]; saveJb(o, false); });
 }
 function renderCols(){
@@ -1194,14 +1194,14 @@ async function renderPoch(){
     el('circle', { cx:q.x, cy:q.y, r:5, fill:KC[kIdx[s2.c] % 3], stroke:'#05080f' }, g);
     const out = q.x >= cxp ? 1 : -1, t = el('text', { x:q.x + out * 9, y:q.y + 3, 'text-anchor':out > 0 ? 'start' : 'end', class:'pn' }, g); t.textContent = s2.n;
     el('title', {}, g).textContent = `${s2.n} · ${pochR.constellations[s2.c] || ''}${byP[id] ? '\nHoles: ' + byP[id].map(x => sysName(x.o)).join(', ') : ''}${pil[id] ? '\nHere: ' + pil[id].join(', ') : ''}`; }
-  svg.querySelectorAll('[data-pv]').forEach(g => g.onclick = () => { setFollow(false); goTo(g.dataset.pv); });
+  svg.querySelectorAll('[data-pv]').forEach(g => g.onclick = () => { lookAway(); goTo(g.dataset.pv); });
   // list by krai: systems with a link or pilots first
   const kr = {}; for (const s2 of own) (kr[s2.c] = kr[s2.c] || []).push(s2);
   $('#pochList').innerHTML = Object.keys(kr).map(c => `<h4>${esc(pochR.constellations[c] || c)}</h4>` + kr[c].sort((a, b) => (!!byP[String(b.id)] - !!byP[String(a.id)]) || a.n.localeCompare(b.n)).map(s2 => { const id = String(s2.id);
       return `<div class="pr"><button type="button" class="lk" data-sys="${id}">${esc(s2.n)}</button><span class="dim">${pil[id] ? '● ' + esc(pil[id].join(', ')) : ''}</span><span class="k">${secR(s2.s).toFixed(1)}</span>
         ${byP[id] ? `<span class="wl">⇄ ${byP[id].map(x => `<button type="button" class="lk" data-sys="${x.o}">${esc(sysName(x.o))}</button> <span class="dim">${esc([regionOf(x.o) ? regionName(regionOf(x.o)) : (isJ(x.o) ? classOf(x.o) : ''), x.l.wh, x.l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span>`).join(' · ')}</span>` : ''}</div>`; }).join('')).join('')
     + '<p class="dim" style="font-size:11.5px;margin:6px 0 0">Links come from your chain (shared map). A click opens the system on its region map.</p>';
-  $('#pochList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { setFollow(false); goTo(b.dataset.sys); });
+  $('#pochList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { lookAway(); goTo(b.dataset.sys); });
 }
 function setupPoch(){
   const box = $('#wPoch'), btn = $('#btnPoch');
@@ -1476,13 +1476,18 @@ async function poll(){
   if (tok && share.charId !== tok.charId && !DEMO) shareConnect(); else sharePublish();
   pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4000 : 6000);
 }
-function setFollow(v){ follow = !!v; store.set('whmap.reg.follow', follow); const b = $('#btnFollow'); if (b) b.setAttribute('aria-pressed', String(follow)); renderNoFollow(); }
+// looking at another place while following: the map stays there until your pilot's next jump, then comes back
+let peek = false;
+function lookAway(){ if (follow){ peek = true; renderNoFollow(); } }
+function backToPilot(){ peek = false; renderNoFollow(); if (!me.sys) return; const reg = regionOf(me.sys); if (reg && R && reg === R.region.id && byId[me.sys]) followTo(me.sys); else onMove(); }
+function setFollow(v){ follow = !!v; peek = false; store.set('whmap.reg.follow', follow); const b = $('#btnFollow'); if (b) b.setAttribute('aria-pressed', String(follow)); renderNoFollow(); }
 // a slowly pulsing frame round the map while your pilot is not followed
 function renderNoFollow(){
   const f = $('#noFollow'); if (!f) return;
-  const on = !follow && !!tok;
+  const on = (!follow || peek) && !!tok;
   f.hidden = !on; document.body.classList.toggle('nf', on);
-  if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
+  if (on) $('#nfTxt').innerHTML = peek ? `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · back on your next jump · click to go back now</small>`
+    : `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
 function coveredAt(x, y, m = 40){
@@ -1507,6 +1512,7 @@ function followTo(id, soft){
 }
 async function onMove(){
   if (!me.sys) return;
+  if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
   if (follow && reg && (!R || reg !== R.region.id)){ await loadRegion(reg); sel = null; centerOn(me.sys); followTo(me.sys); }
@@ -2298,7 +2304,8 @@ function setupInput(){
     svg.classList.remove('dragging');
     if (!moved && start && ptrs.size === 0){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
-      else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); setFollow(false); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
+      else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
+      else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); followTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
       else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
     }
     if (ptrs.size === 0) start = null;
@@ -2325,23 +2332,23 @@ function setupInput(){
       if (miss.length) toast(`No asset permission for ${miss.join(', ')}: log in again with "Allow reading assets" ticked`, true); } };
   const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
   db.onclick = () => { drops = !drops; store.set('whmap.reg.drops', drops); db.setAttribute('aria-pressed', String(drops)); render(); };
-  $('#regSel').onchange = e => { sel = null; loadRegion(e.target.value); };
+  $('#regSel').onchange = e => { sel = null; lookAway(); loadRegion(e.target.value); };
   $('#whSel').onchange = async e => {
     const v = e.target.value; e.target.value = ''; if (!v) return;
-    setFollow(false);
+    lookAway();
     if (v.startsWith('r:')){ sel = null; await loadRegion(v.slice(2)); }
     else await goTo(v.slice(2));
   };
   $('#colorSel').value = colorMode;
   $('#colorSel').onchange = e => { colorMode = e.target.value; store.set('whmap.reg.color', colorMode); render(); renderPanel(); };
   const fb = $('#btnFollow'); fb.setAttribute('aria-pressed', String(follow));
-  fb.onclick = () => { setFollow(!follow); if (follow){ if (me.sys){ const reg = regionOf(me.sys); if (reg && R && reg === R.region.id && byId[me.sys]) followTo(me.sys); else onMove(); } else toast('Position not known yet: log in with EVE in the Characters window', true); } };
-  $('#nfTxt').onclick = () => { if (!follow) fb.click(); };
+  fb.onclick = () => { if (follow && peek){ backToPilot(); return; } setFollow(!follow); if (follow){ if (me.sys){ const reg = regionOf(me.sys); if (reg && R && reg === R.region.id && byId[me.sys]) followTo(me.sys); else onMove(); } else toast('Position not known yet: log in with EVE in the Characters window', true); } };
+  $('#nfTxt').onclick = () => { if (peek) backToPilot(); else if (!follow) fb.click(); };
   renderNoFollow();
   $('#search').addEventListener('change', e => {
     const q = e.target.value.trim().toLowerCase(); if (!q) return;
     const hit = Object.entries(index.sys).find(([, v]) => v[0].toLowerCase() === q) || Object.entries(index.sys).find(([, v]) => v[0].toLowerCase().startsWith(q));
-    if (hit){ setFollow(false); goTo(hit[0]); e.target.value = ''; }
+    if (hit){ lookAway(); goTo(hit[0]); e.target.value = ''; }
     else toast('No system called ' + e.target.value, true);
   });
   // the mapper (other tab) updates its cache, pilots and tokens: follow along
@@ -2357,7 +2364,7 @@ function setupInput(){
     const tg = e.target.closest('[data-tog]'), wpb = e.target.closest('[data-wp]'), go = e.target.closest('[data-go]');
     if (wpb){ e.stopPropagation(); if (!wpb.disabled) sendWaypoint(wpb.dataset.wp, e.shiftKey); return; }
     if (tg) return;                                   // handled on pointerup (drag or fold)
-    if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { setFollow(false); goTo(id); } }
+    if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { lookAway(); goTo(id); } }
   });
   window.addEventListener('resize', render);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
@@ -2564,7 +2571,7 @@ function setupAllChains(){
   new ResizeObserver(() => renderAllChains()).observe($('#allBody'));
   if (store.get('whmap.reg.allOpen', false)) show(true);
 }
-function openRegionOf(id){ setFollow(false); goTo(id); }
+function openRegionOf(id){ lookAway(); goTo(id); }
 function afterEdit(){ renderWhSel(); computeRoute(); render(); renderPanel(); buildChains(); }
 function renderChainAct(){
   const a = $('#chainAct'), id = chainSel;
@@ -2845,7 +2852,7 @@ function setupWidgets(){
   if (!reg && me.sys && regionOf(me.sys)) reg = regionOf(me.sys);
   if (!reg && !DEMO) reg = store.get('whmap.reg.last', null);
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
-  if (qs){ setFollow(false); }   // a system link is a deliberate look elsewhere
+  if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
   if (DEMO){ demoStep(); pickChar(); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
