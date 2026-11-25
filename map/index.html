@@ -1959,7 +1959,7 @@ function createMapDialog(){
     const d = document.createElement('div'); d.className = 'cm-overlay';
     d.innerHTML = `<div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cmT"><h3 id="cmT">🗺️ Create my map</h3>
       <p class="cm-lead">Your map is <b>free</b> and private. You can invite up to <b>10 characters</b> (you included) from <i>Access</i>. More on request (quote): EVE mail to <b>${esc(SUB_PAYEE)}</b>.</p>
-      <p class="cm-note">Free up to 5 characters; beyond that, 50 M ISK a week per block of 5, sent in game to <b>${esc(SUB_PAYEE)}</b> with your AT-… identifier.</p>
+      <p class="cm-note">Free up to 5 characters; beyond that, 50 M ISK a week per block of 5, sent in game to <b>${esc(SUB_PAYEE)}</b> with your Anoikis-… identifier.</p>
       <div class="cm-row"><button type="button" class="primary" data-cm="ok">Create my map</button><button type="button" data-cm="no">Cancel</button></div></div>`;
     document.body.appendChild(d);
     const done = v => { d.remove(); res(v); };

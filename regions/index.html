@@ -1571,7 +1571,7 @@ function renderChars(){
       <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
       ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5. The number at the end is how many characters you pay for, so the amount gives the weeks."><span class="payto">Send ISK to <b>Sava Yesh</b></span> for <select id="payTier">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option value="${n}"${n === store.get('whmap.reg.payTier', 10) ? ' selected' : ''}>${n} characters</option>`).join('')}</select>
-        <span class="payto">with this reason:</span> <code id="payCode">AT-${esc((tok || list[0]).charName)}-${store.get('whmap.reg.payTier', 10)}</code><button type="button" class="small" id="bPayId">Copy</button>
+        <span class="payto">with this reason:</span> <code id="payCode">Anoikis-${esc((tok || list[0]).charName)}-${store.get('whmap.reg.payTier', 10)}</code><button type="button" class="small" id="bPayId">Copy</button>
         <span id="payPrice">${(store.get('whmap.reg.payTier', 10) - 5) / 5 * 50} M ISK / week</span> · <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a></div>` : ''}</div>`;
   box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
   box.querySelectorAll('[data-logout]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); logout(Number(b.dataset.logout)); }));
@@ -1580,7 +1580,7 @@ function renderChars(){
   const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
   const aj = $('#askJb'); if (aj) aj.onchange = () => store.set('whmap.reg.askjb', aj.checked);
   shareState(share.state);
-  const payV = () => `AT-${(tok || list[0]).charName}-${store.get('whmap.reg.payTier', 10)}`;
+  const payV = () => `Anoikis-${(tok || list[0]).charName}-${store.get('whmap.reg.payTier', 10)}`;
   const pt = $('#payTier'); if (pt) pt.onchange = () => { const n = Number(pt.value); store.set('whmap.reg.payTier', n); $('#payCode').textContent = payV(); $('#payPrice').textContent = `${(n - 5) / 5 * 50} M ISK / week`; };
   const pb = $('#bPayId'); if (pb) pb.onclick = async () => { const v = payV(); try{ await navigator.clipboard.writeText(v); toast('Copied: ' + v); }catch(e){ toast(v); } };
 }
