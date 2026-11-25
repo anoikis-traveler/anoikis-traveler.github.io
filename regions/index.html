@@ -264,6 +264,18 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
+.jb{fill:none;stroke:#4fd1ff;stroke-width:1.6;stroke-dasharray:6 4;opacity:.85;pointer-events:stroke}
+.jb.route{stroke:var(--ok);stroke-width:2.6;opacity:1}
+.jbl{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:#8fe3ff;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.jbwb{display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 40px));max-height:min(520px,calc(100vh - 120px));overflow:auto}
+.jbwb textarea{width:100%;box-sizing:border-box;min-height:70px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px;resize:vertical}
+.jbwb .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.jbwb label{font-size:12px;color:var(--dim)}
+.jbr{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:4px;align-items:center;font-size:12.5px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.jbr .jbw{font-size:11px;text-align:right}
+.jbr .x{padding:0 6px;font-size:11px}
+#jbStatus{font-size:11.5px}
+#wJb .wcol + .wcol{margin-left:0}
 .homeg{font-size:15px;fill:#f2a74b;paint-order:stroke;stroke:#070a12;stroke-width:3px;font-weight:700}
 .mtag rect{fill:#4cc97a}
 .mtag.enter rect{fill:#f5c542}
@@ -361,6 +373,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
+        <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
         <button id="btnHome" type="button">⌂ Home</button>
         <button id="btnExit" type="button" hidden>EXIT</button>
@@ -383,6 +396,18 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <section class="widget" id="wChains" data-title="All chains" hidden>
     <header class="wh"><span class="wt">All chains</span><span class="wsub dim" id="allSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="allClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb allwb" id="allBody"></div>
+  </section>
+
+  <section class="widget" id="wJb" data-title="Jump bridges" hidden>
+    <header class="wh"><span class="wt">Jump bridges</span><span class="wsub dim" id="jbSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="jbClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb jbwb">
+      <label><input type="checkbox" id="jbOn"> Show them on the map and use them in routes</label>
+      <textarea id="jbText" spellcheck="false" placeholder="One per line, e.g.&#10;1DQ1-A » 8QT-H4 - Ansiblex&#10;Y-2ANO &lt;-&gt; K-6K16"></textarea>
+      <div class="row"><button type="button" class="primary small" id="jbAdd">Add</button><button type="button" class="small" id="jbEve" title="Your character's Ansiblex, found through EVE (needs the jump bridge permission at login)">Import from EVE</button>
+        <label title="Write them on your shared map so your group gets them too"><input type="checkbox" id="jbShare"> share with my map</label></div>
+      <div id="jbStatus" class="dim"></div>
+      <div id="jbList"></div>
+    </div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -439,7 +464,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 'use strict';
 const ESI = 'https://esi.evetech.net/latest';
 const SSO = 'https://login.eveonline.com/v2/oauth';
-const WP_SCOPE = 'esi-ui.write_waypoint.v1';
+const WP_SCOPE = 'esi-ui.write_waypoint.v1', JB_SCOPE = 'esi-search.search_structures.v1';
 const MAPPER = '../map/';
 const DATA = 'data/';
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -762,8 +787,8 @@ async function login(){
   const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
   const state = 'rg' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "rg": the site root sends the answer back here
   sess.set('whmap.reg.pkce', JSON.stringify({ verifier, state }));
-  const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true);
-  const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as ? ` ${AS_SCOPE} ${ST_SCOPE}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
+  const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true), jb = store.get('whmap.reg.askjb', false);
+  const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as || jb ? ` ${ST_SCOPE}` : '') + (as ? ` ${AS_SCOPE}` : '') + (jb ? ` ${JB_SCOPE}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
   location.href = `${SSO}/authorize/?${p}`;
 }
 async function tokenRequest(params){
@@ -854,7 +879,7 @@ function shareApply(path, data){
   if (path === '/' || path === ''){ const d = data || {}; share.map = { data:d.data || {}, pilots:d.pilots || {} }; }
   else { const parts = path.replace(/^\//, '').split('/'); if (parts[0] === 'data' || parts[0] === 'pilots'){ if (parts.length === 1) share.map[parts[0]] = data || {}; else setAtPath(share.map, parts, data); } }
   shareState('on');
-  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }, 120);
+  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); renderJb(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }, 120);
 }
 function shareState(st, txt){ share.state = st; if (txt !== undefined || st !== 'err') share.txt = txt; txt = share.txt; const e = $('#shareSt'); if (!e) return;
   e.className = 'share-st ' + st; e.textContent = st === 'on' ? '● Shared map · live' + (share.ownerName ? ' (' + share.ownerName + ')' : '') : st === 'err' ? '● Shared map: ' + (txt || 'error') : st === 'wait' ? '● Shared map: connecting…' : st === 'none' ? '○ No shared map for this character' : '';
@@ -924,6 +949,92 @@ async function setMark(kind, id){
 function renderHomeBtn(){
   const h = homeOf(), b = $('#btnHome'); if (b){ b.textContent = h ? `⌂ ${h.name}` : '⌂ Home'; b.title = h ? `Show ${h.name} (your home)` : 'No home yet: select a system and click "Set as home"'; }
   const x = $('#btnExit'); if (x){ x.hidden = !mapper.exit; if (mapper.exit) x.title = `Show the EXIT: ${sysName(mapper.exit.id)}`; }
+}
+
+/* ---------- Jump bridges (Ansiblex): pasted, imported from EVE, or shared on your map ---------- */
+let jbOn = store.get('whmap.reg.jbOn', true);
+const jbKey = (a, b) => [String(a), String(b)].sort().join('-');
+function jbLocal(){ return store.get(DEMO ? 'whmap.reg.jb.demo' : 'whmap.reg.jb', DEMO ? demoJb() : {}); }
+function demoJb(){ const K = n => sysByName(n), out = {}; for (const [a, b] of [['4CJ-AC', 'B-II34'], ['EFM-C4', 'DFH-V5'], ['KDG-TA', 'Y-4CFK']]){ const x = K(a), y = K(b); if (x && y) out[jbKey(x, y)] = { a:Number(x), b:Number(y), n:`${a} » ${b} - Demo bridge` }; } return out; }
+function jbShared(){ return (share.map && share.map.data && share.map.data.jb) || {}; }
+function jbAll(){ const o = { ...jbShared(), ...jbLocal() }; return Object.values(o).filter(j => j && j.a && j.b); }
+function jbList(){ return jbOn ? jbAll() : []; }
+let nameIdx = null;
+function sysIdByName(n){
+  if (!nameIdx){ nameIdx = {}; for (const id in index.sys) nameIdx[index.sys[id][0].toLowerCase()] = id; }
+  return nameIdx[String(n).toLowerCase()] || null;
+}
+// "1DQ1-A » 8QT-H4 - Ansiblex", "1DQ1-A <-> 8QT-H4", "1DQ1-A 8QT-H4"… : the first two systems named on each line
+function parseJb(text){
+  const out = [], bad = [];
+  for (const line of String(text).split(/\r?\n/)){
+    if (!line.trim()) continue;
+    const tok = line.split(/[^A-Za-z0-9-]+/).filter(Boolean), found = [];
+    for (let i = 0; i < tok.length && found.length < 2; i++){
+      let hit = null, used = 0;
+      for (let k = 3; k >= 1 && !hit; k--){ if (i + k > tok.length) continue; const id = sysIdByName(tok.slice(i, i + k).join(' ')); if (id){ hit = id; used = k; } }
+      if (hit && !found.includes(hit)){ found.push(hit); i += used - 1; }
+    }
+    if (found.length === 2) out.push({ a:Number(found[0]), b:Number(found[1]), n:line.trim().slice(0, 80) }); else bad.push(line.trim());
+  }
+  return { out, bad };
+}
+async function saveJb(obj, shareIt){
+  store.set(DEMO ? 'whmap.reg.jb.demo' : 'whmap.reg.jb', obj);
+  if (shareIt && !DEMO && share.owner && share.ws){
+    try{ const all = { ...jbShared(), ...obj }; await shareSend({ op:'put', path:`maps/${share.owner}/data/jb`, data:all }); share.map.data.jb = all; toast('Jump bridges shared with your map'); }
+    catch(e){ toast('Kept in this browser only: the shared map refused them (read-only access?)', true); }
+  }
+  routeCache.clear(); computeRoute(); render(); renderPanel(); renderJb(); scheduleAp();
+}
+async function importJbFromEve(){
+  if (DEMO){ toast('Demo: bridges are already filled in'); return; }
+  if (!tok){ toast('Log in with EVE first', true); return; }
+  if (!scopesOf(tok).includes(JB_SCOPE)){ toast('Tick "Allow importing jump bridges" in Characters, then log in again with this character', true); return; }
+  const st = $('#jbStatus'); st.textContent = 'Searching your Ansiblex…';
+  try{
+    const r = await esiFor(tok, `/characters/${tok.charId}/search/?categories=structure&search=${encodeURIComponent(' » ')}&strict=false`);
+    const ids = (r && r.structure || []).slice(0, 400), found = {};
+    let n = 0;
+    for (const sid of ids){
+      try{ const sInfo = await esiFor(tok, `/universe/structures/${sid}/`); n++;
+        if (sInfo && (sInfo.type_id === 35841 || / » /.test(sInfo.name || ''))){ const p = parseJb(sInfo.name).out[0]; if (p) found[jbKey(p.a, p.b)] = { ...p, n:sInfo.name }; } }catch(e){}
+      if (n % 10 === 0) st.textContent = `Reading ${n} / ${ids.length}…`;
+    }
+    const k = Object.keys(found).length;
+    if (!k){ st.textContent = 'No jump bridge found for this character (it needs docking access to the Ansiblex).'; return; }
+    await saveJb({ ...jbLocal(), ...found }, $('#jbShare') && $('#jbShare').checked);
+    st.textContent = `${k} jump bridge${k > 1 ? 's' : ''} imported from EVE.`;
+  }catch(e){ st.textContent = 'EVE search failed: ' + e.message; }
+}
+function renderJb(){
+  const box = $('#wJb'); if (!box || box.hidden) return;
+  const all = jbAll(), loc = jbLocal(), sh = jbShared();
+  $('#jbSub').textContent = all.length ? `${all.length}` : '';
+  $('#jbOn').checked = jbOn;
+  $('#jbList').innerHTML = all.length ? all.sort((x, y) => sysName(x.a).localeCompare(sysName(y.a))).map(j => { const k = jbKey(j.a, j.b);
+      return `<div class="jbr"><button type="button" class="lk" data-sys="${j.a}">${esc(sysName(j.a))}</button> <span class="dim">»</span> <button type="button" class="lk" data-sys="${j.b}">${esc(sysName(j.b))}</button>
+        <span class="dim jbw">${esc(regionName(regionOf(j.a)) || '')}${sh[k] ? ' · shared' : ''}</span>${loc[k] ? `<button type="button" class="x" data-jbdel="${k}" title="Remove">✕</button>` : '<span></span>'}</div>`; }).join('')
+    : '<div class="dim">No jump bridge yet. Paste your list above (in game: the Ansiblex names, one per line) or import them from EVE.</div>';
+  $('#jbList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { setFollow(false); goTo(b.dataset.sys); });
+  $('#jbList').querySelectorAll('[data-jbdel]').forEach(b => b.onclick = () => { const o = jbLocal(); delete o[b.dataset.jbdel]; saveJb(o, false); });
+}
+function setupJb(){
+  const box = $('#wJb'), btn = $('#btnJb');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ placeWidget(box); box.style.zIndex = ++wz; renderJb(); } };
+  btn.onclick = () => show(box.hidden);
+  $('#jbClose').onclick = () => show(false);
+  $('#jbOn').onchange = e => { jbOn = e.target.checked; store.set('whmap.reg.jbOn', jbOn); routeCache.clear(); computeRoute(); render(); renderPanel(); scheduleAp(); };
+  $('#jbShare').checked = store.get('whmap.reg.jbShare', true);
+  $('#jbShare').onchange = e => store.set('whmap.reg.jbShare', e.target.checked);
+  $('#jbAdd').onclick = () => {
+    const { out, bad } = parseJb($('#jbText').value);
+    if (!out.length){ toast(bad.length ? 'No pair of systems recognised on these lines' : 'Paste one jump bridge per line', true); return; }
+    const o = jbLocal(); for (const j of out) o[jbKey(j.a, j.b)] = j;
+    saveJb(o, $('#jbShare').checked); $('#jbText').value = '';
+    $('#jbStatus').textContent = `${out.length} added${bad.length ? ` · ${bad.length} line${bad.length > 1 ? 's' : ''} not understood: ${bad.slice(0, 2).join(' / ')}` : ''}`;
+  };
+  $('#jbEve').onclick = importJbFromEve;
 }
 
 async function freshTok(t){
@@ -1236,7 +1347,8 @@ function renderChars(){
     + `<div class="chars-act">${DEMO ? '<a href="./"><button type="button" class="primary" style="width:100%">Leave the demo</button></a>'
       : `<button type="button" class="primary" id="bLogin">${list.length ? 'Add a character' : 'Log in with EVE'}</button>
          <label><input type="checkbox" id="askWp"${wpAsk ? ' checked' : ''}> Allow "Set destination" (autopilot)</label>
-         <label><input type="checkbox" id="askAs"${store.get('whmap.reg.askassets', true) ? ' checked' : ''}> Allow reading assets (shown on the map, stays in this browser)</label>`}
+         <label><input type="checkbox" id="askAs"${store.get('whmap.reg.askassets', true) ? ' checked' : ''}> Allow reading assets (shown on the map, stays in this browser)</label>
+         <label title="Finds the Ansiblex your character can use (the EVE application of the site must allow esi-search.search_structures.v1)"><input type="checkbox" id="askJb"${store.get('whmap.reg.askjb', false) ? ' checked' : ''}> Allow importing jump bridges</label>`}
       <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
       ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5: put this in the reason of your ISK transfer to Sava Yesh">Payment ID <code>AT-${(tok || list[0]).charId}</code><button type="button" class="small" id="bPayId">Copy</button> <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a></div>` : ''}</div>`;
@@ -1245,6 +1357,7 @@ function renderChars(){
   const bl = $('#bLogin'); if (bl) bl.onclick = login;
   const aw = $('#askWp'); if (aw) aw.onchange = () => store.set('whmap.reg.askwp', aw.checked);
   const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
+  const aj = $('#askJb'); if (aj) aj.onchange = () => store.set('whmap.reg.askjb', aj.checked);
   shareState(share.state);
   const pb = $('#bPayId'); if (pb) pb.onclick = async () => { const v = 'AT-' + (tok || list[0]).charId; try{ await navigator.clipboard.writeText(v); toast('Copied: ' + v); }catch(e){ toast(v); } };
 }
@@ -1256,6 +1369,7 @@ function graph(){
   const add = (a, b, k) => { (g[a] = g[a] || []).push([b, k]); (g[b] = g[b] || []).push([a, k]); };
   for (const [a, b] of R.links) add(String(a), String(b), 'g:' + [a, b].sort().join('-'));
   for (const l of allHoles()) add(String(l.a), String(l.b), 'w:' + l.id);
+  for (const j of jbList()) add(String(j.a), String(j.b), 'j:' + jbKey(j.a, j.b));
   return g;
 }
 function computeRoute(){
@@ -1523,6 +1637,23 @@ function draw(){
   for (const s of R.systems){ if (s.ext) continue; const p = P[s.id]; (cs[s.c] = cs[s.c] || []).push(p); }
   for (const c in cs){ const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
     const t = el('text', { x, y, 'text-anchor':'middle', class:'clbl' }, gConst); t.textContent = R.constellations[c]; }
+  // jump bridges: an arc between the two systems (or towards the other region)
+  for (const j of jbList()){
+    const a = String(j.a), b = String(j.b), pa = P[a], pb = P[b], inA = byId[a] && !byId[a].ext, inB = byId[b] && !byId[b].ext;
+    if (!inA && !inB) continue;
+    const onRoute = route && route.edges.has('j:' + jbKey(a, b));
+    if (pa && pb){
+      const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2, dx = pb.x - pa.x, dy = pb.y - pa.y, L = Math.hypot(dx, dy) || 1, bend = Math.min(60, L * 0.22);
+      const cx = mx - dy / L * bend, cy = my + dx / L * bend;
+      const path = el('path', { d:`M${pa.x},${pa.y} Q${cx},${cy} ${pb.x},${pb.y}`, class:'jb' + (onRoute ? ' route' : '') }, gWh);
+      el('title', {}, path).textContent = `Jump bridge ${sysName(a)} » ${sysName(b)}${j.n ? '\n' + j.n : ''}`;
+      const t = el('text', { x:(mx + cx) / 2, y:(my + cy) / 2, 'text-anchor':'middle', class:'jbl' }, gWh); t.textContent = 'JB';
+    } else {
+      const p = pa || pb, other = pa ? b : a, ang = -Math.PI / 3, ex = p.x + Math.cos(ang) * 46, ey = p.y + Math.sin(ang) * 46;
+      el('path', { d:`M${p.x},${p.y} Q${p.x + 30},${p.y - 4} ${ex},${ey}`, class:'jb' + (onRoute ? ' route' : '') }, gWh);
+      const t = el('text', { x:ex + 4, y:ey - 3, class:'jbl ext' }, gWh); t.textContent = `JB › ${sysName(other)}${regionOf(other) ? ' (' + regionName(regionOf(other)) + ')' : ''}`;
+    }
+  }
   // wormholes: the mapper's chain and the Thera/Turnur network
   const stubs = {};
   for (const l of allHoles()){
@@ -1718,7 +1849,7 @@ function renderPanel(){
     let rt = '';
     const tags = (isHome(id) ? '<span class="chip" style="border-color:var(--accent);color:var(--accent)">⌂ Home</span> ' : '') + markAt(id).map(k => `<span class="chip" style="border-color:${MARKS[k].col};color:${MARKS[k].col}">${MARKS[k].label}</span>`).join(' ');
     if (me.sys === id) rt = '<div class="chip" style="border-color:var(--ok);color:var(--ok)">You are here</div>';
-    else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${route.edges.size && [...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}</div>
+    else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${[...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}${[...route.edges].some(k => k.startsWith('j:')) ? ' <span class="dim" style="color:#8fe3ff">(uses jump bridges)</span>' : ''}</div>
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
     P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
@@ -1738,6 +1869,7 @@ function renderPanel(){
         <a href="https://evemaps.dotlan.net/system/${encodeURIComponent(s.n.replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button">Dotlan</button></a>
       </div>
       <h3>Gates</h3><div>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
+      ${jbList().some(j => String(j.a) === id || String(j.b) === id) ? `<h3>Jump bridge</h3><div>${jbList().filter(j => String(j.a) === id || String(j.b) === id).map(j => { const o = String(j.a) === id ? j.b : j.a; return `» <button class="lk" data-sys="${o}">${esc(sysName(o))}</button>${regionOf(o) && (!byId[String(o)] || byId[String(o)].ext) ? ` <span class="dim">(${esc(regionName(regionOf(o)))})</span>` : ''}`; }).join('<br>')}</div>` : ''}
       <h3>Wormholes</h3>${whs.length ? `<ul class="plain">${whs.map(l => { const o = String(l.a) === id ? l.b : l.a;
         return `<li>→ ${regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : esc(sysName(o))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
       ${assetsOn && assetsAt(id).length ? `<h3>Your assets here</h3><ul class="plain">${assetsAt(id).map(a => `<li>${esc(a.name)} · <b>${a.n}</b> item${a.n > 1 ? 's' : ''} (ships, containers, stacks)</li>`).join('')}</ul><div class="row"><button type="button" class="lk" data-openassets="${id}">Show the list</button></div>` : ''}
@@ -1790,6 +1922,7 @@ function whConns(){
   const out = [];
   for (const l of allHoles()){ if (!/^\d+$/.test(String(l.a)) || !/^\d+$/.test(String(l.b))) continue;
     out.push({ from:Number(l.a), to:Number(l.b) }, { from:Number(l.b), to:Number(l.a) }); }
+  for (const j of jbList()) out.push({ from:Number(j.a), to:Number(j.b) }, { from:Number(j.b), to:Number(j.a) });
   return out;
 }
 const routeCache = new Map();
@@ -2401,6 +2534,7 @@ function defaultPos(id, el){
   return { wTool:{ x:12, y:12 }, wView:{ x:12, y:below('wTool', 96) }, apBox:{ x:12, y:below('wView', 220) },
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
+           wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
            wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
@@ -2432,13 +2566,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -2463,7 +2597,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains();
+  setupChain(); setupAllChains(); setupJb();
   poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
   if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
