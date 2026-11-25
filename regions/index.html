@@ -179,6 +179,23 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .wb.view .btns{display:flex;gap:5px;flex-wrap:wrap}
 .wb.view button{font-size:12.5px;padding:4px 9px}
 #wInfo{width:330px}
+#wChain{width:460px}
+.chainwb{display:flex;flex-direction:column;gap:6px;resize:both;overflow:hidden;width:460px;height:340px;min-width:280px;min-height:200px;max-width:calc(100vw - 30px);max-height:calc(100vh - 80px)}
+#wChain{width:auto}
+.chaintools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.chaintools select{max-width:230px;font-size:12.5px;padding:3px 6px}
+.chaintools input{width:52px;padding:2px 5px}
+#chainSvg{flex:1;min-height:0;width:100%;background:rgba(5,8,16,.6);border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+.chainnote{font-size:11.5px}
+.cn{cursor:pointer}
+.cn text{font-family:var(--mono);font-size:10.5px;fill:#d5dcea;paint-order:stroke;stroke:#05080f;stroke-width:3px;pointer-events:none}
+.cn text.cls{font-size:9.5px;fill:#8b98b0}
+.cn:hover circle.b{stroke:#fff;stroke-width:2}
+.ce{stroke-width:2.2;fill:none}
+.ce.reduced{stroke-dasharray:8 4}.ce.critical{stroke-dasharray:3 3}
+.ce.gate{stroke:#3c4a66}
+.ce.k{stroke:#8b98b0;stroke-dasharray:2 5;stroke-width:1.6}
+.cek{font-family:var(--mono);font-size:10px;fill:#8b98b0;paint-order:stroke;stroke:#05080f;stroke-width:3px}
 #wChars{width:300px}
 #apBox{width:270px}
 .chr{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid rgba(36,49,76,.6);cursor:pointer;border-radius:4px}
@@ -224,6 +241,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
+        <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
         <button id="btnReset" type="button">Recenter</button>
         <button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button>
@@ -239,6 +257,18 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <section class="widget" id="wInfo" data-title="Info">
     <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb"><div id="panel" aria-live="polite"></div></div>
+  </section>
+
+  <section class="widget" id="wChain" data-title="Chain" hidden>
+    <header class="wh"><span class="wt">Chain</span><span class="wsub dim" id="chainSub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <div class="wb chainwb">
+      <div class="chaintools">
+        <select id="chainSel" aria-label="Chain"></select>
+        <label title="Two groups of systems linked by wormholes are the same chain when their known-space systems are this many gate jumps apart or less">Same chain within <input id="chainX" type="number" min="0" max="40" step="1"> jumps</label>
+      </div>
+      <svg id="chainSvg" aria-label="Flat map of the chain"></svg>
+      <div class="dim chainnote" id="chainNote"></div>
+    </div>
   </section>
 
   <section class="widget" id="apBox" data-title="Route" hidden>
@@ -664,7 +694,7 @@ async function poll(){
       if (tok && c.charId === tok.charId){ lastErr = ''; if (sys !== me.sys){ me.sys = sys; onMove(); } }
     }catch(e){ if (tok && c.charId === tok.charId && e.message !== lastErr){ lastErr = e.message; if (!/ESI 5/.test(e.message)) toast(e.message, true); } }
   }));
-  renderChars(); renderWho(); render();
+  renderChars(); renderWho(); render(); renderChain();
   pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4500 : 6000);
 }
 async function onMove(){
@@ -1316,7 +1346,7 @@ function setupInput(){
   // the mapper (other tab) updates its cache, pilots and tokens: follow along
   window.addEventListener('storage', e => {
     if (!e.key || !e.key.startsWith('whmap.')) return;
-    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); computeRoute(); render(); renderPanel(); scheduleAp(); }
+    if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }
     else if (e.key.startsWith(CK.tok) && !tok){ pickChar(); renderWho(); poll(); }
   });
   $('#apHead').onclick = () => { if (!ap) return; ap.open = ap.open === false; apSave(); renderAp(); };
@@ -1332,13 +1362,144 @@ function setupInput(){
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 }
 
+/* ---------- Chain widget: flat map of the mapper's chains ----------
+   Systems linked by wormholes (and the gates you mapped) form a group. Two groups are the same chain when their
+   known-space systems are within X gate jumps (X set by the player); otherwise the other ones are secondary chains. */
+let chainX = store.get('whmap.reg.chainX', 5), chainPick = null, chainGroups = [], chainBusy = 0;
+const jumpCache = store.get('whmap.reg.jumps', {});
+async function jumps(a, b){
+  const k = a < b ? a + '>' + b : b + '>' + a;
+  if (jumpCache[k] != null) return jumpCache[k];
+  try{ const r = await fetch(`https://esi.evetech.net/route/${a}/${b}`, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-Compatibility-Date':'2025-09-30' }, body:JSON.stringify({ preference:'Shorter' }) });
+       if (!r.ok) throw 0; const j = await r.json(), ids = Array.isArray(j) ? j : j.route || []; jumpCache[k] = ids.length ? ids.length - 1 : 999; }
+  catch(e){ return 999; }
+  store.set('whmap.reg.jumps', jumpCache);
+  return jumpCache[k];
+}
+const isK = id => !!(index && index.sys[String(id)]);
+function chainLinks(){ return Object.values(mapper.links).filter(l => l && l.a != null && l.b != null && (l.type === 'gate' || whPhase(l) !== 'dead')); }
+async function buildChains(){
+  const my = ++chainBusy;
+  const links = chainLinks(), adjm = {};
+  for (const l of links){ const a = String(l.a), b = String(l.b); (adjm[a] = adjm[a] || []).push(b); (adjm[b] = adjm[b] || []).push(a); }
+  const seen = new Set(), comps = [];
+  for (const id of Object.keys(adjm)){
+    if (seen.has(id) || HUB_LIST.includes(id)) continue;
+    const c = [id]; seen.add(id);
+    for (let i = 0; i < c.length; i++) for (const v of adjm[c[i]]) if (!seen.has(v) && !HUB_LIST.includes(v)){ seen.add(v); c.push(v); }
+    comps.push(c);
+  }
+  // merge groups whose known-space systems are close enough by gates
+  const par = comps.map((_, i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i]));
+  const bridges = [];
+  for (let i = 0; i < comps.length; i++) for (let j = i + 1; j < comps.length; j++){
+    const ki = comps[i].filter(isK).slice(0, 6), kj = comps[j].filter(isK).slice(0, 6);
+    if (!ki.length || !kj.length) continue;
+    let best = null;
+    for (const a of ki) for (const b of kj){ const d = await jumps(a, b); if (my !== chainBusy) return; if (!best || d < best.d) best = { a, b, d }; }
+    if (best && best.d <= chainX){ par[find(i)] = find(j); bridges.push(best); }
+  }
+  const groups = {};
+  comps.forEach((c, i) => (groups[find(i)] = groups[find(i)] || []).push(...c));
+  const homeId = (store.get('whmap.cfg', {}).home || {}).id, mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
+  chainGroups = Object.values(groups).map(ids => {
+    const set = new Set(ids);
+    return { ids, set, home:homeId != null && set.has(String(homeId)), mine:ids.some(id => mine.has(id)), bridges:bridges.filter(b => set.has(b.a) && set.has(b.b)) };
+  }).sort((a, b) => (b.home - a.home) || (b.mine - a.mine) || b.ids.length - a.ids.length);
+  renderChainSel(); renderChain();
+}
+function chainName(g, i){
+  const named = g.ids.find(id => isJ(id)) || g.ids[0];
+  return `${i === 0 ? 'Main chain' : 'Secondary ' + i} · ${sysName(named)}${g.ids.length > 1 ? ` +${g.ids.length - 1}` : ''}${g.home ? ' · home' : ''}`;
+}
+function renderChainSel(){
+  const sel_ = $('#chainSel'); if (!sel_) return;
+  if (chainPick != null && chainPick >= chainGroups.length) chainPick = null;
+  sel_.innerHTML = chainGroups.length ? chainGroups.map((g, i) => `<option value="${i}">${esc(chainName(g, i))}</option>`).join('') : '<option>No chain on your mapper</option>';
+  sel_.value = String(chainPick || 0);
+  $('#chainSub').textContent = chainGroups.length > 1 ? `${chainGroups.length} chains` : '';
+}
+let chainView = { k:1, x:0, y:0 };
+function chainLayout(g){
+  // the mapper's own flat layout when every system has one, otherwise a tree from the home / your system
+  const ns = g.ids.map(id => mapper.nodes[id]);
+  if (ns.every(n => n && isFinite(n.x) && isFinite(n.y))) return Object.fromEntries(g.ids.map(id => [id, { x:mapper.nodes[id].x, y:mapper.nodes[id].y }]));
+  const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
+  const root = g.set.has(homeId) ? homeId : (me.sys && g.set.has(me.sys) ? me.sys : g.ids.find(isJ) || g.ids[0]);
+  const adjm = {}; const add = (a, b) => { (adjm[a] = adjm[a] || []).push(b); (adjm[b] = adjm[b] || []).push(a); };
+  for (const l of chainLinks()){ const a = String(l.a), b = String(l.b); if (g.set.has(a) && g.set.has(b)) add(a, b); }
+  for (const br of g.bridges) add(br.a, br.b);
+  const depth = { [root]:0 }, cols = [[root]], q = [root];
+  while (q.length){ const u = q.shift(); for (const v of adjm[u] || []) if (!(v in depth)){ depth[v] = depth[u] + 1; (cols[depth[v]] = cols[depth[v]] || []).push(v); q.push(v); } }
+  g.ids.filter(id => !(id in depth)).forEach(id => { depth[id] = cols.length; (cols[cols.length] = cols[cols.length] || []).push(id); });
+  const pos = {};
+  cols.forEach((c, d) => c.forEach((id, k) => pos[id] = { x:d * 120, y:(k - (c.length - 1) / 2) * 52 }));
+  return pos;
+}
+function renderChain(){
+  const box = $('#wChain'); if (!box || box.hidden) return;
+  const svg = $('#chainSvg'), W2 = svg.clientWidth || 420, H2 = svg.clientHeight || 260;
+  svg.setAttribute('viewBox', `0 0 ${W2} ${H2}`); svg.innerHTML = '';
+  $('#chainX').value = chainX;
+  const g = chainGroups[chainPick || 0];
+  if (!g){ $('#chainNote').textContent = DEMO ? '' : 'Your chain comes from the wormhole mapper of this site (same browser).'; return; }
+  const pos = chainLayout(g), xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const fit = Math.min((W2 - 70) / Math.max(1, maxX - minX), (H2 - 50) / Math.max(1, maxY - minY), 1.4);
+  const k = fit * chainView.k, ox = W2 / 2 - (minX + maxX) / 2 * k + chainView.x, oy = H2 / 2 - (minY + maxY) / 2 * k + chainView.y;
+  const S = id => ({ x:pos[id].x * k + ox, y:pos[id].y * k + oy });
+  const gE = el('g', {}, svg), gN = el('g', {}, svg);
+  for (const l of chainLinks()){
+    const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b)) continue;
+    const pa = S(a), pb = S(b), cls = 'ce ' + (l.type === 'gate' ? 'gate' : (l.mass || 'fresh')) + (whPhase(l) === 'dying' ? ' dying' : '');
+    const ln = el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, class:cls, style:l.type === 'gate' ? '' : `stroke:${l.eol ? 'var(--eol)' : l.mass === 'critical' ? 'var(--bad)' : l.mass === 'reduced' ? 'var(--warn)' : 'var(--wh)'}` }, gE);
+    el('title', {}, ln).textContent = `${sysName(a)} ↔ ${sysName(b)} ${[l.wh, l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', l.mass].filter(Boolean).join(' · ')}`;
+  }
+  for (const br of g.bridges){
+    const pa = S(br.a), pb = S(br.b);
+    el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, class:'ce k' }, gE);
+    const t = el('text', { x:(pa.x + pb.x) / 2, y:(pa.y + pb.y) / 2 - 4, 'text-anchor':'middle', class:'cek' }, gE); t.textContent = `${br.d} j`;
+  }
+  const mine = {}; for (const c of Object.values(chars)) if (c.sys) (mine[c.sys] = mine[c.sys] || []).push(c.name);
+  for (const id of g.ids){
+    const p = S(id), cl = classOf(id), col = WH_COL[cl] || WH_COL.J;
+    const n = el('g', { class:'cn', 'data-id':id }, gN);
+    if (mine[id] || me.sys === id) el('circle', { cx:p.x, cy:p.y, r:13, fill:'none', stroke:'var(--ok)', 'stroke-width':2 }, n);
+    el('circle', { cx:p.x, cy:p.y, r:8, fill:col, class:'b', stroke:'#05080f', 'stroke-width':1 }, n);
+    el('circle', { cx:p.x, cy:p.y, r:8, fill:'url(#chainShine)', 'pointer-events':'none' }, n);
+    const t = el('text', { x:p.x, y:p.y + 21, 'text-anchor':'middle' }, n); t.textContent = sysName(id);
+    const t2 = el('text', { x:p.x, y:p.y - 13, 'text-anchor':'middle', class:'cls' }, n); t2.textContent = isK(id) ? secR(secOf(id)).toFixed(1) : cl;
+    el('title', {}, n).textContent = `${sysName(id)} ${cl}${mine[id] ? ' · ' + mine[id].join(', ') : ''}${isK(id) ? ' · click: show its region' : ''}`;
+  }
+  const defs = el('defs', {}, svg), sh = el('radialGradient', { id:'chainShine', cx:'35%', cy:'30%', r:'75%' }, defs);
+  el('stop', { offset:'0%', 'stop-color':'#fff', 'stop-opacity':'.6' }, sh); el('stop', { offset:'60%', 'stop-color':'#fff', 'stop-opacity':'0' }, sh); el('stop', { offset:'100%', 'stop-color':'#000', 'stop-opacity':'.45' }, sh);
+  $('#chainNote').textContent = `${g.ids.length} systems${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''} (dotted, jumps shown)` : ''} · drag to move, wheel to zoom, click a k-space system to open its region`;
+}
+function setupChain(){
+  const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.chainOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; buildChains(); } };
+  btn.onclick = () => show(box.hidden);
+  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainView = { k:1, x:0, y:0 }; renderChain(); };
+  $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
+  let st = null;
+  svg.addEventListener('pointerdown', e => { if (e.target.closest('.cn')) return; st = { x:e.clientX, y:e.clientY, vx:chainView.x, vy:chainView.y }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', e => { if (!st) return; chainView.x = st.vx + e.clientX - st.x; chainView.y = st.vy + e.clientY - st.y; renderChain(); });
+  svg.addEventListener('pointerup', () => st = null);
+  svg.addEventListener('wheel', e => { e.preventDefault(); chainView.k = Math.max(0.3, Math.min(6, chainView.k * Math.exp(-e.deltaY * 0.0015))); renderChain(); }, { passive:false });
+  svg.addEventListener('click', e => { const n = e.target.closest('.cn'); if (!n) return; const id = n.dataset.id; if (isK(id)){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); } else toast(`${sysName(id)}: wormhole space, no region map`); });
+  new ResizeObserver(() => renderChain()).observe(box.querySelector('.chainwb'));
+  if (store.get('whmap.reg.chainOpen', false)) show(true);
+  setInterval(() => { if (!box.hidden) buildChains(); }, 60000);
+}
+
 /* ---------- Widgets: every window floats over the map; drag by its title bar, fold with –, positions remembered ---------- */
 let wstate = store.get('whmap.reg.widgets', {}), wz = 10;
 function defaultPos(id, el){
   const W0 = innerWidth, H0 = innerHeight, w = el.offsetWidth || 300;
   const below = (other, fallback) => { const o = $('#' + other); return o && !o.hidden ? o.offsetTop + o.offsetHeight + 8 : fallback; };
   return { wTool:{ x:12, y:12 }, wView:{ x:12, y:below('wTool', 96) }, apBox:{ x:12, y:below('wView', 220) },
-           wChars:{ x:W0 - w - 12, y:12 }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) } }[id] || { x:40, y:40 };
+           wChars:{ x:W0 - w - 12, y:12 }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) },
+           wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) } }[id] || { x:40, y:40 };
 }
 function placeWidget(el){
   const st = wstate[el.id] || {}, d = defaultPos(el.id, el);
@@ -1368,12 +1529,12 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
-  ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wView', 'wInfo', 'apBox'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wView', 'wInfo', 'apBox', 'wChain'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -1398,6 +1559,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
+  setupChain();
   poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
   if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
