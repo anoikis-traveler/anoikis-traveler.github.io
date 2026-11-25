@@ -92,6 +92,26 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .pil .pme{fill:#7dffb0;font-weight:700}
 .pil .poff{fill:#e0716b}
 .pil .psep{fill:#8b98b0}
+#map{transition:opacity .18s,filter .18s}
+.share-st{font-size:11.5px;font-family:var(--mono)}
+.share-st.on{color:var(--ok)}
+.share-st.err{color:#e0716b}
+.share-st.wait,.share-st.none{color:var(--dim)}
+#map.pdim{opacity:.22;filter:saturate(.35)}
+#pilRing{position:absolute;border:2px solid var(--ok);border-radius:50%;box-shadow:0 0 14px rgba(90,220,140,.55);pointer-events:none;z-index:4}
+#pilPop{position:absolute;z-index:5;min-width:210px;max-width:300px;max-height:70vh;overflow:auto;padding:8px 10px 6px;background:rgba(10,14,26,.94);border:1px solid rgba(90,220,140,.45);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.55);font-size:13px}
+#pilPop .pph{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line)}
+#pilPop .pph b{font-family:var(--display);font-size:15px;letter-spacing:.06em;text-transform:uppercase}
+#pilPop .pph span{font-size:11.5px;color:var(--dim)}
+#pilPop .ppr{display:grid;grid-template-columns:10px 1fr auto;gap:0 7px;align-items:center;padding:4px 0}
+#pilPop .ppn{font-weight:600}
+#pilPop .ppn i{font-style:normal;color:var(--dim);font-weight:400}
+#pilPop .me .ppn{color:#7dffb0}
+#pilPop .off .ppn{color:#e0918b}
+#pilPop .pps{grid-column:2 / 4;font-size:11px;color:var(--dim)}
+#pilPop .wd{width:8px;height:8px;border-radius:50%;background:#e0564f}
+#pilPop .wd.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+#pilPop .evb{padding:0 4px;border:1px solid #4fb3ff;border-radius:3px;font:700 9.5px/14px var(--display);letter-spacing:.08em;color:#8fd0ff;background:rgba(79,179,255,.12)}
 #watchBody .wrow{display:grid;grid-template-columns:10px auto 1fr;gap:2px 7px;align-items:center;padding:4px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
 #watchBody .wrow:last-child{border-bottom:0}
 #watchBody .wd{width:8px;height:8px;border-radius:50%;background:#e0564f;box-shadow:0 0 5px rgba(224,86,79,.6)}
@@ -276,6 +296,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 <body>
 <div id="stage">
   <svg id="map" aria-label="3D region map"></svg>
+  <div id="pilRing" hidden></div>
+  <div id="pilPop" hidden></div>
   <div id="banner"></div>
   <div id="hubCards"></div>
   <div id="hint">Drag to rotate · Shift+drag or right-drag to pan · Wheel to zoom · Click a system: rotation and zoom then turn around it</div>
@@ -491,6 +513,9 @@ function applyEdits(){
 }
 function readMapper(){
   if (DEMO){ mapper = demoMapper(); applyEdits(); return; }
+  if (share.map){ const d = share.map.data || {};
+    const objs = v => Array.isArray(v) ? Object.fromEntries(v.filter(Boolean).map(x => [x.id, x])) : (v || {});
+    mapper = { nodes:{ ...(d.nodes || {}) }, links:{ ...objs(d.links) }, pilots:{ ...(share.map.pilots || {}) } }; applyEdits(); return; }
   const cid = (tok && tok.charId) || store.get('whmap.lastChar', null);
   const slot = cid ? store.get(CK.slot + cid, null) : null;
   let m = slot && slot.mapOwner ? store.get('whmap.cache.' + slot.mapOwner, null) : null;
@@ -600,7 +625,8 @@ function demoMapper(){
   for (const n of ['KDG-TA', '4M-QXK', '5M2-KP']){ const id = K(n); if (id) nodes[id] = { id:Number(id), name:n, cls:'NS' }; }
   const now = Date.now(), L = (id, a, b, o) => ({ id, a:Number(a), b:Number(b), type:'wh', mass:'fresh', eol:false, size:'L', created:now - 3600e3, ...o });
   return { nodes, pilots:{ c1:{ name:'Corpmate', sys:K('4M-QXK'), ship:'Tengu', online:true, t:now }, c2:{ name:'Hauler', sys:K('KDG-TA'), ship:'Epithal', online:false, t:now - 60000 },
-             c3:{ name:'Old Scout', sys:K('5M2-KP'), ship:'Buzzard', online:false, t:now - 2 * 3600e3 } },
+             c3:{ name:'Old Scout', sys:K('4M-QXK'), ship:'Buzzard', online:false, t:now - 12 * 60000 },
+             c4:{ name:'Logi', sys:K('4M-QXK'), ship:'Scimitar', online:true, t:now } },
     links:{ d1:L('d1', K('KDG-TA'), 31000123, { wh:'N062' }), d2:L('d2', 31000123, 31000900, { wh:'H296', size:'XL' }), d3:L('d3', 31000900, 31000901, { wh:'D382', mass:'reduced' }),
             d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }) } };
 }
@@ -685,15 +711,115 @@ async function handleCallback(){
 function logout(id){
   try{ localStorage.removeItem(CK.tok + id); }catch(e){}
   delete chars[id];
-  if (tok && tok.charId === id){ sess.set('whmap.tabChar', ''); pickChar(); }
+  if (tok && tok.charId === id){ sess.set('whmap.tabChar', ''); pickChar(); shareClose(); shareState('off'); if (tok) shareConnect(); else readMapper(); }
   renderChars(); renderWho(); render();
 }
 function switchChar(id){
   sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
-  pickChar(); readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
+  pickChar(); if (!DEMO && tok && share.charId !== tok.charId){ shareClose(); shareConnect(); } readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
 }
 async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
 /* a fresh access token for any stored character; one tab renews it, the others pick it up (same lock as the mapper) */
+/* ---------- Shared map, live: the same server as the mapper (no mapper tab needed) ----------
+   Reads the shared chain and the pilots of the map you have access to, and publishes your own position like the mapper does. */
+const share = { site:null, ws:null, ready:null, uid:'', name:'', seq:0, wait:new Map(), owner:'', charId:null, map:null, backoff:1000, ping:null, byUs:null, state:'off', pubT:0, pubKey:'', ship:'', shipT:0 };
+async function shareSite(){ if (share.site) return share.site; try{ const r = await fetch('../site.json', { cache:'no-store' }); share.site = r.ok ? await r.json() : {}; }catch(e){ share.site = {}; } return share.site; }
+function shareSend(msg, ws){
+  ws = ws || share.ws;
+  return new Promise((res, rej) => {
+    if (!ws || ws.readyState !== 1) return rej(Object.assign(new Error('Not connected'), { status:0 }));
+    const id = ++share.seq; share.wait.set(id, { res, rej, ws }); ws.send(JSON.stringify({ ...msg, id }));
+    setTimeout(() => { if (share.wait.has(id)){ share.wait.delete(id); rej(Object.assign(new Error('No answer'), { status:0 })); } }, 20000);
+  });
+}
+const shareGet = async path => (await shareSend({ op:'get', path })).data ?? null;
+function shareOpen(){
+  if (share.ready) return share.ready;
+  share.ready = new Promise(async (res, rej) => {
+    let ws, opened = false;
+    try{ const site = await shareSite(); if (!site.live) throw new Error('no live server'); const t = await freshTok(tok); ws = new WebSocket(site.live.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws');
+      ws.onopen = async () => { opened = true;
+        try{ const a = await shareSend({ op:'auth', token:t.access_token }, ws); share.uid = a.uid; share.name = a.name; share.backoff = 1000;
+          clearInterval(share.ping); share.ping = setInterval(() => { try{ if (ws.readyState === 1) ws.send('ping'); }catch(e){} }, 45000); res(); }
+        catch(e){ if (share.ws === ws){ share.ws = null; share.ready = null; } rej(e); try{ ws.close(); }catch(x){} } };
+    }catch(e){ share.ready = null; return rej(e); }
+    share.ws = ws;
+    ws.onmessage = ev => {
+      if (ev.data === 'pong') return;
+      let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if (m.id != null){ const w = share.wait.get(m.id); if (w){ share.wait.delete(m.id); m.ok ? w.res(m) : w.rej(Object.assign(new Error(m.error || 'Refused'), { status:m.status })); } return; }
+      if (m.ev === 'put' && share.map) shareApply(m.path, m.data);
+    };
+    ws.onclose = () => {
+      clearInterval(share.ping);
+      for (const [id, w] of share.wait) if (w.ws === ws){ share.wait.delete(id); w.rej(Object.assign(new Error('Connection lost'), { status:0 })); }
+      if (share.ws === ws){ share.ws = null; share.ready = null; }
+      if (!opened) rej(new Error('Live server unreachable'));
+      if (share.byUs === ws) return;
+      if (share.owner){ shareState('err', 'reconnecting…'); const d = share.backoff; share.backoff = Math.min(30000, d * 2); setTimeout(() => { if (!share.ws) shareConnect(); }, d); }
+    };
+  });
+  return share.ready;
+}
+function shareClose(){
+  share.owner = ''; share.map = null; share.charId = null;
+  if (share.ws){ share.byUs = share.ws; try{ share.ws.close(); }catch(e){} }
+  share.ws = null; share.ready = null;
+}
+function setAtPath(obj, parts, val){
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++){ if (typeof o[parts[i]] !== 'object' || o[parts[i]] === null) o[parts[i]] = {}; o = o[parts[i]]; }
+  const last = parts[parts.length - 1];
+  if (val === null || val === undefined) delete o[last]; else o[last] = val;
+}
+let shareRT = null;
+function shareApply(path, data){
+  if (path === '/' || path === ''){ const d = data || {}; share.map = { data:d.data || {}, pilots:d.pilots || {} }; }
+  else { const parts = path.replace(/^\//, '').split('/'); if (parts[0] === 'data' || parts[0] === 'pilots'){ if (parts.length === 1) share.map[parts[0]] = data || {}; else setAtPath(share.map, parts, data); } }
+  shareState('on');
+  clearTimeout(shareRT); shareRT = setTimeout(() => { readMapper(); renderWhSel(); renderWatch(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden) buildChains(); }, 120);
+}
+function shareState(st, txt){ share.state = st; if (txt !== undefined || st !== 'err') share.txt = txt; txt = share.txt; const e = $('#shareSt'); if (!e) return;
+  e.className = 'share-st ' + st; e.textContent = st === 'on' ? '● Shared map · live' + (share.ownerName ? ' (' + share.ownerName + ')' : '') : st === 'err' ? '● Shared map: ' + (txt || 'error') : st === 'wait' ? '● Shared map: connecting…' : st === 'none' ? '○ No shared map for this character' : '';
+  e.hidden = st === 'off'; }
+async function shareConnect(){
+  if (DEMO || !tok){ shareClose(); shareState('off'); return; }
+  const site = await shareSite(); if (!site.live){ shareState('off'); return; }
+  if (share.charId !== tok.charId) shareClose();
+  share.charId = tok.charId;
+  shareState('wait');
+  try{
+    await shareOpen();
+    // which map: the one this character uses in the mapper, else their own, else one they were given access to
+    let owner = (store.get(CK.slot + tok.charId, null) || {}).mapOwner || '';
+    const access = await shareGet(`access/${share.uid}`).catch(() => null) || {};
+    const isOwner = share.uid === site.owner || !!(await shareGet(`owners/${share.uid}`).catch(() => null));
+    if (!(owner && (owner === share.uid ? isOwner : access[owner]))) owner = isOwner ? share.uid : access[site.owner] ? site.owner : Object.keys(access)[0] || '';
+    if (!owner){ share.owner = ''; share.map = null; shareState('none'); readMapper(); render(); renderWatch(); return; }
+    share.owner = owner;
+    share.ownerName = owner === share.uid ? share.name : await shareGet(`maps/${owner}/ownerName`).catch(() => '') || '';
+    const [data, pilots] = await Promise.all([shareGet(`maps/${owner}/data`), shareGet(`maps/${owner}/pilots`)]);
+    shareApply('/', { data, pilots });
+    await shareSend({ op:'sub', map:owner }).catch(e => { if (e.status === 403){ shareState('err', 'access removed'); } });
+    sharePublish(true);
+  }catch(e){ shareState('err', /refused|auth/i.test(e.message) ? 'log in again' : 'unreachable'); }
+}
+// Your position for the others, in the mapper's format (a system is only shown when it is on the shared chain)
+async function sharePublish(force){
+  if (DEMO || !tok || !share.owner || !share.ws || !share.map) return;
+  const st = chars[tok.charId] || {}, now = Date.now();
+  if (now - share.shipT > 60000){ share.shipT = now;
+    try{ const sh = await esiFor(tok, `/characters/${tok.charId}/ship/`); if (sh && sh.ship_type_id){ const r = await fetch(`${ESI}/universe/types/${sh.ship_type_id}/`); if (r.ok) share.ship = (await r.json()).name; } }catch(e){} }
+  const nodes = (share.map.data || {}).nodes || {}, sys = me.sys && nodes[me.sys] ? Number(me.sys) : null;
+  const prev = share.map.pilots[share.uid];
+  const rec = { name:tok.charName, sys, ship:share.ship || (prev && prev.ship) || '', online:!!st.online };
+  if (prev && prev.alts) rec.alts = prev.alts;            // alts are published by the mapper: keep them
+  const key = JSON.stringify(rec);
+  if (!force && key === share.pubKey && now - share.pubT < 60000) return;
+  share.pubKey = key; share.pubT = now;
+  shareSend({ op:'put', path:`maps/${share.owner}/pilots/${share.uid}`, data:{ ...rec, t:{ '.sv':'timestamp' } } }).catch(() => {});
+}
+
 async function freshTok(t){
   if (t.demo) return t;
   let cur = store.get(CK.tok + t.charId, null);
@@ -931,6 +1057,7 @@ async function poll(){
     }catch(e){ if (tok && c.charId === tok.charId && e.message !== lastErr){ lastErr = e.message; if (!/ESI 5/.test(e.message)) toast(e.message, true); } }
   }));
   renderChars(); renderWho(); render(); renderChain();
+  if (tok && share.charId !== tok.charId && !DEMO) shareConnect(); else sharePublish();
   pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4500 : 6000);
 }
 async function onMove(){
@@ -962,7 +1089,7 @@ function renderWatch(){
       ${p.ship || p.altOf ? `<span class="wship">${esc([p.ship, p.altOf ? 'alt of ' + p.altOf : ''].filter(Boolean).join(' · '))}</span>` : ''}</div>`;
   box.innerHTML = (on.length ? on.map(row).join('') : '<div class="wempty">Nobody has the map open.</div>')
     + (off.length ? `<details${store.get('whmap.reg.watchOff', false) ? ' open' : ''}><summary>Map closed (${off.length})</summary>${off.map(row).join('')}</details>` : '')
-    + (!DEMO && !Object.keys(mapper.pilots || {}).length ? '<div class="wempty" style="margin-top:6px">Corpmates appear here when the mapper is open in this browser on a shared map.</div>' : '');
+    + (!DEMO && share.state === 'none' ? '<div class="wempty" style="margin-top:6px">This character has no shared map: corpmates appear here once the map owner gives it access.</div>' : '');
   const d = box.querySelector('details'); if (d) d.addEventListener('toggle', () => store.set('whmap.reg.watchOff', d.open));
   box.querySelectorAll('.wn[data-wsys]:not([disabled])').forEach(b => b.onclick = () => goTo(b.dataset.wsys));
 }
@@ -981,6 +1108,7 @@ function renderChars(){
       : `<button type="button" class="primary" id="bLogin">${list.length ? 'Add a character' : 'Log in with EVE'}</button>
          <label><input type="checkbox" id="askWp"${wpAsk ? ' checked' : ''}> Allow "Set destination" (autopilot)</label>
          <label><input type="checkbox" id="askAs"${store.get('whmap.reg.askassets', true) ? ' checked' : ''}> Allow reading assets (shown on the map, stays in this browser)</label>`}
+      <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
       ${!DEMO && list.length ? `<div class="payid" title="Free up to 5 characters, then 50 M ISK a week per block of 5: put this in the reason of your ISK transfer to Sava Yesh">Payment ID <code>AT-${(tok || list[0]).charId}</code><button type="button" class="small" id="bPayId">Copy</button> <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a></div>` : ''}</div>`;
   box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
@@ -988,6 +1116,7 @@ function renderChars(){
   const bl = $('#bLogin'); if (bl) bl.onclick = login;
   const aw = $('#askWp'); if (aw) aw.onchange = () => store.set('whmap.reg.askwp', aw.checked);
   const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
+  shareState(share.state);
   const pb = $('#bPayId'); if (pb) pb.onclick = async () => { const v = 'AT-' + (tok || list[0]).charId; try{ await navigator.clipboard.writeText(v); toast('Copied: ' + v); }catch(e){ toast(v); } };
 }
 const regionName = id => (index.regions.find(g => g.id === Number(id)) || {}).name || id;
@@ -1308,13 +1437,53 @@ function draw(){
     placed.push(box);
     const t = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 4, class:'lbl' + (L.s.ext ? ' ext' : '') + (sel === L.id ? ' sel' : '') }, gLbl);
     t.textContent = txt;
-    if (L.pil.length){ const tp = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 16, class:'pil' }, gLbl);
+    if (L.pil.length){ const tp = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 16, class:'pil', 'data-pid':L.id }, gLbl);
       const shown = L.pil.length > 3 ? L.pil.slice(0, 2) : L.pil;
       shown.forEach((x, i) => { if (i){ const sp = el('tspan', { class:'psep' }, tp); sp.textContent = ', '; }
         const ts = el('tspan', { class:x.active ? 'pme' : x.live ? '' : 'poff' }, tp); ts.textContent = x.name; });
       if (shown.length < L.pil.length){ const ts = el('tspan', { class:'psep' }, tp); ts.textContent = ` +${L.pil.length - shown.length}`; }
       el('title', {}, tp).textContent = L.pil.map(x => x.name + (x.ingame ? ' (in game)' : ' (not in game)')).join('\n'); }
   }
+  if (pilHover){ const keep = pilHover; pilHover = null; showPilPop(keep); }
+}
+
+/* ---------- Hovering a system with several pilots: the map fades, the pilots unfold in a column ---------- */
+let pilHover = null;
+function showPilPop(id){
+  const list = id ? pilotsAt(id) : [];
+  if (!id || list.length < 2){ if (pilHover){ pilHover = null; $('#pilPop').hidden = true; $('#pilRing').hidden = true; $('#map').classList.remove('pdim'); } return; }
+  if (pilHover !== id){
+    pilHover = id;
+    const pop = $('#pilPop');
+    pop.innerHTML = `<div class="pph"><b>${esc(sysName(id))}</b><span>${list.length} pilots</span></div>` + list.map(p => `<div class="ppr${p.live ? '' : ' off'}${p.active ? ' me' : ''}">
+        <span class="wd${p.live ? ' on' : ''}"></span><span class="ppn">${esc(p.name)}${p.self ? ' <i>(you)</i>' : ''}</span>${p.ingame ? '<span class="evb" title="Connected in EVE">EVE</span>' : '<span></span>'}
+        <span class="pps">${esc([p.ship, p.altOf ? 'alt of ' + p.altOf : '', p.live ? '' : 'map closed'].filter(Boolean).join(' · ') || (p.ingame ? 'in game' : 'not in game'))}</span></div>`).join('');
+    pop.hidden = false; $('#pilRing').hidden = false; $('#map').classList.add('pdim');
+  }
+  placePilPop();
+}
+function placePilPop(){
+  if (!pilHover) return;
+  const dot = $('#map').querySelector(`.sys[data-id="${CSS.escape(String(pilHover))}"] .dot`);
+  if (!dot){ showPilPop(null); return; }
+  const r = dot.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), pop = $('#pilPop'), ring = $('#pilRing');
+  const cx = r.left + r.width / 2 - st.left, cy = r.top + r.height / 2 - st.top, rr = r.width / 2 + 6;
+  Object.assign(ring.style, { left:(cx - rr) + 'px', top:(cy - rr) + 'px', width:2 * rr + 'px', height:2 * rr + 'px' });
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  let x = cx + rr + 10, y = cy - 18;
+  if (x + w > st.width - 8) x = cx - rr - 10 - w;
+  y = Math.max(8, Math.min(st.height - h - 8, y));
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+}
+function setupPilPop(){
+  document.addEventListener('pointermove', e => {
+    if ($('#map').classList.contains('dragging')){ showPilPop(null); return; }
+    if (e.target.closest && e.target.closest('#pilPop')) return;
+    const t = e.target.closest && e.target.closest('#map .sys, #map [data-pid]');
+    showPilPop(t ? (t.dataset.id || t.dataset.pid) : null);
+  });
+  $('#map').addEventListener('pointerleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#pilPop'))) showPilPop(null); });
+  $('#pilPop').addEventListener('pointerleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#map .sys, #map [data-pid]'))) showPilPop(null); });
 }
 
 /* ---------- Side panel ---------- */
@@ -1926,7 +2095,7 @@ function setupWidgets(){
   setupWidgets();
   try{ await loadIndex(); }catch(e){ $('#panel').innerHTML = `<p>${esc(e.message)}</p>`; return; }
   await handleCallback();
-  pickChar(); readMapper(); apLoad(); setupInput(); renderChars(); renderWho(); renderWhSel();
+  pickChar(); readMapper(); apLoad(); setupInput(); setupPilPop(); renderChars(); renderWho(); renderWhSel();
   setInterval(() => { renderWhSel(); render(); }, 60000);   // holes age out even without a mapper change
   const q = new URLSearchParams(location.search);
   const qr = q.get('r'), qs = q.get('sys');

@@ -362,7 +362,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   <button id="btnCenter" type="button">Recenter</button>
   <input id="fileImport" type="file" accept=".json,application/json" hidden>
   <button id="btnClear" type="button" class="danger">Clear map</button>
-  <button id="btnDonate" type="button" data-donate title="Anoikis Traveler is free: donations keep it online">❤️ Donate</button>
+  <button id="btnDonate" type="button" data-donate title="Free up to 5 characters: donations are welcome">❤️ Donate</button>
   <button id="btnHelp" type="button">Help</button>
   <button id="btnAccess" type="button" hidden>Access</button>
   <button id="btnSetup" type="button">Settings</button>
@@ -409,9 +409,9 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 
   <aside>
     <div id="getMapSide" hidden></div><div id="subBox" hidden aria-live="polite"></div><div id="support">
-      <span class="tag">Free for everyone · runs on donations</span>
+      <span class="tag">Free up to 5 characters · donations welcome</span>
       <div class="sp"><span class="ic" aria-hidden="true">❤️</span>
-        <span><b>Like the map? Keep it online</b><small>Anoikis Traveler is free, with no ads. Any ISK sent in game to <b class="who">Sava Yesh</b> helps pay for the servers. Thank you!</small></span>
+        <span><b>Like the map? Keep it online</b><small>Free up to 5 characters, with no ads. Any ISK sent in game to <b class="who">Sava Yesh</b> helps pay for the servers. Thank you!</small></span>
         <button type="button" class="small" id="btnCopyDonor" title="Copy the exact character name">Copy name</button></div>
       <button type="button" class="donhow" data-donate>How to donate in game</button>
     </div>
@@ -608,7 +608,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
 <div class="modal" id="donate" role="dialog" aria-modal="true" aria-labelledby="donTitle">
   <div class="mbox" style="max-width:560px">
     <h2 id="donTitle">❤️ Support Anoikis Traveler</h2>
-    <p>The map, the fitting tool and everything to come are <b>free for everyone</b>, with no ads. Servers and development are paid by one player. If the map saves you time (or your pod), an ISK donation helps keep it online.</p>
+    <p>The map, the appraisal and the fitting tool are <b>free up to 5 characters</b>, with no ads. Beyond that, 50 M ISK a week per block of 5 characters (<a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a>). If the map saves you time (or your pod), an ISK donation is always welcome.</p>
     <h3>How to donate in game</h3>
     <ol class="donsteps">
       <li>Copy the name: <b>Sava Yesh</b> <button type="button" class="small" data-copydonor>Copy name</button></li>
@@ -1948,9 +1948,9 @@ function getMapHtml(){
   const canCreate = !!tok && liveMode() && !isMapOwner;
   return `<h4>🗺️ Want your own map?</h4><ol>
 <li>Log in with EVE with the character that will <b>own</b> your group's map (usually your corporation's director).</li>
-<li>Click <b>Create my map</b>. It is <b>free</b>.</li>
-<li>Invite your group from <i>Access</i>: up to 10 characters per map (more on request, on quote).</li>
-<li>If you like it, a donation in ISK to <b>Sava Yesh</b> helps keep the site online.</li></ol>
+<li>Click <b>Create my map</b>.</li>
+<li>Invite your group from <i>Access</i>: free up to 5 characters, then 50 M ISK a week per block of 5 (see the guide, Pricing).</li>
+<li>Donations in ISK to <b>Sava Yesh</b> are always welcome.</li></ol>
 ${canCreate ? '<p><button type="button" class="primary" data-createmap>Create my map (free)</button></p>' : ''}
 <p class="gm-note">Each map is private: no one else sees it.</p>`;
 }
@@ -1959,7 +1959,7 @@ function createMapDialog(){
     const d = document.createElement('div'); d.className = 'cm-overlay';
     d.innerHTML = `<div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cmT"><h3 id="cmT">🗺️ Create my map</h3>
       <p class="cm-lead">Your map is <b>free</b> and private. You can invite up to <b>10 characters</b> (you included) from <i>Access</i>. More on request (quote): EVE mail to <b>${esc(SUB_PAYEE)}</b>.</p>
-      <p class="cm-note">Anoikis Traveler runs on donations: if it helps your group, ISK sent in game to <b>${esc(SUB_PAYEE)}</b> keeps it online.</p>
+      <p class="cm-note">Free up to 5 characters; beyond that, 50 M ISK a week per block of 5, sent in game to <b>${esc(SUB_PAYEE)}</b> with your AT-… identifier.</p>
       <div class="cm-row"><button type="button" class="primary" data-cm="ok">Create my map</button><button type="button" data-cm="no">Cancel</button></div></div>`;
     document.body.appendChild(d);
     const done = v => { d.remove(); res(v); };
@@ -3752,7 +3752,7 @@ async function openAccess(){
     $('#planSel').addEventListener('change', save); $('#planMonth').addEventListener('change', save);
   }
   if (SITE_LOCK && !isMapOwner && liveMode()) $('#mapRoleNote').insertAdjacentHTML('afterend', '<p id="createMapBox"><button type="button" class="small primary" data-createmap>Create my own map (free)</button></p>');
-  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` + (subInfo && subInfo.freeSite ? ' The site is free: more characters per map would create hosting costs for the site owner. Need more? Ask for a quote: EVE mail to Sava Yesh.' : '') : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
+  $('#mapRoleNote').textContent = mine ? 'You own this map.' + (lim ? ` Up to ${lim + 1} characters: you + ${lim} invited.` + (subInfo && subInfo.freeSite ? ' Free up to 5 characters; beyond that, 50 M ISK a week per block of 5 (see the guide, Pricing).' : '') : '') + subStatusText() : (myRole === 'edit' ? 'You can edit this map.' : 'You have read-only access to this map.');
   $('#ownersBox').hidden = !(SITE_LOCK && fb.uid === SITE_LOCK.owner && mine);
   $('#cfgLinkBox').hidden = !!SITE_LOCK;
   if (mine){ $('#cfgLink').value = cfgLink(); loadAcl(); if (!$('#ownersBox').hidden) loadOwners(); }
