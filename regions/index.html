@@ -406,6 +406,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
       <div class="row"><button type="button" class="primary small" id="jbAdd">Add</button><button type="button" class="small" id="jbEve" title="Your character's Ansiblex, found through EVE (needs the jump bridge permission at login)">Import from EVE</button>
         <label title="Write them on your shared map so your group gets them too"><input type="checkbox" id="jbShare"> share with my map</label></div>
       <div id="jbStatus" class="dim"></div>
+      <div class="dim" style="font-size:11px">Import from EVE needs <code>esi-search.search_structures.v1</code> on the EVE application <code id="jbApp">…</code> (developers.eveonline.com).</div>
       <div id="jbList"></div>
     </div>
   </section>
@@ -774,8 +775,9 @@ function pickChar(){
 }
 async function getClientId(){
   if (clientId) return clientId;
-  const c = store.get('whmap.cfg', {}); if (c && c.clientId) return clientId = c.clientId;
+  // the site's own EVE application first (site.json); an older one remembered by the mapper only as a fallback
   try{ const r = await fetch('../site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j.clientId) clientId = j.clientId; } }catch(e){}
+  if (!clientId){ const c = store.get('whmap.cfg', {}); if (c && c.clientId) clientId = c.clientId; }
   return clientId;
 }
 async function login(){
@@ -804,7 +806,7 @@ async function handleCallback(){
   if (!q.has('code') && !q.has('error')){
     // came back without an answer right after asking for the jump bridge permission: CCP refused it (invalid_scope page)
     if (jbTry && Date.now() - jbTry < 15 * 60000){ store.set('whmap.reg.askjb', false);
-      toast('EVE refused the jump bridge permission: your EVE application does not have esi-search.search_structures.v1. The option is now off, log in again; add that scope to the application on developers.eveonline.com to use Import from EVE.', true); }
+      toast('EVE refused the jump bridge permission: the EVE application of the site does not have esi-search.search_structures.v1. The option is now off, log in again; add that scope to the application on developers.eveonline.com to use Import from EVE.', true); }
     return;
   }
   let saved = null; try{ saved = JSON.parse(sess.get('whmap.reg.pkce') || 'null'); }catch(e){}
@@ -1042,6 +1044,7 @@ function setupJb(){
     $('#jbStatus').textContent = `${out.length} added${bad.length ? ` · ${bad.length} line${bad.length > 1 ? 's' : ''} not understood: ${bad.slice(0, 2).join(' / ')}` : ''}`;
   };
   $('#jbEve').onclick = importJbFromEve;
+  getClientId().then(c => { $('#jbApp').textContent = c || '?'; });
 }
 
 async function freshTok(t){
