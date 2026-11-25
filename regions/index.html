@@ -133,7 +133,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
   <span class="grow"></span>
   <span id="who" class="dim">Not logged in</span>
   <select id="charSel" aria-label="Character" hidden></select>
-  <a id="toMapper" href="../"><button type="button" class="primary">Wormhole mapper</button></a>
+  <a id="toMapper" href="../map/"><button type="button" class="primary">Wormhole mapper</button></a>
 </header>
 <main>
   <div id="stage">
@@ -163,7 +163,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 const ESI = 'https://esi.evetech.net/latest';
 const SSO = 'https://login.eveonline.com/v2/oauth';
 const WP_SCOPE = 'esi-ui.write_waypoint.v1';
-const MAPPER = '../';
+const MAPPER = '../map/';
 const DATA = 'data/';
 const svgNS = 'http://www.w3.org/2000/svg';
 const $ = s => document.querySelector(s);
@@ -306,7 +306,7 @@ function pickChar(){
 async function getClientId(){
   if (clientId) return clientId;
   const c = store.get('whmap.cfg', {}); if (c && c.clientId) return clientId = c.clientId;
-  try{ const r = await fetch(MAPPER + 'site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j.clientId) clientId = j.clientId; } }catch(e){}
+  try{ const r = await fetch('../site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j.clientId) clientId = j.clientId; } }catch(e){}
   return clientId;
 }
 async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
