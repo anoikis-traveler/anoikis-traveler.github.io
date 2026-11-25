@@ -88,6 +88,17 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 @keyframes pulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.6)}}
 .pil{font-family:var(--mono);font-size:10.5px;fill:var(--ok);paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
 .hublbl{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;paint-order:stroke;stroke:#070a12;stroke-width:4px;pointer-events:none}
+.jcard{fill:rgba(10,14,26,.88);stroke-width:1;stroke-opacity:.5}
+.jhead{font-family:var(--display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;fill:#8b98b0}
+.jline{font-family:var(--mono);font-size:11px;white-space:pre}
+.jline.on{font-weight:600}
+.jline.sub{fill:#9aa6bd;font-size:10.5px}
+.jrow{cursor:pointer}
+.jrow:hover .jline{text-decoration:underline}
+.jlbl{font-family:var(--mono);font-size:10px;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none;opacity:.8}
+.jlbl.on{font-size:11.5px;font-weight:500;opacity:1}
+.jmini{font-family:var(--mono);font-size:9.5px;fill:#aab6cc;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.jnode{cursor:pointer}
 .hubsub{font-family:var(--mono);font-size:10.5px;fill:#c3cde0;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
 .netlist li{display:grid;grid-template-columns:34px 1fr;column-gap:6px;align-items:baseline;cursor:pointer}
 .netlist li > .dim{grid-column:2}
@@ -209,6 +220,8 @@ function classOf(id){                       // destination class of a system, fo
   if (id === TURNUR_ID) return 'TURNUR';
   const n = mapper.nodes[id], c = n && n.cls ? String(n.cls).toUpperCase() : '';
   if (WH_COL[c]) return c;
+  const sc = scout.find(l => String(l.b) === id && l.clsTxt), sct = sc ? String(sc.clsTxt).toUpperCase() : '';
+  if (WH_COL[sct]) return sct;
   const s = byId[id] ? byId[id].s : index && index.sys[id] ? index.sys[id][2] : null;
   if (s != null){ const r = secR(s); return r >= 0.5 ? 'HS' : r > 0 ? 'LS' : 'NS'; }
   if (Number(id) >= 32000000) return 'POCH';
@@ -501,12 +514,65 @@ function placeHubs(){
     if (!conns.length) return;
     const ends = conns.map(l => norm[String(String(l.a) === h ? l.b : l.a)]).filter(Boolean);
     const c = ends.reduce((m, p) => ({ x:m.x + p.x / ends.length, z:m.z + p.z / ends.length }), { x:0, z:0 });
-    norm[h] = { x:c.x * 0.5 + (i ? 0.32 : -0.32), y:top + 0.95, z:c.z * 0.5 + 0.15 };
+    norm[h] = { x:c.x * 0.4 + (i ? 0.38 : -0.38), y:top + 0.55, z:c.z * 0.4 + 0.1 };
     hubNodes.push({ h, conns });
   });
 }
 const hubColour = h => WH_COL[HUB_CLASS[String(h)]];
 function leftTxt(ms){ if (ms == null) return ''; const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; }
+/* J-space reached from a floating hub: a fan above it. If one of your chains hangs on that system,
+   it gets a halo and the chain behind it is drawn small (3 jumps, 10 systems at most). */
+function chainBehind(start, hub){
+  const adjm = {};
+  for (const l of whLinks()){ const a = String(l.a), b = String(l.b); (adjm[a] = adjm[a] || []).push(b); (adjm[b] = adjm[b] || []).push(a); }
+  const seen = new Set([start, hub, ...HUB_LIST]), out = [];
+  let front = [[start, 0]];
+  while (front.length && out.length < 10){
+    const next = [];
+    for (const [u, d] of front){ if (d >= 3) continue; for (const v of adjm[u] || []){ if (seen.has(v) || out.length >= 10) continue; seen.add(v); out.push({ id:v, from:u, d:d + 1 }); next.push([v, d + 1]); } }
+    front = next;
+  }
+  return out;
+}
+function drawHubJ(h, p, gLine, gTxt){
+  const js = allHoles().filter(l => (String(l.a) === h && isJ(l.b) && !HUB_LIST.includes(String(l.b))) || (String(l.b) === h && isJ(l.a) && !HUB_LIST.includes(String(l.a))))
+    .map(l => { const o = String(String(l.a) === h ? l.b : l.a); return { l, o, chain:mapper.nodes[o] ? chainBehind(o, h) : [] }; });
+  if (!js.length) return;
+  js.sort((x, y) => y.chain.length - x.chain.length || classOf(x.o).localeCompare(classOf(y.o)));
+  // a small card on the side away from the region, one line per J-space system
+  let cxs = 0, k = 0;
+  for (const id in byId){ if (byId[id].ext || !norm[id]) continue; cxs += proj(norm[id]).x; k++; }
+  const side = p.x >= cxs / k ? 1 : -1;
+  const lines = [];
+  for (const j of js){
+    const left = j.l.expires ? leftTxt(j.l.expires - Date.now()) : '';
+    lines.push({ j, txt:`${sysName(j.o)}  ${classOf(j.o)}${j.l.wh ? '  ' + j.l.wh : ''}${left ? '  ' + left : ''}`, main:true });
+    if (j.chain.length) lines.push({ j, txt:`↳ your chain: ${j.chain.slice(0, 4).map(c => `${sysName(c.id)} ${classOf(c.id)}`).join(', ')}${j.chain.length > 4 ? ` +${j.chain.length - 4}` : ''}`, main:false });
+  }
+  const LH = 17, pad = 9, w = Math.max(...lines.map(L => L.txt.length)) * 6.3 + pad * 2 + 14, hgt = lines.length * LH + pad * 2 + 14;
+  // beside the hub, away from the region; below it when there is no room on that side; always inside the view
+  let x0 = side > 0 ? p.x + 42 : p.x - 42 - w, y0 = p.y - hgt / 2, below = false;
+  if (x0 < 4 || x0 + w > W - 4){ below = true; x0 = p.x - w / 2; y0 = p.y + 30; }
+  x0 = Math.max(4, Math.min(W - w - 4, x0)); y0 = Math.max(4, Math.min(H - hgt - 4, y0));
+  if (below) el('line', { x1:p.x, y1:p.y + 14, x2:p.x, y2:y0, stroke:hubColour(h), 'stroke-width':1.2, opacity:.7 }, gLine);
+  else el('line', { x1:p.x + side * 14, y1:p.y, x2:side > 0 ? x0 : x0 + w, y2:p.y, stroke:hubColour(h), 'stroke-width':1.2, opacity:.7 }, gLine);
+  el('rect', { x:x0, y:y0, width:w, height:hgt, rx:4, class:'jcard', style:`stroke:${hubColour(h)}` }, gTxt);
+  const hd = el('text', { x:x0 + pad, y:y0 + pad + 8, class:'jhead' }, gTxt); hd.textContent = `J-space via ${sysName(h)}`;
+  lines.forEach((L, i) => {
+    const y = y0 + pad + 14 + (i + 0.5) * LH, cc = WH_COL[classOf(L.j.o)] || WH_COL.J, on = L.j.chain.length > 0;
+    const g = el('g', { class:'jrow', 'data-j':L.j.o }, gTxt);
+    el('rect', { x:x0 + 2, y:y - LH / 2, width:w - 4, height:LH, fill:'transparent' }, g);
+    if (L.main){
+      if (on) el('circle', { cx:x0 + pad + 4, cy:y, r:7, fill:cc, opacity:.25 }, g);
+      el('circle', { cx:x0 + pad + 4, cy:y, r:on ? 4.5 : 3.5, fill:cc }, g);
+    }
+    const t = el('text', { x:x0 + pad + 14, y:y + 4, class:'jline' + (on && L.main ? ' on' : '') + (L.main ? '' : ' sub'), style:L.main ? `fill:${on ? cc : '#c9d2e3'}` : '' }, g);
+    t.textContent = L.txt;
+    el('title', {}, g).textContent = `${sysName(L.j.o)} ${classOf(L.j.o)}: click to open it in the mapper`;
+    g.addEventListener('click', ev => { ev.stopPropagation(); location.href = `${MAPPER}?sys=${L.j.o}`; });
+    g.addEventListener('pointerdown', ev => ev.stopPropagation());
+  });
+}
 /* ---------- Render ---------- */
 let rafId = 0;
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); }); };
@@ -557,6 +623,7 @@ function draw(){
   const stubs = {};
   for (const l of allHoles()){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
+    if ((isHubVirtual(a) || isHubVirtual(b)) && !(pa && pb)) continue;
     const cls = 'whl ' + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
     const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : ''].filter(Boolean).join(' ');
     if (pa && pb){
@@ -590,8 +657,9 @@ function draw(){
     el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:col, class:'dot' }, g);
     el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:'url(#shine)', 'pointer-events':'none' }, g);
     el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (EVE-Scout). Click for the whole network.`;
-    const t = el('text', { x:p.x + 20, y:p.y - 4, class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
-    const t2 = el('text', { x:p.x + 20, y:p.y + 10, class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
+    const t = el('text', { x:p.x, y:p.y - 34, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
+    const t2 = el('text', { x:p.x, y:p.y - 21, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
+    drawHubJ(h, p, gWh, gLbl);
   }
   // systems, far to near; labels are placed afterwards, skipping those that would overlap (zoom in to see them all)
   const labels = [];
