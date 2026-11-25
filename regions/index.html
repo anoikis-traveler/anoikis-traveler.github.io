@@ -320,6 +320,7 @@ body.nf #hint{transform:translateY(-16px)}
 #wJb .wcol + .wcol{margin-left:0}
 .goldring{fill:none;stroke:#e8c25a;stroke-width:2.2;animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
 .goldglow{fill:rgba(232,194,90,.18);stroke:none;filter:blur(3px);animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
+.goldbox{fill:none;stroke:#e8c25a;stroke-width:2;filter:drop-shadow(0 0 5px rgba(232,194,90,.7));animation:goldbreath 4s ease-in-out infinite;pointer-events:none}
 .gtag rect{fill:#d9ad45;stroke:#fff3c9;stroke-width:.6}
 .gtag text{font-family:var(--mono);font-size:9.5px;font-weight:800;fill:#241803}
 .gtag{animation:goldbreath 4s ease-in-out infinite}
@@ -2527,9 +2528,12 @@ function renderChain(){
     const bw = badge.length * 6.6 + 10;
     el('rect', { x:10, y:8, width:bw, height:15, rx:3, fill:isK(id) ? secCol(secOf(id)) : col }, n);
     const tb = el('text', { x:10 + bw / 2, y:19, 'text-anchor':'middle', class:'cbadge' }, n); tb.textContent = badge;
-    const tn = el('text', { x:16 + bw, y:20, class:'cname' }, n); tn.textContent = sysName(id) + (id === homeId ? '  ⌂' : '');
+    const tn = el('text', { x:16 + bw, y:20, class:'cname' }, n); tn.textContent = sysName(id);
     const ts = el('text', { x:10, y:39, class:'csub' }, n); ts.textContent = sysSub(id).slice(0, 30);
-    { let tx = BW - 6; for (const k of markAt(id)){ const w = k === 'enter' ? 44 : 36; tx -= w; const tg = el('g', { class:'mtag mkpulse ' + k }, n); el('rect', { x:tx, y:BH - 17, width:w, height:13, rx:3 }, tg); const tt = el('text', { x:tx + w / 2, y:BH - 7, 'text-anchor':'middle' }, tg); tt.textContent = MARKS[k].label; tx -= 4; } }
+    { // home, ENTER, EXIT: gold, like on the region map
+      const golds = (id === homeId ? ['⌂ HOME'] : []).concat(markAt(id).map(k => MARKS[k].label));
+      if (golds.length){ el('rect', { x:-3, y:-3, width:BW + 6, height:BH + 6, rx:7, class:'goldbox' }, n);
+        let tx = BW - 6; for (const txt of golds){ const w = txt.length * 6.6 + 10; tx -= w; const tg = el('g', { class:'gtag' }, n); el('rect', { x:tx, y:BH - 17, width:w, height:13, rx:3 }, tg); const tt = el('text', { x:tx + w / 2, y:BH - 7, 'text-anchor':'middle' }, tg); tt.textContent = txt; tx -= 4; } } }
     if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
@@ -2565,7 +2569,7 @@ function renderAllChains(){
     for (const id of g.ids){ if (!pos[id]) continue; const q = P(id), cl = classOf(id), col = isK(id) ? secCol(secOf(id)) : (WH_COL[cl] || WH_COL.J);
       if (mine.has(id)) el('circle', { cx:q.x, cy:q.y, r:7.5, fill:'none', stroke:'var(--ok)', 'stroke-width':1.6 }, svg);
       el('circle', { cx:q.x, cy:q.y, r:4.5, fill:col, stroke:'#05080f', 'stroke-width':1 }, svg);
-      const mk = markAt(id); if (mk.length || isHome(id)){ const t = el('text', { x:q.x, y:q.y - 8, 'text-anchor':'middle', class:'an', style:'fill:' + (mk.includes('exit') ? '#4cc97a' : mk.includes('enter') ? '#f5c542' : '#f2a74b') }, svg); t.textContent = [isHome(id) ? '⌂' : '', ...mk.map(x => MARKS[x].label)].filter(Boolean).join(' '); }
+      const mk = markAt(id); if (mk.length || isHome(id)){ const t = el('text', { x:q.x, y:q.y - 8, 'text-anchor':'middle', class:'an', style:'fill:#e8c25a' }, svg); t.textContent = [isHome(id) ? '⌂' : '', ...mk.map(x => MARKS[x].label)].filter(Boolean).join(' '); }
       if (showNames){ const t = el('text', { x:q.x, y:q.y + 14, 'text-anchor':'middle', class:'an' }, svg); t.textContent = sysName(id); }
       el('title', {}, svg.lastChild).textContent = sysName(id); }
     card.onclick = () => { chainPick = i; chainKey = g.ids[0]; chainView = { k:1, x:0, y:0 };
