@@ -299,6 +299,16 @@ body.nf #hint{transform:translateY(-16px)}
 #pochList .pr .k{font-size:11.5px;color:var(--dim);text-align:right}
 #pochList .pr .wl{grid-column:1 / 4;font-size:11.5px;color:#e79bc4}
 #wPoch .wcol + .wcol{margin-left:0}
+.setwb{width:min(460px,calc(100vw - 40px));max-height:min(600px,calc(100vh - 120px));overflow:auto;font-size:12.5px}
+.setwb h4{margin:10px 0 4px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.setwb h4:first-child{margin-top:0}
+.setwb .sr{display:grid;grid-template-columns:1fr 64px 42px 22px;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.setwb input[type=number]{width:64px;font-size:12.5px;padding:2px 5px;text-align:right}
+.setwb .u{color:var(--dim);font-size:11.5px}
+.setwb .rs{font-size:11px;padding:0 5px;opacity:.7}
+.setwb .rs[hidden]{visibility:hidden;display:inline-block}
+.setwb .foot{display:flex;gap:6px;margin-top:10px;align-items:center}
+#wSet .wcol + .wcol{margin-left:0}
 .colwb{width:min(340px,calc(100vw - 40px));max-height:min(560px,calc(100vh - 120px));overflow:auto;display:flex;flex-direction:column;gap:2px}
 .colwb h4{margin:8px 0 3px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .colwb h4:first-child{margin-top:0}
@@ -459,6 +469,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
+        <button id="btnSet" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
         <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
         <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
@@ -514,6 +525,11 @@ body.nf #hint{transform:translateY(-16px)}
   <section class="widget" id="wPay" data-title="Payments" hidden>
     <header class="wh"><span class="wt" style="color:#e8c25a">Payments</span><span class="wsub dim" id="paySub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="payClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb admwb" id="payBody"></div>
+  </section>
+
+  <section class="widget" id="wSet" data-title="Settings" hidden>
+    <header class="wh"><span class="wt">Settings</span><span class="wsub dim">timers and thresholds</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="setClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb setwb" id="setBody"></div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -727,7 +743,7 @@ function whPhase(l){
   if (l.created) out.push(l.created + (t && t.life ? t.life : 48) * 3600e3);
   if (!out.length) return 'ok';
   const d = Math.min(...out);
-  return now < d ? 'ok' : now < d + 3600e3 ? 'dying' : 'dead';
+  return now < d ? 'ok' : now < d + SET.blink * 60000 ? 'dying' : 'dead';
 }
 const whAlive = l => whPhase(l) !== 'dead';
 const whLinks = () => Object.values(mapper.links).filter(l => l && l.type !== 'gate' && l.a != null && l.b != null && whPhase(l) !== 'dead');
@@ -812,7 +828,26 @@ function drawHoles(){
 }
 /* Watch list: your characters (this browser) + pilots shared on the mapper.
    green = map open (news less than 3 min old) · red = map closed · EVE badge = connected in the game */
-const LIVE_MS = 3 * 60000, SHOW_MS = 30 * 60000;
+/* ---------- Settings: every timer and threshold of the map, in one place (Settings window) ---------- */
+const SETTINGS = [
+  { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
+  { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
+  { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
+  { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
+  { g:'Pilots', k:'show', label:'Show a pilot\'s name on a system for', unit:'min', def:30, min:1, max:1440 },
+  { g:'Pilots', k:'pos', label:'Read your characters\' positions every', unit:'s', def:6, min:4, max:120 },
+  { g:'Wormholes', k:'blink', label:'An expired hole blinks, then disappears after', unit:'min', def:60, min:0, max:720 },
+  { g:'Wormholes', k:'chainX', label:'Two groups are the same chain within', unit:'jumps', def:5, min:0, max:40 },
+  { g:'Refresh', k:'scout', label:'Thera & Turnur connections (EVE-Scout) every', unit:'min', def:5, min:2, max:60 },
+  { g:'Refresh', k:'inc', label:'Incursions every', unit:'min', def:10, min:5, max:120 },
+  { g:'Refresh', k:'assets', label:'Your assets every', unit:'min', def:60, min:15, max:1440 },
+];
+const SET = Object.fromEntries(SETTINGS.map(x => [x.k, x.def]));
+Object.assign(SET, store.get('whmap.reg.settings', {}));
+if (store.get('whmap.reg.chainX', null) != null && store.get('whmap.reg.settings', {}).chainX == null) SET.chainX = store.get('whmap.reg.chainX', 5);
+// a timer that reads its period from the settings each time
+function every(fn, ms){ const run = async () => { try{ await fn(); }catch(e){} setTimeout(run, Math.max(1000, ms())); }; setTimeout(run, Math.max(1000, ms())); }
+let LIVE_MS = SET.live * 60000, SHOW_MS = SET.show * 60000;
 function watchList(){
   const out = [], seen = new Set(), now = Date.now();
   for (const c of vaultChars()){
@@ -1324,7 +1359,7 @@ function setupAdmin(){
   setInterval(() => { renderAdmin(); renderPay(); }, 120000);
 }
 /* ---------- Kill alarms (zKillboard + CCP): a red blinking halo on the system; known space under 10 min, wormhole space under 30 min ---------- */
-const KILL_K_MIN = 10, KILL_J_MIN = 30;
+let KILL_K_MIN = SET.killK, KILL_J_MIN = SET.killJ;
 let killMap = {}, killBusy = false, killHidden = {}, killToasted = new Set();
 const kmInfo = new Map(), shipNames = {};
 const killLimit = id => (isJ(id) ? KILL_J_MIN : KILL_K_MIN) * 60000;
@@ -1384,8 +1419,34 @@ function renderKillBar(){
 }
 function setupKills(){
   if (DEMO){ setTimeout(() => { demoKills(); render(); }, 1500); setInterval(() => { renderKillBar(); }, 30000); return; }
-  setTimeout(pollKills, 2500); setInterval(pollKills, 60000);
+  setTimeout(pollKills, 2500); every(pollKills, () => SET.killPoll * 1000);
   setInterval(() => { renderKillBar(); render(); }, 30000);   // halos fade out when the kills get older
+}
+function saveSettings(){ store.set('whmap.reg.settings', SET); }
+function applySettings(k){
+  LIVE_MS = SET.live * 60000; SHOW_MS = SET.show * 60000; KILL_K_MIN = SET.killK; KILL_J_MIN = SET.killJ;
+  if (k === 'chainX'){ chainX = SET.chainX; store.set('whmap.reg.chainX', chainX); const x = $('#chainX'); if (x) x.value = chainX; buildChains(); }
+  if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
+  renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
+}
+function renderSettings(){
+  const box = $('#setBody'); if (!box || $('#wSet').hidden) return;
+  let g = '', h = '';
+  for (const x of SETTINGS){
+    if (x.g !== g){ g = x.g; h += `<h4>${esc(g)}</h4>`; }
+    h += `<div class="sr"><span>${esc(x.label)}</span><input type="number" min="${x.min}" max="${x.max}" step="1" value="${SET[x.k]}" data-sk="${x.k}" aria-label="${esc(x.label)}"><span class="u">${x.unit}</span><button type="button" class="rs small" data-sr="${x.k}" title="Back to ${x.def} ${x.unit}"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`;
+  }
+  box.innerHTML = h + '<div class="foot"><button type="button" class="small" id="setReset">Back to the defaults</button><span class="dim">Kept in this browser.</span></div>';
+  box.querySelectorAll('[data-sk]').forEach(inp => inp.onchange = () => { const x = SETTINGS.find(y => y.k === inp.dataset.sk);
+    let v = Math.round(Number(inp.value)); if (!isFinite(v)) v = x.def; v = Math.max(x.min, Math.min(x.max, v)); inp.value = v;
+    SET[x.k] = v; saveSettings(); applySettings(x.k); inp.parentElement.querySelector('.rs').hidden = v === x.def; });
+  box.querySelectorAll('[data-sr]').forEach(b => b.onclick = () => { const x = SETTINGS.find(y => y.k === b.dataset.sr); SET[x.k] = x.def; saveSettings(); applySettings(x.k); renderSettings(); });
+  $('#setReset').onclick = () => { for (const x of SETTINGS) SET[x.k] = x.def; saveSettings(); applySettings('chainX'); renderSettings(); };
+}
+function setupSettings(){
+  const box = $('#wSet'), btn = $('#btnSet');
+  btn.onclick = () => { box.hidden = !box.hidden; btn.setAttribute('aria-pressed', String(!box.hidden)); if (!box.hidden){ renderSettings(); placeWidget(box); box.style.zIndex = ++wz; } };
+  $('#setClose').onclick = () => { box.hidden = true; btn.setAttribute('aria-pressed', 'false'); };
 }
 function setupCols(){
   const box = $('#wCols'), btn = $('#btnCols');
@@ -1650,7 +1711,7 @@ async function poll(){
   }));
   renderChars(); renderWho(); render(); renderChain();
   if (tok && share.charId !== tok.charId && !DEMO) shareConnect(); else sharePublish();
-  pollT = setTimeout(poll, document.hidden ? 20000 : DEMO ? 4000 : 6000);
+  pollT = setTimeout(poll, document.hidden ? Math.max(20000, SET.pos * 1000) : DEMO ? 4000 : SET.pos * 1000);
 }
 // looking at another place while following: the map stays there until your pilot's next jump, then comes back
 let peek = false;
@@ -2564,7 +2625,7 @@ function setupInput(){
    known-space systems are within X gate jumps (X set by the player); otherwise the other ones are secondary chains. */
 // which chain is shown, kept across rebuilds: a member system, or '#hubs' for the "nearest Thera & Turnur" view
 const keyOf = g => g.hubs ? '#hubs' : g.ids.find(id => !isK(id)) || g.ids[g.ids.length - 1];
-let chainX = store.get('whmap.reg.chainX', 5), chainPick = null, chainGroups = [], chainBusy = 0, chainKey = null, chainFocus = null;
+let chainX = SET.chainX, chainPick = null, chainGroups = [], chainBusy = 0, chainKey = null, chainFocus = null;
 const jumpCache = store.get('whmap.reg.jumps', {});
 async function jumps(a, b){
   const k = a < b ? a + '>' + b : b + '>' + a;
@@ -2952,7 +3013,7 @@ function setupChain(){
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.chainOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; buildChains(); } };
   btn.onclick = () => show(box.hidden);
   $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? keyOf(chainGroups[chainPick]) : null; chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
-  $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
+  $('#chainX').onchange = e => { chainX = SET.chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); saveSettings(); buildChains(); };
   let st = null, band = null;
   const menu = $('#chainMenu');
   const closeMenu = () => { menu.hidden = true; };
@@ -3030,7 +3091,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -3064,13 +3125,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -3095,10 +3156,10 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); setInterval(loadIncursions, 10 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); setupSettings();
   poll().then(relayoutDefaults);
-  loadScout(); setInterval(loadScout, 5 * 60000);
-  if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
+  loadScout(); every(loadScout, () => SET.scout * 60000);
+  if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
 })();
 })();
 </script>
