@@ -2421,7 +2421,7 @@ async function buildChains(){
     if (hi < 0){ comps.push([hId]); par.push(par.length); hi = comps.length - 1; }
     for (let j = 0; j < comps.length; j++){
       if (find(j) === find(hi)) continue;
-      const kj = comps[j].filter(isK).slice(0, 8); if (!kj.length) continue;
+      const kj = comps[j].filter(isK).slice(0, 25); if (!kj.length) continue;   // the chain's way in = its known-space system nearest to home
       let best = null;
       for (const b of kj){ const d = await jumps(hId, b); if (my !== chainBusy) return; if (!best || d < best.d) best = { a:hId, b, d }; }
       if (best && best.d < 999){ par[find(j)] = find(hi); bridges.push({ ...best, home:true }); }
