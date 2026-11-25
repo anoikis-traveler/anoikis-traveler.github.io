@@ -12,6 +12,7 @@
 :root{
   --bg:#070a12; --panel:#0e1424; --panel-2:#141c30; --line:#24314c; --text:#e2e8f3; --dim:#8b98b0;
   --accent:#f2a74b; --ok:#5fd68a; --warn:#f2c94b; --bad:#ef5a5a; --eol:#c07cff; --wh:#8fb0d8; --ap:#4fd2ff;
+  --c-gate:#3c4a66; --c-gatec:#55688f; --c-gater:#f2a74b; --c-wh:#8fb0d8; --c-reduced:#f2c94b; --c-critical:#ef5a5a; --c-eol:#c07cff; --c-jb:#cfd8e6; --c-route:#5fd68a; --c-ap:#4fd2ff;
   --display:"Saira Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
   color-scheme:dark;
 }
@@ -62,14 +63,15 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .drop{stroke:#2a3552;stroke-width:1;opacity:.55}
 .drop.one{stroke:#55688f;opacity:.9;stroke-dasharray:3 3}
 .ground{fill:#3a4766}
-.gate{stroke:#3c4a66;stroke-width:1.6}
-.gate.xc{stroke:#55688f}
-.gate.xr{stroke:var(--accent);stroke-dasharray:5 4;opacity:.8}
-.gate.route,.whl.route{stroke:var(--ok)!important;stroke-width:3.5;opacity:1;stroke-dasharray:none}
-.whl{fill:none;stroke-width:2.6;stroke:var(--wh)}
-.whl.reduced{stroke:var(--warn);stroke-dasharray:10 5}
-.whl.critical{stroke:var(--bad);stroke-dasharray:4 4}
-.whl.eol{stroke:var(--eol)}
+.gate{stroke:var(--c-gate);stroke-width:1.6}
+.gate.xc{stroke:var(--c-gatec)}
+.gate.xr{stroke:var(--c-gater);stroke-dasharray:5 4;opacity:.8}
+.gate.route,.whl.route{stroke:var(--c-route)!important;stroke-width:3.5;opacity:1;stroke-dasharray:none}
+.whl{fill:none;stroke-width:3.4;stroke:var(--c-wh);stroke-linecap:round}
+.whhalo{fill:none;stroke-width:10;stroke-opacity:.22;stroke-linecap:round;pointer-events:none}
+.whl.reduced{stroke:var(--c-reduced);stroke-dasharray:10 5}
+.whl.critical{stroke:var(--c-critical);stroke-dasharray:4 4}
+.whl.eol{stroke:var(--c-eol)}
 .whl.dying{animation:whdie 1.1s ease-in-out infinite}
 @keyframes whdie{0%,100%{opacity:1}50%{opacity:.08}}
 .sys{cursor:pointer}
@@ -171,7 +173,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #apList li.dest .nm{color:var(--accent);font-weight:700}
 #apList li.reg{border-top:1px dashed var(--line);margin-top:3px;padding-top:4px}
 #apMsg{padding:4px 10px 8px;font-size:12px;color:var(--dim)}
-.gate.ap,.whl.ap{stroke:var(--ap)!important;stroke-width:3;opacity:1;stroke-dasharray:none}
+.gate.ap,.whl.ap{stroke:var(--c-ap)!important;stroke-width:3;opacity:1;stroke-dasharray:none}
 .sys .apdot{fill:none;stroke:var(--ap);stroke-width:1.5}
 /* Thera / Turnur label: collapsible card with every connection */
 #hubCards{position:absolute;inset:0;pointer-events:none;z-index:3}
@@ -264,9 +266,19 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
-.jb{fill:none;stroke:#4fd1ff;stroke-width:1.6;stroke-dasharray:6 4;opacity:.85;pointer-events:stroke}
-.jb.route{stroke:var(--ok);stroke-width:2.6;opacity:1}
-.jbl{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:#8fe3ff;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.jb{fill:none;stroke:var(--c-jb);stroke-width:1.4;stroke-dasharray:3 5;opacity:.7;pointer-events:stroke}
+.jb.route{stroke:var(--c-route);stroke-width:2.6;opacity:1}
+.jbl{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:#dfe6f0;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.colwb{width:min(340px,calc(100vw - 40px));max-height:min(560px,calc(100vh - 120px));overflow:auto;display:flex;flex-direction:column;gap:2px}
+.colwb h4{margin:8px 0 3px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.colwb h4:first-child{margin-top:0}
+.colwb .cr{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;font-size:12.5px;padding:2px 0}
+.colwb input[type=color]{width:34px;height:20px;padding:0;border:1px solid var(--line);border-radius:3px;background:none;cursor:pointer}
+.colwb .sw{display:inline-block;width:26px;height:0;border-top:3px solid;vertical-align:middle}
+.colwb .rs{font-size:11px;padding:0 6px;opacity:.7}
+.colwb .rs[hidden]{display:none}
+.colwb .foot{display:flex;gap:6px;margin-top:8px}
+#wCols .wcol + .wcol{margin-left:0}
 .jbwb{display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 40px));max-height:min(520px,calc(100vh - 120px));overflow:auto}
 .jbwb textarea{width:100%;box-sizing:border-box;min-height:70px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px;resize:vertical}
 .jbwb .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -373,6 +385,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
+        <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
         <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
         <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
         <button id="btnHome" type="button">⌂ Home</button>
@@ -409,6 +422,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
       <div class="dim" style="font-size:11px">Import from EVE needs <code>esi-search.search_structures.v1</code> on the EVE application <code id="jbApp">…</code> (developers.eveonline.com).</div>
       <div id="jbList"></div>
     </div>
+  </section>
+
+  <section class="widget" id="wCols" data-title="Colours" hidden>
+    <header class="wh"><span class="wt">Connection colours</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="colsClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb colwb" id="colsBody"></div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -495,6 +513,16 @@ function secGrey(s){
 }
 const WH_COL = { HS:'#4fc36b', LS:'#e0a43a', NS:'#e05a4f', C1:'#52b6e8', C2:'#4f8de8', C3:'#7c74e8', C4:'#b06ce0', C5:'#e06cb8', C6:'#e85a6c',
   THERA:'#e8d25a', TURNUR:'#f28c5a', C13:'#9aa6b8', DRIFT:'#5ad6c6', POCH:'#d65a9a', J:'#c07cff' };
+const WH_DEF = { ...WH_COL };
+const LINE_COLS = [ ['gate', 'Gate', '#3c4a66'], ['gatec', 'Gate between constellations', '#55688f'], ['gater', 'Gate to another region', '#f2a74b'], ['jb', 'Jump bridge', '#cfd8e6'],
+  ['wh', 'Wormhole (when not coloured by destination)', '#8fb0d8'], ['reduced', 'Wormhole: mass reduced', '#f2c94b'], ['critical', 'Wormhole: mass critical', '#ef5a5a'], ['eol', 'Wormhole: end of life', '#c07cff'],
+  ['route', 'Route on the map', '#5fd68a'], ['ap', 'Autopilot route', '#4fd2ff'] ];
+let userCols = store.get('whmap.reg.colors', { wh:{}, line:{} });
+function applyCols(){
+  for (const k in WH_DEF) WH_COL[k] = (userCols.wh || {})[k] || WH_DEF[k];
+  for (const [k, , d] of LINE_COLS) document.documentElement.style.setProperty('--c-' + k, (userCols.line || {})[k] || d);
+}
+applyCols();
 const WH_LABEL = { HS:'High-sec', LS:'Low-sec', NS:'Null-sec', C1:'C1', C2:'C2', C3:'C3', C4:'C4', C5:'C5', C6:'C6', THERA:'Thera', TURNUR:'Turnur', C13:'C13', DRIFT:'Drifter', POCH:'Pochven', J:'J-space' };
 const THERA_ID = '31000005', TURNUR_ID = '30002086';
 function classOf(id){                       // destination class of a system, for colouring the hole that leads there
@@ -1027,6 +1055,29 @@ function renderJb(){
     : '<div class="dim">No jump bridge yet. Paste your list above (in game: the Ansiblex names, one per line) or import them from EVE.</div>';
   $('#jbList').querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { setFollow(false); goTo(b.dataset.sys); });
   $('#jbList').querySelectorAll('[data-jbdel]').forEach(b => b.onclick = () => { const o = jbLocal(); delete o[b.dataset.jbdel]; saveJb(o, false); });
+}
+function renderCols(){
+  const box = $('#wCols'); if (!box || box.hidden) return;
+  const row = (grp, k, label, cur, def, dash) => `<div class="cr"><input type="color" value="${cur}" data-g="${grp}" data-k="${k}" aria-label="${esc(label)}"><span>${esc(label)} <i class="sw" style="border-top-color:${cur}${dash ? ';border-top-style:' + dash : ''}"></i></span><button type="button" class="rs small" data-rg="${grp}" data-rk="${k}" title="Back to the default colour"${cur.toLowerCase() === def.toLowerCase() ? ' hidden' : ''}>↺</button></div>`;
+  const dashOf = k => ({ gater:'dashed', jb:'dotted', reduced:'dashed', critical:'dotted' })[k] || '';
+  $('#colsBody').innerHTML = '<h4>Wormholes lead to</h4>' + ['HS', 'LS', 'NS', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'THERA', 'TURNUR', 'POCH', 'C13', 'DRIFT', 'J'].map(k => row('wh', k, WH_LABEL[k] || k, WH_COL[k], WH_DEF[k])).join('')
+    + '<h4>Gates, bridges and routes</h4>' + LINE_COLS.filter(([k]) => ['gate', 'gatec', 'gater', 'jb', 'route', 'ap'].includes(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d, dashOf(k))).join('')
+    + '<h4>Wormhole state (Chain window, other colour modes)</h4>' + LINE_COLS.filter(([k]) => ['wh', 'reduced', 'critical', 'eol'].includes(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d, dashOf(k))).join('')
+    + '<div class="foot"><button type="button" class="small" id="colsReset">Reset all colours</button></div>';
+  const redraw = () => { applyCols(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain(); renderAllChains(); };
+  $('#colsBody').querySelectorAll('input[type=color]').forEach(inp => inp.oninput = () => {
+    const g = inp.dataset.g, k = inp.dataset.k; userCols[g] = userCols[g] || {}; userCols[g][k] = inp.value; store.set('whmap.reg.colors', userCols);
+    const sw = inp.parentElement.querySelector('.sw'); if (sw) sw.style.borderTopColor = inp.value;
+    const rs = inp.parentElement.querySelector('.rs'); if (rs) rs.hidden = false;
+    redraw(); });
+  $('#colsBody').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => { delete (userCols[b.dataset.rg] || {})[b.dataset.rk]; store.set('whmap.reg.colors', userCols); redraw(); renderCols(); });
+  $('#colsReset').onclick = () => { userCols = { wh:{}, line:{} }; store.set('whmap.reg.colors', userCols); redraw(); renderCols(); };
+}
+function setupCols(){
+  const box = $('#wCols'), btn = $('#btnCols');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderCols(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#colsClose').onclick = () => show(false);
 }
 function setupJb(){
   const box = $('#wJb'), btn = $('#btnJb');
@@ -1673,7 +1724,9 @@ function draw(){
     const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : ''].filter(Boolean).join(' ');
     if (pa && pb){
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - Math.hypot(pb.x - pa.x, pb.y - pa.y) * 0.25;
-      const path = el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:cls, style:!/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b)) ? `stroke:${isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b)}` : '' }, gWh);
+      const hcol = isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b), coloured = !/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b));
+      el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:'whhalo', style:`stroke:${coloured ? hcol : 'var(--c-wh)'}` }, gWh);   // soft glow under the hole: its colour reads at a glance
+      const path = el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:cls, style:coloured ? `stroke:${hcol}` : '' }, gWh);
       el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${label}${l.expires ? ' · ' + leftTxt(l.expires - Date.now()) + ' left' : ''}${l.outSig ? ` · sig ${l.outSig} / ${l.inSig}` : ''}`;
     } else if (pa || pb){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
@@ -1681,6 +1734,7 @@ function draw(){
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
       const ex = p.x + Math.cos(ang) * 46, ey = p.y + Math.sin(ang) * 46;
       const hc = holeCol(here, other);
+      el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
       el('rect', { x:ex - 4.5, y:ey - 4.5, width:9, height:9, transform:`rotate(45 ${ex} ${ey})`, fill:colorMode === 'wh' ? hc : 'var(--eol)' }, gWh);
       const node = mapper.nodes[other] || {};
@@ -1843,9 +1897,9 @@ function renderPanel(){
       <h3>Pilots in this region</h3>
       ${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)} · <button class="lk" data-sys="${p.sys}">${esc(sysName(p.sys))}</button>${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">Nobody shared on the mapper is here.</div>'}
       <h3>Legend</h3>
-      <div class="legend"><span><i style="border-color:#3c4a66"></i>Gate</span><span><i style="border-color:#55688f"></i>Gate between constellations</span>
-      <span><i style="border-color:var(--accent);border-top-style:dashed"></i>Gate to another region</span><span><i style="border-color:var(--wh)"></i>Wormhole (mapper)</span>
-      <span><i style="border-color:var(--ok)"></i>Route</span></div>
+      <div class="legend"><span><i style="border-color:var(--c-gate)"></i>Gate</span><span><i style="border-color:var(--c-gatec)"></i>Gate between constellations</span>
+      <span><i style="border-color:var(--c-gater);border-top-style:dashed"></i>Gate to another region</span><span><i style="border-color:var(--c-wh)"></i>Wormhole (mapper)</span>
+      <span><i style="border-color:var(--c-jb);border-top-style:dotted"></i>Jump bridge</span><span><i style="border-color:var(--c-route)"></i>Route</span></div>
       ${colorMode === 'wh' ? `<h3>Wormholes lead to</h3><div class="legend">${['HS', 'LS', 'NS', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'THERA', 'TURNUR', 'POCH', 'C13', 'DRIFT'].map(k => `<span><i style="border-color:${WH_COL[k]};border-top-width:3px"></i>${WH_LABEL[k]}</span>`).join('')}</div>
       <p class="dim" style="font-size:12px">Known space in grey: lighter for high-sec, darker for null-sec. Systems with an active hole take the colour of where it leads.</p>` : ''}
       <p class="dim" style="font-size:12px">A dotted ring marks systems already on your mapper chain. Positions are the real EVE coordinates.</p>`;
@@ -1859,7 +1913,7 @@ function renderPanel(){
     let rt = '';
     const tags = (isHome(id) ? '<span class="chip" style="border-color:var(--accent);color:var(--accent)">⌂ Home</span> ' : '') + markAt(id).map(k => `<span class="chip" style="border-color:${MARKS[k].col};color:${MARKS[k].col}">${MARKS[k].label}</span>`).join(' ');
     if (me.sys === id) rt = '<div class="chip" style="border-color:var(--ok);color:var(--ok)">You are here</div>';
-    else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${[...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}${[...route.edges].some(k => k.startsWith('j:')) ? ' <span class="dim" style="color:#8fe3ff">(uses jump bridges)</span>' : ''}</div>
+    else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${[...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}${[...route.edges].some(k => k.startsWith('j:')) ? ' <span class="dim">(uses jump bridges)</span>' : ''}</div>
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
     P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
@@ -2248,7 +2302,7 @@ function renderChain(){
   const pill = (x, y, txt, col) => { const w = txt.length * 6.2 + 10; el('rect', { x:x - w / 2, y:y - 8, width:w, height:16, rx:8, fill:'#0b1020', stroke:col, 'stroke-width':1 }, gL); const t = el('text', { x, y:y + 3.5, 'text-anchor':'middle', class:'cpill', style:`fill:${col}` }, gL); t.textContent = txt; };
   for (const l of chainLinks()){
     const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b) || !pos[a] || !pos[b]) continue;
-    const col = l.type === 'gate' ? '#55688f' : l.eol ? 'var(--eol)' : l.mass === 'critical' ? 'var(--bad)' : l.mass === 'reduced' ? 'var(--warn)' : 'var(--wh)';
+    const col = l.type === 'gate' ? 'var(--c-gatec)' : l.eol ? 'var(--c-eol)' : l.mass === 'critical' ? 'var(--c-critical)' : l.mass === 'reduced' ? 'var(--c-reduced)' : 'var(--c-wh)';
     const r = L(a, b), cls = 'ce ' + (l.type === 'gate' ? 'gate' : (l.mass || 'fresh')) + (whPhase(l) === 'dying' ? ' dying' : '');
     const path = el('path', { d:r.d, class:cls, style:`stroke:${col}` }, gE);
     el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${[l.wh, l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', l.mass].filter(Boolean).join(' · ')}`;
@@ -2298,7 +2352,7 @@ function renderAllChains(){
     const ox = 8 - minX * k + Math.max(0, (Wc - 16 - (maxX - minX) * k) / 2), oy = 8 - minY * k + Math.max(0, (Hc - 16 - (maxY - minY) * k) / 2);
     const P = id => ({ x:ox + (pos[id].x + BW / 2) * k, y:oy + (pos[id].y + BH / 2) * k });
     for (const l of chainLinks()){ const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b) || !pos[a] || !pos[b]) continue;
-      const pa = P(a), pb = P(b), col = l.type === 'gate' ? '#55688f' : l.eol ? 'var(--eol)' : l.mass === 'critical' ? 'var(--bad)' : l.mass === 'reduced' ? 'var(--warn)' : 'var(--wh)';
+      const pa = P(a), pb = P(b), col = l.type === 'gate' ? 'var(--c-gatec)' : l.eol ? 'var(--c-eol)' : l.mass === 'critical' ? 'var(--c-critical)' : l.mass === 'reduced' ? 'var(--c-reduced)' : 'var(--c-wh)';
       el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, stroke:col, 'stroke-width':1.4, opacity:.85 }, svg); }
     for (const br of g.bridges){ if (!pos[br.a] || !pos[br.b]) continue; const pa = P(br.a), pb = P(br.b); el('line', { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y, stroke:'#8b98b0', 'stroke-width':1, 'stroke-dasharray':'3 3' }, svg); }
     const mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
@@ -2545,6 +2599,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
            wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
@@ -2576,13 +2631,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -2607,7 +2662,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb();
+  setupChain(); setupAllChains(); setupJb(); setupCols();
   poll().then(relayoutDefaults);
   loadScout(); setInterval(loadScout, 5 * 60000);
   if (assetsOn) loadAssets(); setInterval(() => { if (assetsOn) loadAssets(); }, 60 * 60000);
