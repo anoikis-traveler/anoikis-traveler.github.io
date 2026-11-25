@@ -313,6 +313,7 @@ function drawShip(s, cloak, t){
 
 /* Flight: 16 s from the foreground to the hole, a short cloak on the way, a flash as it jumps, then again */
 const CYCLE = 21000, FLY = 16000;
+const SHOW_SHIP = false;   // no ship for now: the wormhole alone, until the in-game screenshot
 const dist = document.getElementById('dist');
 let t0 = performance.now(), lastT = 0;
 function frame(now){
@@ -321,9 +322,9 @@ function frame(now){
   ctx.fillStyle = '#03050b'; ctx.fillRect(0, 0, W, H);
   drawNebula(h); drawStars(t, h); drawSun(t);
   const c = t % CYCLE, u = Math.min(1, c / FLY);
-  const flash = c > FLY && c < FLY + 900 ? 1 - (c - FLY) / 900 : 0;
+  const flash = SHOW_SHIP && c > FLY && c < FLY + 900 ? 1 - (c - FLY) / 900 : 0;
   const front = drawHole(t, h, flash);
-  if (c < FLY){
+  if (SHOW_SHIP && c < FLY){
     const e = u * u * (3 - 2 * u) * 0.35 + u * 0.65;                  // slow start, steady approach
     const sx = W * (W > 900 ? 0.30 : 0.15), sy = H * 1.12;
     const cx = sx + (h.x - W * 0.05 - sx) * 0.5, cy = H * 0.62;        // gentle curve
@@ -345,7 +346,8 @@ function frame(now){
     dist.textContent = u > 0.35 && u < 0.55 ? 'cloaked' : ((1 - e) * 42.6).toFixed(1) + ' km';
   }
   front();
-  if (c >= FLY) dist.textContent = c < FLY + 1500 ? 'jump' : '—';
+  if (!SHOW_SHIP) dist.textContent = 'on grid';
+  else if (c >= FLY) dist.textContent = c < FLY + 1500 ? 'jump' : '—';
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
