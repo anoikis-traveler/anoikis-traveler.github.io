@@ -752,19 +752,58 @@ function centerOn(id, soft){
 let hubNodes = [];
 function placeHubs(){
   hubNodes = [];
-  for (const h of HUB_LIST) if (!byId[h]) delete norm[h];
   if (!R) return;
-  const own = Object.keys(norm).filter(id => byId[id] && !byId[id].ext);
-  if (!own.length) return;
-  const top = Math.max(...own.map(id => norm[id].y));
-  HUB_LIST.filter(h => !byId[h]).forEach((h, i) => {
+  for (const h of HUB_LIST){
+    if (byId[h] && !byId[h].ext){                                 // Turnur inside Metropolis: a real system, same label
+      const all = allHoles().filter(l => String(l.a) === h || String(l.b) === h);
+      if (all.length) hubNodes.push({ h, conns:all.filter(l => byId[String(String(l.a) === h ? l.b : l.a)]), exits:[], real:true });
+      continue;
+    }
+    if (byId[h]) continue;
     const conns = allHoles().filter(l => (String(l.a) === h && byId[String(l.b)]) || (String(l.b) === h && byId[String(l.a)]));
-    if (!conns.length) return;
-    const ends = conns.map(l => norm[String(String(l.a) === h ? l.b : l.a)]).filter(Boolean);
-    const c = ends.reduce((m, p) => ({ x:m.x + p.x / ends.length, z:m.z + p.z / ends.length }), { x:0, z:0 });
-    norm[h] = { x:c.x * 0.4 + (i ? 0.38 : -0.38), y:top + 0.55, z:c.z * 0.4 + 0.1 };
-    hubNodes.push({ h, conns });
-  });
+    if (conns.length) hubNodes.push({ h, conns, exits:conns.map(l => String(String(l.a) === h ? l.b : l.a)) });
+  }
+}
+/* On screen: close to its exits, on a free spot (no system, label or other hub under it), inside the view.
+   It keeps its spot while that spot stays free, so it does not jump around while the map turns. */
+const hubOff = {};
+function placeHubsScreen(P){
+  const pts = [];
+  for (const id in P) if (byId[id]) pts.push(P[id]);
+  const taken = [];
+  const boxes = [...document.querySelectorAll('.widget')].filter(w => !w.hidden).map(w => w.getBoundingClientRect());   // not under a window
+  const cost = (q, exits) => {
+    let c = 0;
+    for (const r of boxes) if (q.x > r.left - 30 && q.x < r.right + 30 && q.y > r.top - 50 && q.y < r.bottom + 20) c += 20000;
+    if (q.x < 70 || q.x > W - 70 || q.y < 60 || q.y > H - 50) c += 1e6;
+    for (const p of pts){
+      const dx = q.x - p.x, dy = q.y - p.y;
+      if (dx * dx + dy * dy < 40 * 40) c += 5000;
+      if (p.x - 30 < q.x && q.x < p.x + 110 && Math.abs(q.y - p.y) < 16) c += 1200;      // its label
+      if (q.x - 60 < p.x && p.x < q.x + 60 && q.y - 46 < p.y && p.y < q.y - 14) c += 600;  // our own label above
+    }
+    for (const t of taken){ const dx = q.x - t.x, dy = q.y - t.y; if (dx * dx + dy * dy < 120 * 120) c += 8000; }
+    const d = exits.reduce((m, e) => m + Math.hypot(q.x - e.x, q.y - e.y), 0) / exits.length;
+    return c + d;
+  };
+  for (const hn of hubNodes){
+    if (hn.real){ if (P[hn.h]) taken.push(P[hn.h]); continue; }
+    const exits = hn.exits.map(id => P[id]).filter(Boolean);
+    if (!exits.length) continue;
+    const cx = exits.reduce((m, e) => m + e.x, 0) / exits.length, cy = exits.reduce((m, e) => m + e.y, 0) / exits.length;
+    let best = null, bc = Infinity;
+    const prev = hubOff[hn.h];
+    if (prev){ const q = { x:cx + prev.dx, y:cy + prev.dy }, c = cost(q, exits); if (c < 400){ best = q; bc = c; } }
+    if (!best){
+      for (const r of [70, 95, 125, 160, 210, 270]) for (let k = 0; k < 24; k++){
+        const a = k / 24 * Math.PI * 2 - Math.PI / 2, q = { x:cx + Math.cos(a) * r, y:cy + Math.sin(a) * r }, c = cost(q, exits);
+        if (c < bc){ bc = c; best = q; }
+      }
+    }
+    hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy };
+    P[hn.h] = { x:best.x, y:best.y, d:-1 };
+    taken.push(best);
+  }
 }
 const hubColour = h => WH_COL[HUB_CLASS[String(h)]];
 function leftTxt(ms){ if (ms == null) return ''; const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; }
@@ -784,6 +823,7 @@ function chainBehind(start, hub){
 }
 const hubOpen = store.get('whmap.reg.hubopen', {});
 const hubPos = store.get('whmap.reg.hubpos', {}), hubEls = {}, hubSeen = new Set();
+let cardRects = [], hubPts = [];
 let hubDragged = false;
 function dragHub(box, h){
   let st = null;
@@ -797,7 +837,11 @@ function dragHub(box, h){
     hubPos[h] = { x:Math.max(4, Math.min(innerWidth - box.offsetWidth - 4, st.l + dx)), y:Math.max(4, Math.min(innerHeight - 40, st.t + dy)) };
     render();
   });
-  box.addEventListener('pointerup', () => { if (st && st.moved){ store.set('whmap.reg.hubpos', hubPos); hubDragged = true; setTimeout(() => hubDragged = false, 0); } st = null; });
+  box.addEventListener('pointerup', () => {
+    if (st && st.moved){ store.set('whmap.reg.hubpos', hubPos); }
+    else if (st){ hubOpen[h] = hubOpen[h] !== true; store.set('whmap.reg.hubopen', hubOpen); render(); }   // a click on the title folds / unfolds
+    st = null;
+  });
 }
 function hubCard(h, p, gLine){
   const col = hubColour(h), now = Date.now();
@@ -805,7 +849,7 @@ function hubCard(h, p, gLine){
     const o = String(String(l.a) === h ? l.b : l.a), here = byId[o] && !byId[o].ext, j = isJ(o) && !HUB_LIST.includes(o);
     return { o, l, kind:here ? 0 : j ? 1 : 2, chain:j && mapper.nodes[o] ? chainBehind(o, h) : [], reg:regionOf(o) };
   }).sort((x, y) => x.kind - y.kind || y.chain.length - x.chain.length || (x.kind === 2 ? regionName(x.reg).localeCompare(regionName(y.reg)) : 0) || sysName(x.o).localeCompare(sysName(y.o)));
-  const open = hubOpen[h] !== false, wpOk = tok && canWp();
+  const open = hubOpen[h] === true, wpOk = tok && canWp();      // folded until the player opens it
   const sec = { 0:`In ${R.region.name}`, 1:'J-space', 2:'Other regions' };
   let html = '', last = -1;
   for (const r of rows){
@@ -831,11 +875,23 @@ function hubCard(h, p, gLine){
   let cxs = 0, k = 0;
   for (const id in byId){ if (byId[id].ext || !norm[id]) continue; cxs += proj(norm[id]).x; k++; }
   const side = p.x >= cxs / k ? 1 : -1, w = box.offsetWidth, hh = box.offsetHeight;
-  let x0 = side > 0 ? p.x + 40 : p.x - 40 - w, y0 = p.y - 18, below = false;
-  if (x0 < 4 || x0 + w > W - 4){ below = true; x0 = p.x - w / 2; y0 = p.y + 28; }
-  if (hubPos[h]){ below = false; x0 = hubPos[h].x; y0 = hubPos[h].y; }          // moved by hand: stays there
-  x0 = Math.max(4, Math.min(W - w - 4, x0)); y0 = Math.max(4, Math.min(H - hh - 4, y0));
+  // the side of the hub that covers no window and stays in view (right, left, below, above); a card moved by hand stays put
+  const boxes = [...document.querySelectorAll('.widget')].filter(x => !x.hidden).map(x => x.getBoundingClientRect());
+  const fit = (x, y) => { x = Math.max(4, Math.min(W - w - 4, x)); y = Math.max(4, Math.min(H - hh - 4, y));
+    let o = 0; for (const r of boxes){ const ix = Math.max(0, Math.min(x + w, r.right) - Math.max(x, r.left)), iy = Math.max(0, Math.min(y + hh, r.bottom) - Math.max(y, r.top)); o += ix * iy; }
+    for (const r of cardRects){ const ix = Math.max(0, Math.min(x + w, r.r) - Math.max(x, r.l)), iy = Math.max(0, Math.min(y + hh, r.b) - Math.max(y, r.t)); o += ix * iy * 2; }
+    let cover = 0; for (const q of hubPts) cover += Math.max(0, Math.min(x + w, q.x + 20) - Math.max(x, q.x - 20)) * Math.max(0, Math.min(y + hh, q.y + 20) - Math.max(y, q.y - 20));
+    return { x, y, o:o + cover * 50 }; };
+  const cands = [];
+  for (const dy of [0, 30, 60, 100, -30, -60]){
+    cands.push(fit(side > 0 ? p.x + 40 : p.x - 40 - w, p.y - 18 + dy), fit(side > 0 ? p.x - 40 - w : p.x + 40, p.y - 18 + dy));
+  }
+  cands.push(fit(p.x - w / 2, p.y + 30), fit(p.x - w / 2, p.y - 50 - hh));
+  cands.forEach((c, i) => c.o += i * 0.5);                // ties: keep the nearest, preferred side
+  let { x:x0, y:y0 } = cands.reduce((m, c) => c.o < m.o ? c : m);
+  if (hubPos[h]){ x0 = Math.max(4, Math.min(W - w - 4, hubPos[h].x)); y0 = Math.max(4, Math.min(H - hh - 4, hubPos[h].y)); }
   box.style.left = x0 + 'px'; box.style.top = y0 + 'px';
+  cardRects.push({ l:x0, t:y0, r:x0 + w, b:y0 + hh });
   const ex = Math.max(x0, Math.min(x0 + w, p.x)), ey = Math.max(y0, Math.min(y0 + hh, p.y));
   el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, stroke:col, 'stroke-width':1.2, opacity:.7 }, gLine);
 }
@@ -862,6 +918,8 @@ function draw(){
   placeHubs();
   hubSeen.clear();
   const P = {}; for (const id in norm) P[id] = proj(norm[id]);
+  placeHubsScreen(P);
+  hubPts = hubNodes.map(x => P[x.h]).filter(Boolean);
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
   touch = whTouch();
   const gDrop = el('g', {}, svg), gLinks = el('g', {}, svg), gConst = el('g', {}, svg), gWh = el('g', {}, svg), gNodes = el('g', {}, svg), gLbl = el('g', {}, svg);
@@ -913,8 +971,11 @@ function draw(){
   }
   // Thera / Turnur hubs
   const defs2 = svg.querySelector('defs');
-  for (const { h, conns } of hubNodes){
-    const p = P[h], col = hubColour(h), total = allHoles().filter(l => String(l.a) === h || String(l.b) === h).length;
+  cardRects = [];
+  for (const { h, conns, real } of hubNodes){
+    const p = P[h]; if (!p) continue;
+    if (real){ hubCard(h, p, gWh); continue; }
+    const col = hubColour(h), total = allHoles().filter(l => String(l.a) === h || String(l.b) === h).length;
     const gr = el('radialGradient', { id:'hg' + h }, defs2);
     el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
     const g = el('g', { class:'sys hub', 'data-id':h, tabindex:'0', role:'button', 'aria-label':`${sysName(h)}: ${total} connections` }, gNodes);
@@ -988,7 +1049,7 @@ function renderPanel(){
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
   $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
-  if (sel && isHubVirtual(sel) && norm[sel]){
+  if (sel && isHubVirtual(sel) && hubNodes.some(x => x.h === sel)){
     P.innerHTML = hubHtml(sel);
     $('#bClose').onclick = () => select(null);
     P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
@@ -1069,7 +1130,7 @@ async function sendWaypoint(id, add){
 function select(id){ sel = id == null ? null : String(id); computeRoute(); render(); renderPanel(); }
 async function goTo(id){
   id = String(id);
-  if (isHubVirtual(id) && norm[id]){ select(id); return; }
+  if (isHubVirtual(id) && hubNodes.some(x => x.h === id)){ select(id); return; }
   if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ toast(`${sysName(id)} is in wormhole space: no region map`); return; } await loadRegion(r); }
   select(id); centerOn(id); render();
 }
@@ -1264,7 +1325,7 @@ function setupInput(){
   $('#hubCards').addEventListener('click', e => {
     const tg = e.target.closest('[data-tog]'), wpb = e.target.closest('[data-wp]'), go = e.target.closest('[data-go]');
     if (wpb){ e.stopPropagation(); if (!wpb.disabled) sendWaypoint(wpb.dataset.wp, e.shiftKey); return; }
-    if (tg){ if (hubDragged) return; hubOpen[tg.dataset.tog] = hubOpen[tg.dataset.tog] === false; store.set('whmap.reg.hubopen', hubOpen); render(); return; }
+    if (tg) return;                                   // handled on pointerup (drag or fold)
     if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); } }
   });
   window.addEventListener('resize', render);
