@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payments · Anoikis Traveler</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070a12;--panel:#0e1424;--line:#24314c;--text:#e2e8f3;--dim:#8b98b0;--accent:#f2a74b;--ok:#5fd68a;--bad:#ef5a5a;--gold:#e8c25a;
+  --display:"Saira Condensed",sans-serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--body)}
+main{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+h1{font:700 28px var(--display);letter-spacing:.08em;text-transform:uppercase;margin:0 0 4px}
+h1 a{color:inherit;text-decoration:none} h1 b{color:var(--accent)}
+h2{font:700 18px var(--display);letter-spacing:.08em;text-transform:uppercase;margin:24px 0 8px;color:var(--dim)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin:12px 0}
+.dim{color:var(--dim)} .ok{color:var(--ok)} .bad{color:var(--bad)}
+button{font:600 14px var(--body);background:#141c30;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:7px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:#1a1004;border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13.5px} td,th{padding:6px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--dim);font-weight:500} code{font-family:var(--mono);color:var(--gold)}
+select{background:#141c30;color:var(--text);border:1px solid var(--line);border-radius:4px;padding:4px}
+#msg{min-height:1.5em}
+</style>
+</head>
+<body><main>
+  <h1><a href="../">Anoikis <b>Traveler</b></a> · payments</h1>
+  <p class="dim">For the payee only (<b id="payee">Sava Yesh</b>). Payments are separate from donations: only transfers whose reason starts with <code>Anoikis-</code> are read, every 10 minutes, and credited to the map they name.</p>
+
+  <div class="card" id="linkCard">
+    <h2 style="margin-top:0">1 · Link the wallet</h2>
+    <p>Log in with <b>Sava Yesh</b> and allow <i>reading the wallet</i>. The server keeps this permission to read the journal of payments; nothing else.
+      The site's EVE application must allow <code>esi-wallet.read_character_wallet.v1</code> (developers.eveonline.com).</p>
+    <button type="button" class="primary" id="bLink">Log in with EVE (Sava Yesh)</button>
+    <div id="msg" class="dim" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" id="statusCard" hidden>
+    <h2 style="margin-top:0">2 · Status</h2>
+    <div id="status"></div>
+    <div style="margin-top:10px"><button type="button" id="bNow">Check the wallet now</button></div>
+    <h2>Waiting for a map</h2>
+    <p class="dim" style="margin-top:0">Transfers with an Anoikis- reason that could not be matched to one map (no or unknown owner name, sender on several maps).</p>
+    <div id="pending"></div>
+    <h2>Maps</h2>
+    <div id="maps"></div>
+  </div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const SSO = 'https://login.eveonline.com/v2/oauth';
+const SCOPE = 'esi-wallet.read_character_wallet.v1';
+const ROOT = location.origin + location.pathname.replace(/pay\/(index\.html)?$/, '');
+let site = {}, ws = null, seq = 0; const wait = new Map();
+const b64url = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const msg = (t, cls) => { const m = $('#msg'); m.textContent = t; m.className = cls || 'dim'; };
+const isk = n => (Math.round(n / 1e5) / 10).toLocaleString() + ' M';
+const when = t => t ? new Date(t).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+
+async function login(){
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = 'py' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "py": the site root sends the answer back here
+  sessionStorage.setItem('at.pay.pkce', JSON.stringify({ verifier, state }));
+  location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:site.clientId, scope:SCOPE, code_challenge:challenge, code_challenge_method:'S256', state });
+}
+function send(o){
+  return new Promise((res, rej) => { const id = ++seq; wait.set(id, { res, rej }); ws.send(JSON.stringify({ ...o, id }));
+    setTimeout(() => { if (wait.has(id)){ wait.delete(id); rej(new Error('No answer from the server')); } }, 30000); });
+}
+function open(access){
+  return new Promise((res, rej) => {
+    ws = new WebSocket(site.live.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws');
+    ws.onmessage = ev => { if (ev.data === 'pong') return; let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if (m.id != null && wait.has(m.id)){ const w = wait.get(m.id); wait.delete(m.id); m.ok ? w.res(m) : w.rej(new Error(m.error || 'Refused')); } };
+    ws.onopen = () => send({ op:'auth', token:access }).then(res, rej);
+    ws.onerror = () => rej(new Error('Live server unreachable'));
+  });
+}
+async function refreshStatus(){
+  const r = await send({ op:'payStatus' }), d = r.data;
+  $('#statusCard').hidden = false;
+  const st = d.status;
+  $('#status').innerHTML = d.linked ? `<div class="ok">Wallet linked: <b>${d.name}</b></div><div class="dim">Last check: ${st ? when(st.t) : '—'} ${st ? (st.ok ? `· ${st.credited} credited, ${st.pending} waiting` : `· <span class="bad">${st.error}</span>`) : ''}</div>`
+    : '<div class="bad">The wallet is not linked yet.</div>';
+  const opts = d.maps.map(m => `<option value="${m.owner}">${m.name}</option>`).join('');
+  $('#pending').innerHTML = d.pending.length ? `<table><tr><th>Date</th><th>From</th><th>Amount</th><th>Reason</th><th>Credit to</th></tr>${d.pending.map(p => `<tr><td>${when(p.date)}</td><td>${p.from || p.fromId}</td><td>${isk(p.amount)}</td><td><code>${p.reason}</code></td>
+      <td><select data-o="${p.id}">${opts}</select> <select data-n="${p.id}">${[10, 15, 20, 25, 30, 40, 50].map(n => `<option${n === (p.n || 10) ? ' selected' : ''}>${n}</option>`).join('')}</select> <button type="button" data-as="${p.id}">Credit</button></td></tr>`).join('')}</table>` : '<p class="dim">Nothing waiting.</p>';
+  $('#maps').innerHTML = `<table><tr><th>Map (owner)</th><th>Paid for</th><th>Until</th></tr>${d.maps.map(m => `<tr><td>${m.name}</td><td>${m.paid && m.paid.max ? m.paid.max + ' characters' : '<span class="dim">free tier</span>'}</td><td>${m.paid && m.paid.max ? when(m.paid.until) : ''}</td></tr>`).join('')}</table>`;
+  document.querySelectorAll('[data-as]').forEach(b => b.onclick = async () => { const id = b.dataset.as;
+    try{ await send({ op:'payAssign', payId:id, owner:$(`[data-o="${id}"]`).value, max:Number($(`[data-n="${id}"]`).value) }); await refreshStatus(); }catch(e){ alert(e.message); } });
+}
+(async function init(){
+  site = await (await fetch('../site.json', { cache:'no-store' })).json();
+  $('#bLink').onclick = login;
+  $('#bNow').onclick = async () => { $('#bNow').disabled = true; try{ await send({ op:'payNow' }); await refreshStatus(); }catch(e){ alert(e.message); } $('#bNow').disabled = false; };
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code')){ msg('Log in to link the wallet, or to see the payments.'); return; }
+  history.replaceState(null, '', location.pathname);
+  const saved = JSON.parse(sessionStorage.getItem('at.pay.pkce') || 'null');
+  if (!saved || saved.state !== q.get('state')){ msg('Login interrupted, try again.', 'bad'); return; }
+  try{
+    msg('Checking with EVE…');
+    const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'authorization_code', code:q.get('code'), client_id:site.clientId, code_verifier:saved.verifier }) });
+    if (!r.ok) throw new Error('EVE refused the login (' + r.status + ')');
+    const t = await r.json();
+    const a = await open(t.access_token);
+    if (a.name !== $('#payee').textContent){ msg(`Logged in as ${a.name}: only ${$('#payee').textContent} can link the wallet.`, 'bad'); return; }
+    msg('Linking the wallet…');
+    const res = await send({ op:'payToken', refresh:t.refresh_token });
+    msg(res.check && res.check.ok ? `Wallet linked. First check: ${res.check.credited} payment(s) credited, ${res.check.pending} waiting.` : 'Wallet linked.', 'ok');
+    await refreshStatus();
+  }catch(e){ msg(e.message, 'bad'); }
+})();
+</script>
+</body>
+</html>
