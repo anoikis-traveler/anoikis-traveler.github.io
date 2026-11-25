@@ -226,6 +226,7 @@ footer{padding:10px 16px 18px;color:var(--dim);font-size:11.5px;line-height:1.5;
     <div class="row">
       <button type="button" class="primary" id="btnImport">Import EFT</button>
       <button type="button" id="btnCopy">Copy EFT</button>
+      <button type="button" id="btnAppraise" title="Market value of this fit (Appraisal)">Appraise</button>
       <button type="button" id="btnLink">Share link</button>
       <span class="sep"></span>
       <button type="button" id="btnLib" title="Fits shared on your Anoikis Traveler maps">Library</button>
@@ -1543,6 +1544,7 @@ async function copy(text, btn) {
   catch { prompt("Copy:", text); }
 }
 $("btnCopy").onclick = e => fit && copy(E.save_eft(fit), e.currentTarget);
+$("btnAppraise").onclick = () => fit && window.open("../appraisal/#t=" + encodeURIComponent(E.save_eft(fit)), "_blank", "noopener");
 $("btnLink").onclick = e => {
   if (!fit) return;
   const url = `${location.origin}${location.pathname}#esf=${E.save_esf_link(fit)}`;

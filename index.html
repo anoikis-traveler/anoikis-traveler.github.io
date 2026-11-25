@@ -154,6 +154,8 @@ svg#vol.panning{cursor:grabbing}
 .klist a{color:var(--text);text-decoration:none;display:flex;gap:8px}
 .klist a:hover{text-decoration:underline}
 .klist .ago{font-family:var(--mono);color:var(--bad);min-width:62px}
+.klist .krow{display:flex;justify-content:space-between;gap:8px}
+.klist a.kapp{font-family:var(--mono);font-size:10.5px;color:var(--accent);border:1px solid var(--line);border-radius:3px;padding:0 5px}
 .legend .ka{display:inline-block;width:22px;height:10px;border:3px solid var(--bad);border-radius:3px}
 .hubbtn{border-color:#2f5f6a;color:var(--drift)}
 .navbtns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-left:8px;border-left:1px solid var(--line)}
@@ -216,6 +218,17 @@ svg#vol.panning{cursor:grabbing}
 .link.reduced{stroke:var(--warn);stroke-dasharray:10 5}
 .link.critical{stroke:var(--bad);stroke-dasharray:4 4}
 .link.eol{stroke:var(--eol)}
+/* Wormhole past its estimated lifetime: blinks for one hour, then it is removed */
+.link.dying{animation:whdie 1.1s ease-in-out infinite}
+@keyframes whdie{0%,100%{opacity:1}50%{opacity:.08}}
+/* Isolated chains (no link to a known system): shown on their own map, greyed, waiting to be deleted */
+#map.isoview #nodes,#map.isoview #links,#map.isoview #labels,#vol.isoview #volScene{filter:grayscale(1);opacity:.55}
+#isoBar{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:5;display:flex;gap:8px;align-items:center;background:rgba(14,20,36,.95);border:1px solid var(--dim);border-radius:4px;padding:6px 10px;font-size:13px}
+#isoBar[hidden]{display:none}
+#isoBody .iso{border:1px solid var(--line);border-radius:4px;padding:6px 8px;margin:6px 0;font-size:13px}
+#isoBody .iso .nmz{color:var(--dim)}
+#isoBody .iso .row{margin-top:5px}
+#btnIso[aria-pressed="true"]{border-color:var(--dim);color:var(--text);background:#1b2130}
 .link.sel{filter:drop-shadow(0 0 4px var(--accent))}
 .lt{font-family:var(--mono);font-size:10px;font-weight:600;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 .mpanel{position:absolute;left:12px;top:12px;width:250px;max-height:calc(100% - 200px);overflow:auto;background:rgba(14,20,36,.92);border:1px solid var(--line);border-radius:4px;z-index:5;backdrop-filter:blur(4px)}
@@ -345,6 +358,7 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
   <span class="sync" id="syncState" title="Sharing status">Local map</span>
   <button id="btnDemo" type="button">Demo mode</button>
   <button id="btnView" type="button" aria-pressed="false">Vue volume</button>
+  <button id="btnRegion" type="button" title="3D map of the region: real coordinates, gates, your wormholes, live position">Region map</button>
   <button id="btnCenter" type="button">Recenter</button>
   <input id="fileImport" type="file" accept=".json,application/json" hidden>
   <button id="btnClear" type="button" class="danger">Clear map</button>
@@ -377,17 +391,19 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
         <div id="mpOff" class="plist" hidden></div>
       </div>
     </div>
+    <div id="isoBar" hidden role="status"><span>🧩 <b>Isolated chains</b>: no high-sec, low-sec or null-sec system. Delete them or keep them.</span><button type="button" class="small" id="isoBack">Back to the map</button></div>
     <div class="hint" id="volHint" hidden>Drag: rotate · Shift + drag: pan · Wheel: zoom</div>
     <div class="legend" aria-label="Legend">
       <span><i style="border-color:#8fb0d8"></i>Stable wormhole</span>
       <span><i style="border-color:var(--warn);border-top-style:dashed"></i>Mass reduced</span>
       <span><i style="border-color:var(--bad);border-top-style:dotted"></i>Mass critical</span>
       <span><i style="border-color:var(--eol)"></i>End of life (EOL)</span>
+      <span><i style="border-color:#8fb0d8;opacity:.4"></i>Past its lifetime: blinks 1 h, then removed</span>
       <span><i style="border-color:#3c4a66;border-top-style:dotted;border-top-width:2px"></i>Stargate</span>
       <span><b class="ka" style="opacity:.6"></b>Recent kill (under 15 min)</span>
       <span><b class="ka" style="box-shadow:0 0 8px var(--bad)"></b>Alarm: kill in the last 10 min</span>
     </div>
-    <div class="maptools"><button type="button" id="btnHubs" aria-pressed="false" title="Show or hide Thera, Turnur and their exits (always shown once connected to your chain)">🌀 Thera / Turnur</button><button type="button" id="btnAssets" aria-pressed="false" title="Show or hide the systems where your characters have assets">📦 Assets</button></div>
+    <div class="maptools"><button type="button" id="btnIso" aria-pressed="false" hidden title="Chains with no high-sec, low-sec or null-sec system">🧩 Isolated</button><button type="button" id="btnHubs" aria-pressed="false" title="Show or hide Thera, Turnur and their exits (always shown once connected to your chain)">🌀 Thera / Turnur</button><button type="button" id="btnAssets" aria-pressed="false" title="Show or hide the systems where your characters have assets">📦 Assets</button></div>
     <div class="zoom"><button type="button" id="zin" aria-label="Zoom in">+</button><button type="button" id="zout" aria-label="Zoom out">−</button></div>
   </div>
 
@@ -430,6 +446,11 @@ label.f{display:grid;gap:4px;font-size:12px;color:var(--dim)}
     <section class="card">
       <h2>Selection</h2>
       <div id="selBody" class="empty">Click a system or a connection on the map.</div>
+    </section>
+
+    <section class="card" id="isoCard" hidden>
+      <h2>Isolated chains</h2>
+      <div id="isoBody"></div>
     </section>
 
     <section class="card" id="hubCard">
@@ -1681,7 +1702,7 @@ async function pollKills(){
               km = kmCache[k.killmail_id] = { time:Date.parse(j.killmail_time), ship };
             }catch(err){ continue; }
           }
-          kills.push({ id:k.killmail_id, time:km.time, ship:km.ship });
+          kills.push({ id:k.killmail_id, hash:k.zkb.hash, time:km.time, ship:km.ship });
         }
         killFeed[id] = kills.sort((a, b) => b.time - a.time);
       }catch(e){}
@@ -1804,6 +1825,97 @@ function assetsAt(sys){
   return Object.entries(assetData).filter(([id, d]) => ids.has(id) && d && d.bySys && d.bySys[sys]).map(([id, d]) => ({ name:d.name, n:d.bySys[sys] }));
 }
 /* Thera / Turnur and their exits are hidden while not connected to your chain, unless the player shows them */
+/* =========================================================
+   Expired wormholes and isolated chains
+   A wormhole past its estimated lifetime blinks for one hour, then it is removed from the map.
+   A chain left with no link to a known system (high-sec, low-sec or null-sec) and without the home system
+   leaves the main map for its own greyed map, where the card offers to delete it.
+   ========================================================= */
+const DIE_GRACE = 3600e3;
+let isoView = false;
+function whDeadline(l){
+  if (!l || l.type === 'gate' || l.src === 'eve-scout') return null;   // EVE-Scout holes are handled by the Thera/Turnur sync
+  const t = typeInfo(l.wh), out = [];
+  if (l.eol && l.eolAt) out.push(l.eolAt + 4 * 3600e3);
+  if (l.created) out.push(l.created + (t && t.life ? t.life : 48) * 3600e3);   // unknown type: longest lifetime, 48 h
+  return out.length ? Math.min(...out) : null;
+}
+function whPhase(l){
+  const d = whDeadline(l); if (d == null) return 'ok';
+  const now = srvNow();
+  return now < d ? 'ok' : now < d + DIE_GRACE ? 'dying' : 'dead';
+}
+function pruneDeadHoles(){
+  if (demoMode || !whData.loaded || !canEdit()) return;
+  const dead = linksArr().filter(l => whPhase(l) === 'dead');
+  if (!dead.length) return;
+  dead.forEach(l => put(`links/${l.id}`, null));
+  toast(dead.length === 1 ? `Expired wormhole removed: ${nm(dead[0].a)} ↔ ${nm(dead[0].b)}` : `${dead.length} expired wormholes removed`);
+}
+/* Known system = known space: high-sec, low-sec or null-sec (0.0) */
+const isKnown = n => ['HS', 'LS', 'NS'].includes(String(n.cls || '').toUpperCase());
+function isolatedChains(){
+  if (demoMode) return [];
+  const ids = Object.keys(map.nodes).filter(id => map.nodes[id]);
+  const adj = {}; ids.forEach(id => adj[id] = []);
+  for (const l of linksArr()){ if (whPhase(l) === 'dead') continue; const a = String(l.a), b = String(l.b); if (adj[a] && adj[b]){ adj[a].push(b); adj[b].push(a); } }
+  const seen = new Set(), out = [];
+  for (const root of ids){
+    if (seen.has(root)) continue;
+    const comp = [root]; seen.add(root);
+    for (let i = 0; i < comp.length; i++) for (const v of adj[comp[i]]) if (!seen.has(v)){ seen.add(v); comp.push(v); }
+    const home = cfg.home ? String(cfg.home.id) : null;   // the chain holding the home system is never isolated
+    const known = comp.some(id => { const n = map.nodes[id]; return id === home || isKnown(n) || isHubId(id) || n.scout || n.hub; });   // Thera/Turnur: handled by their own toggle
+    if (!known) out.push(comp);
+  }
+  return out;
+}
+function viewHidden(){
+  const out = hubHidden();
+  const iso = new Set(isolatedChains().flat());
+  if (isoView){ for (const id in map.nodes) if (!iso.has(String(id))) out.add(String(id)); iso.forEach(id => out.delete(id)); }
+  else iso.forEach(id => out.add(id));
+  return out;
+}
+function setIsoView(on){
+  isoView = !!on;
+  $('#map').classList.toggle('isoview', isoView); $('#vol').classList.toggle('isoview', isoView);
+  sel = null; lastSelKey = '';
+  renderAll(); setTimeout(center, 50);
+}
+function deleteChain(ids){
+  if (!canEdit()){ readOnlyToast(); return; }
+  const set = new Set(ids.map(String));
+  linksArr().filter(l => set.has(String(l.a)) || set.has(String(l.b))).forEach(l => put(`links/${l.id}`, null));
+  ids.forEach(id => put(`nodes/${id}`, null));
+  if (sel && set.has(String(sel.id))){ sel = null; lastSelKey = ''; }
+  toast(`${ids.length} system${ids.length > 1 ? 's' : ''} deleted`);
+}
+let isoArm = null, isoArmT = null;       // two clicks to delete: the first one asks for confirmation
+function renderIso(){
+  const comps = isolatedChains();
+  if (isoView && !comps.length){ isoView = false; $('#map').classList.remove('isoview'); $('#vol').classList.remove('isoview'); }
+  const n = comps.length;
+  const b = $('#btnIso'); b.hidden = !n && !isoView; b.textContent = `🧩 Isolated (${n})`; b.setAttribute('aria-pressed', String(isoView));
+  $('#isoBar').hidden = !isoView;
+  const card = $('#isoCard'); card.hidden = !n;
+  if (!n) return;
+  const can = canEdit();
+  const sorted = comps.slice().sort((a, b) => b.length - a.length);
+  $('#isoBody').innerHTML = `<p class="note" style="margin:0 0 4px">Not linked to any high-sec, low-sec or null-sec system. ${isoView ? '' : 'Moved off the main map.'}</p>`
+    + sorted.map((c, i) => { const names = c.map(id => nm(id)).sort();
+      return `<div class="iso"><b>${esc(names[0])}</b>${c.length > 1 ? ` <span class="nmz">+ ${c.length - 1}: ${esc(names.slice(1, 5).join(', '))}${c.length > 5 ? '…' : ''}</span>` : ''}
+        <div class="row"><button type="button" class="small" data-isov="${i}">${isoView ? 'Show' : 'View'}</button>
+        ${can ? `<button type="button" class="small danger" data-isod="${i}">${isoArm === 'c' + i ? 'Confirm delete?' : 'Delete'}</button>` : ''}</div></div>`; }).join('')
+    + `<div class="row">${isoView ? '<button type="button" class="small" id="isoBack2">Back to the map</button>' : '<button type="button" class="small" id="isoOpen">Open the isolated map</button>'}
+       ${can && n > 1 ? `<button type="button" class="small danger" id="isoAll">${isoArm === 'all' ? 'Confirm: delete all?' : 'Delete all'}</button>` : ''}</div>`;
+  const arm = (k, fn) => { if (isoArm === k){ isoArm = null; clearTimeout(isoArmT); fn(); } else { isoArm = k; clearTimeout(isoArmT); isoArmT = setTimeout(() => { isoArm = null; renderIso(); }, 4000); } renderIso(); };
+  $('#isoBody').querySelectorAll('[data-isov]').forEach(x => x.addEventListener('click', () => { const c = sorted[Number(x.dataset.isov)]; if (!isoView) setIsoView(true); focusSystem(c[0]); }));
+  $('#isoBody').querySelectorAll('[data-isod]').forEach(x => x.addEventListener('click', () => { const i = Number(x.dataset.isod); arm('c' + i, () => deleteChain(sorted[i])); }));
+  const all = $('#isoAll'); if (all) all.addEventListener('click', () => arm('all', () => deleteChain(sorted.flat())));
+  const o = $('#isoOpen'); if (o) o.addEventListener('click', () => setIsoView(true));
+  const k = $('#isoBack2'); if (k) k.addEventListener('click', () => setIsoView(false));
+}
 function hubHidden(){
   const out = new Set();
   if (cfg.showHubs) return out;
@@ -2401,7 +2513,7 @@ function showWho(g){
 }
 function hideWho(){ document.querySelectorAll('.whotop').forEach(t => { t.innerHTML = ''; const svg = t.ownerSVGElement; if (svg) svg.classList.remove('whodim'); }); }
 let hubSyncT = null;
-function renderAll(){ renderNav(); render(); renderLog(); renderPilot(); renderPilots(); renderExits(); renderKillAlarms(); renderHubCard(); clearTimeout(hubSyncT); hubSyncT = setTimeout(syncHubLinks, 1500); }
+function renderAll(){ renderIso(); renderNav(); render(); renderLog(); renderPilot(); renderPilots(); renderExits(); renderKillAlarms(); renderHubCard(); clearTimeout(hubSyncT); hubSyncT = setTimeout(syncHubLinks, 1500); }
 function render(){
   const vol = cfg.view === 'vol';
   $('#map').toggleAttribute('hidden', vol); $('#vol').toggleAttribute('hidden', !vol); $('#volHint').hidden = !vol;
@@ -2414,7 +2526,7 @@ function render(){
   const pairSeen = {}, pairCount = {};
   for (const l of linksArr()){ const k = [String(l.a), String(l.b)].sort().join('|'); pairCount[k] = (pairCount[k] || 0) + 1; }
   const focusIds = new Set(sel && sel.kind === 'node' ? [sel.id, sel.second].filter(x => x != null && !HUB_IDS.includes(Number(x))).map(String) : []);
-  const hidden = hubHidden();
+  const hidden = viewHidden();
   for (const l of linksArr()){
     const a = map.nodes[l.a], b = map.nodes[l.b];
     if (!a || !b || hidden.has(String(l.a)) || hidden.has(String(l.b))) continue;
@@ -2424,7 +2536,7 @@ function render(){
     const x1 = a.x + NW/2, y1 = a.y + NH/2, x2 = b.x + NW/2, y2 = b.y + NH/2;
     const isSel = sel && sel.kind === 'link' && sel.id === l.id;
     const pl = isPairLink(l), onr = !!(route && route.links.includes(l.id));
-    const cls = 'link ' + (l.type === 'gate' ? 'gate' : (l.eol ? 'eol ' : '') + l.mass) + (isSel ? ' sel' : '') + (pl ? ' pairlink' : '') + (onr ? ' onroute' : '');
+    const cls = 'link ' + (l.type === 'gate' ? 'gate' : (l.eol ? 'eol ' : '') + l.mass + (whPhase(l) === 'dying' ? ' dying' : '')) + (isSel ? ' sel' : '') + (pl ? ' pairlink' : '') + (onr ? ' onroute' : '');
     if (onr) el('line', { x1, y1, x2, y2, class:'routeglow', 'stroke-width':12 }, gl);
     el('line', { x1, y1, x2, y2, class:cls }, gl);
     const hit = el('line', { x1, y1, x2, y2, class:'link-hit' }, gl);
@@ -2436,7 +2548,7 @@ function render(){
       if (pairCount[pk] > 1) l1.push('×' + pairCount[pk]);
       if (l.wh) l1.push(l.wh);
       if (l.size && l.size !== '?') l1.push(l.size);
-      const li = lifeInfo(l); if (li && (li.eol || li.remain != null)) l1.push(li.label);
+      const li = lifeInfo(l); if (whPhase(l) === 'dying') l1.push('⚠ expired'); else if (li && (li.eol || li.remain != null)) l1.push(li.label);
       const me_ = massEstimate(l); if (me_ && me_.used) l2.push('reste ≈' + fmtMkg((me_.lo + me_.hi) / 2));
       const lines = [l1.join(' · '), l2.join(' · ')].filter(Boolean);
       lines.forEach((txt, i) => {
@@ -2503,7 +2615,7 @@ let vcam = { yaw:-0.5, pitch:0.95, k:1, px:0, py:0 };
 const VR = 170, VH = 80, VF = 1600;
 let vfit = 1;
 function volLayout(){
-  const hiddenV = hubHidden();
+  const hiddenV = viewHidden();
   const ids = Object.keys(map.nodes).filter(id => map.nodes[id] && !hiddenV.has(String(id)));
   const adj = {}; ids.forEach(id => adj[id] = []);
   for (const l of linksArr()){ const a = String(l.a), b = String(l.b); if (adj[a] && adj[b]){ adj[a].push(b); adj[b].push(a); } }
@@ -2647,14 +2759,14 @@ function renderVolume(){
       const l = it.l, w = Math.max(1.2, 3 * (it.a.s + it.b.s) / 2);
       const isSel = sel && sel.kind === 'link' && sel.id === l.id;
       const pl = isPairLink(l), onr = !!(routeV && routeV.links.includes(l.id));
-      const cls = 'link ' + (l.type === 'gate' ? 'gate' : (l.eol ? 'eol ' : '') + l.mass) + (isSel ? ' sel' : '') + (pl ? ' pairlink' : '') + (onr ? ' onroute' : '');
+      const cls = 'link ' + (l.type === 'gate' ? 'gate' : (l.eol ? 'eol ' : '') + l.mass + (whPhase(l) === 'dying' ? ' dying' : '')) + (isSel ? ' sel' : '') + (pl ? ' pairlink' : '') + (onr ? ' onroute' : '');
       if (onr) el('line', { x1:it.a.x, y1:it.a.y, x2:it.b.x, y2:it.b.y, class:'routeglow', 'stroke-width':(w * 4).toFixed(1) }, scene);
       el('line', { x1:it.a.x, y1:it.a.y, x2:it.b.x, y2:it.b.y, class:cls, style:`stroke-width:${w.toFixed(2)}px` }, scene);
       const hit = el('line', { x1:it.a.x, y1:it.a.y, x2:it.b.x, y2:it.b.y, class:'link-hit' }, scene); hit.dataset.link = l.id;
       if (l.type !== 'gate' && (l.wh || l.eol) && (l.src !== 'eve-scout' || isSel || onr)){
         const li = lifeInfo(l);
         const t = el('text', { x:(it.a.x + it.b.x) / 2, y:(it.a.y + it.b.y) / 2 - 6, 'text-anchor':'middle', class:'lt' + (pl ? ' pairlink' : '') + (onr ? ' onroute' : ''), fill:l.eol ? 'var(--eol)' : '#a9c1e0' }, scene);
-        t.textContent = [l.wh, l.eol && li ? li.label : ''].filter(Boolean).join(' · ');
+        t.textContent = [l.wh, whPhase(l) === 'dying' ? '⚠ expired' : l.eol && li ? li.label : ''].filter(Boolean).join(' · ');
       }
       continue;
     }
@@ -3066,7 +3178,7 @@ function renderNodePanel(box){
     </dl>
     ${(() => { const ks = (killFeed[n.id] || []); if (!ks.length) return ''; const st = killState(n.id); const now = Date.now();
       return `<div class="${st === 'alarm' ? 'kbanner' : 'routebox'}" style="${st === 'alarm' ? 'cursor:default;animation:none' : 'border-left-color:var(--bad)'}">${st === 'alarm' ? '⚠ Alarm: repeated kills' : 'Kills in the last hour'}</div>
-      <div class="klist">${ks.slice(0, 8).map(k => `<a href="https://zkillboard.com/kill/${k.id}/" target="_blank" rel="noopener"><span class="ago">${fmtDur((now - k.time) / 60000)} ago</span><span>${esc(k.ship || 'unknown ship')}</span></a>`).join('')}</div>`; })()}
+      <div class="klist">${ks.slice(0, 8).map(k => `<div class="krow"><a href="https://zkillboard.com/kill/${k.id}/" target="_blank" rel="noopener"><span class="ago">${fmtDur((now - k.time) / 60000)} ago</span><span>${esc(k.ship || 'unknown ship')}</span></a>${k.hash ? `<a class="kapp" href="appraisal/#km=${k.id}/${k.hash}" target="_blank" rel="noopener" title="Value of the dropped loot (Appraisal)">ISK</a>` : ''}</div>`).join('')}</div>`; })()}
     <label class="f">Shared notes (residents, structures, dangers…)<textarea id="nNotes">${esc(n.notes)}</textarea></label>
     <h3>Signatures</h3>
     <label class="f">In the in-game scanner: Ctrl+A, Ctrl+C, then paste here
@@ -3368,6 +3480,7 @@ function renderPilots(){
 /* Centre la carte sur un système (vue à plat ou en volume) et le sélectionne */
 function focusSystem(id){
   const n = map.nodes[id]; if (!n) return;
+  { const inIso = isolatedChains().some(c => c.includes(String(id))); if (inIso !== isoView){ isoView = inIso; $('#map').classList.toggle('isoview', isoView); $('#vol').classList.toggle('isoview', isoView); renderIso(); } }
   if (!cfg.showHubs && hubHidden().has(String(id))) showHubs(true);
   sel = { kind:'node', id:n.id }; lastSelKey = '';
   if (cfg.view === 'vol'){
@@ -3426,6 +3539,8 @@ $('#btnDemo').addEventListener('click', startDemo);
 $('#btnThera').addEventListener('click', () => gotoHub('thera'));
 $('#btnAssets').addEventListener('click', toggleAssets);
 $('#btnHubs').addEventListener('click', () => showHubs(!cfg.showHubs));
+$('#btnIso').addEventListener('click', () => setIsoView(!isoView));
+$('#isoBack').addEventListener('click', () => setIsoView(false));
 $('#btnHubs').setAttribute('aria-pressed', String(!!cfg.showHubs));
 renderAssetsBtn();
 setInterval(() => { if (assetsOn && tok) loadAssets(false); }, 10 * 60e3);
@@ -3932,6 +4047,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(
    Démarrage
    ========================================================= */
 (async () => {
+  /* Region map (regions/): opens on the selected system, or where the character is. Same site, so it shares this login. */
+  $('#btnRegion').addEventListener('click', () => {
+    const pick = sel && sel.kind === 'node' && isRealId(sel.id) ? sel.id : me.current;
+    const k = pick != null && isRealId(pick) && !(Number(pick) >= 31000000 && Number(pick) < 32000000);
+    window.open('regions/' + (k ? '?sys=' + pick : ''), 'whmap-region');
+  });
   $('#appVersion').textContent = 'v' + APP_VERSION; $('#appVersion').title = `Version ${APP_VERSION} of ${APP_DATE}`;
   if (DEMO_ONLY){
     // view-only demo: no login, no settings, no access management, no own map
@@ -3947,6 +4068,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(
     setSync('', 'Demo · view only');
     return;
   }
+  const wantSys = (/^\d+$/.exec(new URLSearchParams(location.search).get('sys') || '') || [null])[0];   // link from the region map: …/?sys=30000142
   await loadSiteLock();
   if (!SITE_LOCK) handleConfigLink(); else if (/#config=/.test(location.hash)) history.replaceState(null, '', callbackUrl);
   await handleCallback();
@@ -3956,8 +4078,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSetup(
   map = locked() && !(tok && fb) ? emptyMap() : normalize(store.get(cacheKey(), null));
   await connectShared();
   renderAll(); center(); renderLock();
+  if (wantSys){
+    history.replaceState(null, '', callbackUrl);
+    setTimeout(() => { if (map.nodes[wantSys]) focusSystem(wantSys); else toast('This system is not on your map yet.'); }, 400);
+  }
   loadWhData(); loadActivity();
-  setInterval(() => { loadActivity(); if (!drag) render(); renderPilots(); renderKillAlarms(); }, 30000);
+  setInterval(() => { loadActivity(); pruneDeadHoles(); renderIso(); if (!drag) render(); renderPilots(); renderKillAlarms(); }, 30000);
+  setTimeout(pruneDeadHoles, 8000);
   setTimeout(pollKills, 4000); setInterval(pollKills, 2 * 60000);
   loadHubs(); setInterval(loadHubs, 5 * 60000);
   if (location.protocol === 'file:') toast('Demo mode works anywhere. For EVE login, open the map from its online address (see Help).', true);
