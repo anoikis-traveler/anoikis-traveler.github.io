@@ -1222,9 +1222,40 @@ function placeHubs(){
 /* On screen: close to its exits, on a free spot (no system, label or other hub under it), inside the view.
    It keeps its spot while that spot stays free, so it does not jump around while the map turns. */
 const hubOff = {};
+let mapPts = [], mapHull = [];
+function hullOf(ps){
+  const a = ps.map(p => [p.x, p.y]).sort((u, v) => u[0] - v[0] || u[1] - v[1]); if (a.length < 3) return a;
+  const cr = (o, u, v) => (u[0] - o[0]) * (v[1] - o[1]) - (u[1] - o[1]) * (v[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of a){ while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = a.length - 1; i >= 0; i--){ const p = a[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+// distance from a point to the region's outline (negative inside)
+function hullDist(x, y){
+  const h = mapHull; if (h.length < 3) return 1e9;
+  let inside = true, d = Infinity;
+  for (let i = 0; i < h.length; i++){
+    const [x1, y1] = h[i], [x2, y2] = h[(i + 1) % h.length];
+    if ((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1) < 0) inside = false;
+    const L = (x2 - x1) ** 2 + (y2 - y1) ** 2, t = L ? Math.max(0, Math.min(1, ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / L)) : 0;
+    d = Math.min(d, Math.hypot(x - x1 - t * (x2 - x1), y - y1 - t * (y2 - y1)));
+  }
+  return inside ? -d : d;
+}
+// how far a rectangle reaches into the region (0 = fully outside, with a margin)
+function rectInMap(x, y, w, h, m = 18){
+  let c = 0;
+  for (const p of mapPts) if (p.x > x - m && p.x < x + w + m && p.y > y - m && p.y < y + h + m) c++;
+  const corners = [[x, y], [x + w, y], [x, y + h], [x + w, y + h], [x + w / 2, y + h / 2]];
+  for (const [cx, cy] of corners) if (hullDist(cx, cy) < m) c += 0.6;
+  return c;
+}
 function placeHubsScreen(P){
   const pts = [];
   for (const id in P) if (byId[id]) pts.push(P[id]);
+  const own = []; for (const id in P) if (byId[id] && !byId[id].ext) own.push(P[id]);
+  mapPts = own; mapHull = hullOf(own);
   const taken = [];
   const boxes = [...document.querySelectorAll('.widget')].filter(w => !w.hidden).map(w => w.getBoundingClientRect());   // not under a window
   const cost = (q, exits) => {
@@ -1238,6 +1269,9 @@ function placeHubsScreen(P){
       if (q.x - 60 < p.x && p.x < q.x + 60 && q.y - 46 < p.y && p.y < q.y - 14) c += 600;  // our own label above
     }
     for (const t of taken){ const dx = q.x - t.x, dy = q.y - t.y; if (dx * dx + dy * dy < 120 * 120) c += 8000; }
+    // outside the region, never on top of it (its label sits above the sphere)
+    const hd = Math.min(hullDist(q.x, q.y), hullDist(q.x, q.y - 34), hullDist(q.x - 55, q.y - 34), hullDist(q.x + 55, q.y - 34));
+    if (hd < 40) c += 30000 + (40 - hd) * 200;
     const d = exits.reduce((m, e) => m + Math.hypot(q.x - e.x, q.y - e.y), 0) / exits.length;
     return c + d;
   };
@@ -1250,8 +1284,8 @@ function placeHubsScreen(P){
     const prev = hubOff[hn.h];
     if (prev){ const q = { x:cx + prev.dx, y:cy + prev.dy }, c = cost(q, exits); if (c < 400){ best = q; bc = c; } }
     if (!best){
-      for (const r of [70, 95, 125, 160, 210, 270]) for (let k = 0; k < 24; k++){
-        const a = k / 24 * Math.PI * 2 - Math.PI / 2, q = { x:cx + Math.cos(a) * r, y:cy + Math.sin(a) * r }, c = cost(q, exits);
+      for (const r of [70, 95, 125, 160, 210, 270, 340, 420, 520, 640, 780]) for (let k = 0; k < 36; k++){
+        const a = k / 36 * Math.PI * 2 - Math.PI / 2, q = { x:cx + Math.cos(a) * r, y:cy + Math.sin(a) * r }, c = cost(q, exits);
         if (c < bc){ bc = c; best = q; }
       }
     }
@@ -1335,13 +1369,15 @@ function hubCard(h, p, gLine){
   const fit = (x, y) => { x = Math.max(4, Math.min(W - w - 4, x)); y = Math.max(4, Math.min(H - hh - 4, y));
     let o = 0; for (const r of boxes){ const ix = Math.max(0, Math.min(x + w, r.right) - Math.max(x, r.left)), iy = Math.max(0, Math.min(y + hh, r.bottom) - Math.max(y, r.top)); o += ix * iy; }
     for (const r of cardRects){ const ix = Math.max(0, Math.min(x + w, r.r) - Math.max(x, r.l)), iy = Math.max(0, Math.min(y + hh, r.b) - Math.max(y, r.t)); o += ix * iy * 2; }
-    let cover = 0; for (const q of hubPts) cover += Math.max(0, Math.min(x + w, q.x + 20) - Math.max(x, q.x - 20)) * Math.max(0, Math.min(y + hh, q.y + 20) - Math.max(y, q.y - 20));
-    return { x, y, o:o + cover * 50 }; };
+    let cover = 0; for (const q of hubPts){ cover += Math.max(0, Math.min(x + w, q.x + 20) - Math.max(x, q.x - 20)) * Math.max(0, Math.min(y + hh, q.y + 20) - Math.max(y, q.y - 20));
+      cover += Math.max(0, Math.min(x + w, q.x + 80) - Math.max(x, q.x - 80)) * Math.max(0, Math.min(y + hh, q.y - 14) - Math.max(y, q.y - 52)); }   // its name and count above
+    const dist = Math.hypot(x + w / 2 - p.x, y + hh / 2 - p.y);
+    return { x, y, o:o + cover * 50 + rectInMap(x, y, w, hh) * 4000 + dist * 2 }; };
   const cands = [];
-  for (const dy of [0, 30, 60, 100, -30, -60]){
-    cands.push(fit(side > 0 ? p.x + 40 : p.x - 40 - w, p.y - 18 + dy), fit(side > 0 ? p.x - 40 - w : p.x + 40, p.y - 18 + dy));
+  for (const gap of [40, 90, 160, 260]) for (const dy of [0, 30, 60, 100, -30, -60, -110]){
+    cands.push(fit(side > 0 ? p.x + gap : p.x - gap - w, p.y - 18 + dy), fit(side > 0 ? p.x - gap - w : p.x + gap, p.y - 18 + dy));
   }
-  cands.push(fit(p.x - w / 2, p.y + 30), fit(p.x - w / 2, p.y - 50 - hh));
+  for (const gy of [30, 90, 160]) cands.push(fit(p.x - w / 2, p.y + gy), fit(p.x - w / 2, p.y - gy - 20 - hh));
   cands.forEach((c, i) => c.o += i * 0.5);                // ties: keep the nearest, preferred side
   let { x:x0, y:y0 } = cands.reduce((m, c) => c.o < m.o ? c : m);
   if (hubPos[h]){ x0 = Math.max(4, Math.min(W - w - 4, hubPos[h].x)); y0 = Math.max(4, Math.min(H - hh - 4, hubPos[h].y)); }
