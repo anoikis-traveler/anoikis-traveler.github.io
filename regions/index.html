@@ -302,6 +302,8 @@ body.nf #hint{transform:translateY(-16px)}
 .statn{font-family:var(--mono);font-size:8.5px;font-weight:700;fill:#05080f;pointer-events:none}
 .stwb{width:min(330px,calc(100vw - 40px));font-size:12.5px;display:flex;flex-direction:column;gap:6px}
 .stwb label{display:flex;gap:6px;align-items:center}
+.stwb .sg{margin-top:6px;font-family:var(--display);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.stwb{max-height:min(640px,calc(100vh - 120px));overflow:auto}
 .stwb .grad{height:10px;border-radius:3px;border:1px solid var(--line)}
 .stwb .gl{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;font-family:var(--mono)}
 .stwb .top{display:grid;grid-template-columns:1fr auto;gap:2px 8px}
@@ -1446,8 +1448,20 @@ const STATS = {
   npc:{ label:'NPC kills / hour (ratting)', get:id => (stats.kills[id] || {}).npc_kills || 0 },
   jumps:{ label:'Jumps / hour (traffic)', get:id => stats.jumps[id] || 0 },
   zk:{ label:'Kills in the last hour (zKillboard)', get:id => (killMap[id] || []).filter(k => Date.now() - k.time < 3600e3).length },
+  mine:{ g:'Your group', label:'Pilots of your map in the system', get:id => watchList().filter(p => presentAt(p) && p.sys === id).length },
+  manu:{ g:'Industry (cost index, %)', label:'Manufacturing', get:id => ((stats.ind[id] || {}).manufacturing || 0), dec:2 },
+  rte:{ g:'Industry (cost index, %)', label:'Research TE', get:id => ((stats.ind[id] || {}).researching_time_efficiency || 0), dec:2 },
+  rme:{ g:'Industry (cost index, %)', label:'Research ME', get:id => ((stats.ind[id] || {}).researching_material_efficiency || 0), dec:2 },
+  copy:{ g:'Industry (cost index, %)', label:'Copying', get:id => ((stats.ind[id] || {}).copying || 0), dec:2 },
+  inv:{ g:'Industry (cost index, %)', label:'Invention', get:id => ((stats.ind[id] || {}).invention || 0), dec:2 },
+  react:{ g:'Industry (cost index, %)', label:'Reactions', get:id => ((stats.ind[id] || {}).reaction || 0), dec:2 },
+  adm:{ g:'Sovereignty & warfare', label:'Sovereignty ADM (occupancy level 1–6)', get:id => stats.adm[id] || 0, dec:1 },
+  camp:{ g:'Sovereignty & warfare', label:'Sovereignty timers running', get:id => stats.camp[id] || 0 },
+  fw:{ g:'Sovereignty & warfare', label:'Faction warfare: contested %', get:id => stats.fw[id] || 0, dec:1 },
+  incur:{ g:'Sovereignty & warfare', label:'Incursion influence %', get:id => incSys[id] ? Math.round((incSys[id].inf || 0) * 100) : 0 },
 };
-let stats = { kills:{}, jumps:{}, t:0 }, statMode = store.get('whmap.reg.statMode', ''), statNums = store.get('whmap.reg.statNums', true);
+for (const k of ['ship', 'pod', 'pvp', 'npc', 'jumps', 'zk']) STATS[k].g = 'Activity (last hour)';
+let stats = { kills:{}, jumps:{}, ind:{}, adm:{}, camp:{}, fw:{}, t:0 }, statMode = store.get('whmap.reg.statMode', ''), statNums = store.get('whmap.reg.statNums', true);
 if (statMode && !STATS[statMode]) statMode = '';
 const statVal = id => statMode ? STATS[statMode].get(String(id)) : 0;
 function statMax(){ let m = 0; if (R) for (const s2 of R.systems) if (!s2.ext) m = Math.max(m, statVal(String(s2.id))); return m; }
@@ -1463,11 +1477,17 @@ function statCol(v){
 }
 async function loadStats(){
   try{
-    const [k, j] = await Promise.all([fetch(`${ESI}/universe/system_kills/`).then(r => r.ok ? r.json() : []), fetch(`${ESI}/universe/system_jumps/`).then(r => r.ok ? r.json() : [])]);
-    const kills = {}, jumps = {}; for (const x of k) kills[String(x.system_id)] = x; for (const x of j) jumps[String(x.system_id)] = x.ship_jumps;
-    if (Object.keys(kills).length || Object.keys(jumps).length) stats = { kills, jumps, t:Date.now() };
+    const get = u => fetch(`${ESI}${u}`).then(r => r.ok ? r.json() : []).catch(() => []);
+    const [k, j, ind, sov, camp, fw] = await Promise.all([get('/universe/system_kills/'), get('/universe/system_jumps/'), get('/industry/systems/'), get('/sovereignty/structures/'), get('/sovereignty/campaigns/'), get('/fw/systems/')]);
+    const kills = {}, jumps = {}, indm = {}, adm = {}, cm = {}, fwm = {};
+    for (const x of k) kills[String(x.system_id)] = x; for (const x of j) jumps[String(x.system_id)] = x.ship_jumps;
+    for (const x of ind){ const o = {}; for (const c of x.cost_indices || []) o[c.activity] = Math.round(c.cost_index * 10000) / 100; indm[String(x.solar_system_id)] = o; }
+    for (const x of sov) if (x.vulnerability_occupancy_level) adm[String(x.solar_system_id)] = Math.max(adm[String(x.solar_system_id)] || 0, x.vulnerability_occupancy_level);
+    for (const x of camp) cm[String(x.solar_system_id)] = (cm[String(x.solar_system_id)] || 0) + 1;
+    for (const x of fw) if (x.victory_points_threshold) fwm[String(x.solar_system_id)] = Math.round(x.victory_points / x.victory_points_threshold * 1000) / 10;
+    if (Object.keys(kills).length || Object.keys(jumps).length) stats = { kills, jumps, ind:indm, adm, camp:cm, fw:fwm, t:Date.now() };
   }catch(e){}
-  if (DEMO && !stats.t && R){ const kills = {}, jumps = {}; R.systems.forEach((s2, i) => { const id = String(s2.id); jumps[id] = (i * 37) % 60; kills[id] = { ship_kills:(i * 7) % 9 === 0 ? (i % 5) : 0, pod_kills:(i % 11 === 0) ? 1 : 0, npc_kills:(i * 53) % 400 }; }); stats = { kills, jumps, t:Date.now() }; }
+  if (DEMO && !stats.t && R){ const kills = {}, jumps = {}; Object.assign(stats, { ind:{}, adm:{}, camp:{}, fw:{} }); R.systems.forEach((s2, i) => { const id = String(s2.id); jumps[id] = (i * 37) % 60; kills[id] = { ship_kills:(i * 7) % 9 === 0 ? (i % 5) : 0, pod_kills:(i % 11 === 0) ? 1 : 0, npc_kills:(i * 53) % 400 }; }); stats = { kills, jumps, t:Date.now() }; }
   statMaxCache = statMax(); render(); renderStats();
 }
 function renderStats(){
@@ -1477,11 +1497,11 @@ function renderStats(){
   const grad = `linear-gradient(90deg, ${STAT_STOPS.map(([t, c]) => `rgb(${c.join(',')}) ${t * 100}%`).join(', ')})`;
   $('#statSub').textContent = stats.t ? 'CCP · ' + new Date(stats.t).toLocaleTimeString([], { timeStyle:'short' }) : '';
   box.innerHTML = `<label><input type="radio" name="statm" value=""${!statMode ? ' checked' : ''}> Off (normal colours)</label>`
-    + Object.entries(STATS).map(([k, d]) => `<label><input type="radio" name="statm" value="${k}"${statMode === k ? ' checked' : ''}> ${esc(d.label)}</label>`).join('')
+    + (() => { let g = '', h = ''; for (const [k, d] of Object.entries(STATS)){ if (d.g !== g){ g = d.g; h += `<div class="sg">${esc(g)}</div>`; } h += `<label><input type="radio" name="statm" value="${k}"${statMode === k ? ' checked' : ''}> ${esc(d.label)}</label>`; } return h; })()
     + `<label><input type="checkbox" id="statNums"${statNums ? ' checked' : ''}> Show the figure on each system</label>`
-    + (statMode ? `<div class="grad" style="background:${grad}"></div><div class="gl"><span>1</span><span>${Math.max(1, Math.round(Math.sqrt(statMaxCache)))}</span><span>${statMaxCache} max</span></div>
-      <div class="dim" style="font-size:11.5px">Dark grey = 0. Scale over ${esc(R ? R.region.name : 'this region')}, CCP figures of the last hour${statMode === 'zk' ? ' (zKillboard: the kills read for the halos)' : ''}.</div>
-      ${top.length ? `<div class="top">${top.map(x => `<button type="button" class="lk" data-sys="${x.id}">${esc(x.n)}</button><b>${x.v}</b>`).join('')}</div>` : '<div class="dim">Nothing in this region.</div>'}` : '');
+    + (statMode ? `<div class="grad" style="background:${grad}"></div><div class="gl"><span>low</span><span>${statMaxCache} max</span></div>
+      <div class="dim" style="font-size:11.5px">Dark grey = 0. Scale over ${esc(R ? R.region.name : 'this region')}, ${statMode === 'zk' ? 'zKillboard (the kills read for the halos)' : statMode === 'mine' ? 'your shared map' : 'CCP figures'}.</div>
+      ${top.length ? `<div class="top">${top.map(x => `<button type="button" class="lk" data-sys="${x.id}">${esc(x.n)}</button><b>${STATS[statMode].dec ? x.v.toFixed(STATS[statMode].dec) : x.v}</b>`).join('')}</div>` : '<div class="dim">Nothing in this region.</div>'}` : '');
   box.querySelectorAll('input[name=statm]').forEach(r => r.onchange = () => { statMode = r.value; store.set('whmap.reg.statMode', statMode); statMaxCache = statMax(); render(); renderStats(); });
   $('#statNums').onchange = e => { statNums = e.target.checked; store.set('whmap.reg.statNums', statNums); render(); };
   box.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { lookAway(); goTo(b.dataset.sys); });
@@ -2259,7 +2279,7 @@ function draw(){
     if (apNodes.has(id) && me.sys !== id) el('circle', { cx:p.x, cy:p.y, r:r + 2.2, class:'apdot' }, g);
     el('circle', { cx:p.x, cy:p.y, r:Math.max(13, r + 5), fill:'transparent' }, g);
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
-    if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : v; } }
+    if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : STATS[statMode].dec ? (v < 10 ? v.toFixed(1) : Math.round(v)) : v; } }
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none' }, g);
     el('title', {}, g).textContent = s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`;
     const as = assetsAt(id);
@@ -2698,7 +2718,7 @@ function setupInput(){
    known-space systems are within X gate jumps (X set by the player); otherwise the other ones are secondary chains. */
 // which chain is shown, kept across rebuilds: a member system, or '#hubs' for the "nearest Thera & Turnur" view
 const keyOf = g => g.hubs ? '#hubs' : g.ids.find(id => !isK(id)) || g.ids[g.ids.length - 1];
-let chainX = SET.chainX, chainPick = null, chainGroups = [], chainBusy = 0, chainKey = null, chainFocus = null;
+let chainX = SET.chainX, chainPick = null, chainGroups = [], chainBusy = 0, chainKey = store.get('whmap.reg.chainKey', '#hubs'), chainFocus = null;
 const jumpCache = store.get('whmap.reg.jumps', {});
 async function jumps(a, b){
   const k = a < b ? a + '>' + b : b + '>' + a;
@@ -2782,7 +2802,7 @@ async function buildChains(){
   const want = chainFocus || chainKey;
   if (want){ const i = want === '#hubs' ? chainGroups.findIndex(g => g.hubs) : chainGroups.findIndex(g => !g.hubs && g.set.has(String(want))); if (i >= 0){ chainPick = i; if (chainFocus){ chainSelect([chainFocus]); renderChainAct(); } } }
   chainFocus = null;
-  if (chainGroups[chainPick || 0]) chainKey = keyOf(chainGroups[chainPick || 0]);
+  if (chainGroups[chainPick || 0] && (chainGroups.some(g => g.hubs) || chainKey !== '#hubs')) chainKey = keyOf(chainGroups[chainPick || 0]);   // keep asking for the Thera & Turnur view until it is computed
   renderChainSel(); renderChain(); renderAllChains();
 }
 function chainName(g, i){
@@ -3014,7 +3034,7 @@ function chainMenu(e, id){
       + (isK(id) ? item('region', 'Open its region') + item('dest', 'Set destination') + item('wp', 'Add waypoint') + '<hr>' : '')
       + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
       + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('') + '<hr>'
-      + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + (/^\d+$/.test(id) ? item('zkill', 'zKillboard ↗') : '') + '<hr>' + item('del', 'Delete', 'danger');
+      + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + (/^\d+$/.test(id) ? item('dotlan', 'Dotlan ↗') + item('zkill', 'zKillboard ↗') : '') + '<hr>' + item('del', 'Delete', 'danger');
   } else {
     html = item('add0', '+ Add a system') + (g ? item('all', 'Select the whole chain') : '') + (chainPicked.size ? item('clear', 'Clear selection') : '') + item('auto', 'Auto layout');
   }
@@ -3032,6 +3052,7 @@ function chainMenu(e, id){
     else if (act === 'wp') sendWaypoint(id, true);
     else if (act === 'add') openChainForm(id);
     else if (act === 'add0') openChainForm();
+    else if (act === 'dotlan') open(`https://evemaps.dotlan.net/system/${encodeURIComponent(sysName(id).replace(/ /g, '_'))}`, '_blank', 'noopener');
     else if (act === 'zkill') open(`https://zkillboard.com/system/${id}/`, '_blank', 'noopener');
     else if (act === 'home') setHome(isHome(id) ? null : id);
     else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
@@ -3085,7 +3106,7 @@ function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); store.set('whmap.reg.chainOpen', on); if (on){ placeWidget(box); box.style.zIndex = ++wz; buildChains(); } };
   btn.onclick = () => show(box.hidden);
-  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? keyOf(chainGroups[chainPick]) : null; chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
+  $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainKey = chainGroups[chainPick] ? keyOf(chainGroups[chainPick]) : null; store.set('whmap.reg.chainKey', chainKey); chainView = { k:1, x:0, y:0 }; renderChain(); renderAllChains(); };
   $('#chainX').onchange = e => { chainX = SET.chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); saveSettings(); buildChains(); };
   let st = null, band = null;
   const menu = $('#chainMenu');
