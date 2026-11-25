@@ -267,6 +267,9 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
 body.nf #hint{transform:translateY(-16px)}
+#nfBack{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);z-index:4;background:rgba(14,20,36,.92);border:1px solid var(--ok);color:#bff2d3;border-radius:14px;padding:4px 14px;font-size:12.5px;cursor:pointer}
+#nfBack[hidden]{display:none}
+#nfBack:hover{background:rgba(30,60,44,.95)}
 #noFollow{position:absolute;inset:0;z-index:3;pointer-events:none;border:12px solid #f2a74b;animation:nfpulse 3.6s ease-in-out infinite}
 #noFollow[hidden]{display:none}
 #nfTxt{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;background:#f2a74b;border:0;color:#1d1204;border-radius:8px 8px 0 0;padding:6px 26px 7px;font:800 15px var(--display, 'Saira Condensed', sans-serif);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;animation:nfpulse2 3.6s ease-in-out infinite}
@@ -396,6 +399,7 @@ body.nf #hint{transform:translateY(-16px)}
 <div id="stage">
   <svg id="map" aria-label="3D region map"></svg>
   <div id="pilRing" hidden></div>
+  <button type="button" id="nfBack" hidden title="Follow me is still on: the map comes back on your next jump. Click to go back now."></button>
   <div id="noFollow" hidden><button type="button" id="nfTxt" title="Follow your pilot again"></button></div>
   <div id="pilPop" hidden></div>
   <div id="banner"></div>
@@ -1484,10 +1488,10 @@ function setFollow(v){ follow = !!v; peek = false; store.set('whmap.reg.follow',
 // a slowly pulsing frame round the map while your pilot is not followed
 function renderNoFollow(){
   const f = $('#noFollow'); if (!f) return;
-  const on = (!follow || peek) && !!tok;
-  f.hidden = !on; document.body.classList.toggle('nf', on);
-  if (on) $('#nfTxt').innerHTML = peek ? `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · back on your next jump · click to go back now</small>`
-    : `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
+  const on = !follow && !!tok;      // the alarm only when the pilot is really not followed
+  f.hidden = !on;
+  const bk = $('#nfBack'); if (bk){ bk.hidden = !(follow && peek && tok && me.sys); if (!bk.hidden) bk.textContent = `↩ Back to ${tok.charName} · ${sysName(me.sys)}`; } document.body.classList.toggle('nf', on);
+  if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
 function coveredAt(x, y, m = 40){
@@ -2347,7 +2351,8 @@ function setupInput(){
   $('#colorSel').onchange = e => { colorMode = e.target.value; store.set('whmap.reg.color', colorMode); render(); renderPanel(); };
   const fb = $('#btnFollow'); fb.setAttribute('aria-pressed', String(follow));
   fb.onclick = () => { if (follow && peek){ backToPilot(); return; } setFollow(!follow); if (follow){ if (me.sys){ const reg = regionOf(me.sys); if (reg && R && reg === R.region.id && byId[me.sys]) followTo(me.sys); else onMove(); } else toast('Position not known yet: log in with EVE in the Characters window', true); } };
-  $('#nfTxt').onclick = () => { if (peek) backToPilot(); else if (!follow) fb.click(); };
+  $('#nfTxt').onclick = () => { if (!follow) fb.click(); };
+  $('#nfBack').onclick = () => backToPilot();
   renderNoFollow();
   $('#search').addEventListener('change', e => {
     const q = e.target.value.trim().toLowerCase(); if (!q) return;
