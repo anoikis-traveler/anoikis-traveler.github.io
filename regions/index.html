@@ -342,6 +342,8 @@ body.nf #hint{transform:translateY(-16px)}
 .marks .mk-exit{border-color:#2e6b4a;color:#7fe0a6}
 .marks .on{background:rgba(245,197,66,.12)}
 .marks .mk-exit.on{background:rgba(76,201,122,.12)}
+.wnav a.navadm{color:#e8c25a}
+.wnav a[hidden]{display:none}
 .marksbar{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%}
 .gbtn{border-color:#8a6a1e;color:#f0cd6e;background:rgba(232,194,90,.08);font-weight:600}
 .gbtn:hover{background:rgba(232,194,90,.2);border-color:#e8c25a}
@@ -412,7 +414,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
 
   <section class="widget" id="wTool" data-title="Anoikis Traveler">
-    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a id="navAdmin" class="navadm" href="../admin/" target="_blank" rel="noopener" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" target="_blank" rel="noopener" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb tool">
       <select id="regSel" aria-label="Region"></select>
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
@@ -1564,6 +1566,9 @@ const payV = () => `Anoikis-${payMapName()}-${store.get('whmap.reg.payTier', 10)
 
 function renderChars(){
   renderWatch();
+  // the site owner's own links: shown only when one of the owner's characters is logged in here
+  if (!DEMO){ const own = vaultChars().some(c => 'eve-' + c.charId === String((share.site || {}).owner || 'eve-1199302756') || c.charName === 'Sava Yesh');
+    const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own; }
   const box = $('#charsBody'); if (!box) return;
   const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
   box.innerHTML = (list.length ? list.map(c => { const st = chars[c.charId] || {}, on = tok && tok.charId === c.charId;
