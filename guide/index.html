@@ -103,6 +103,8 @@ table.prices th{font-weight:600;opacity:.8}
 table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 figure.wide{grid-column:1 / -1}
 .subh{margin:26px 0 12px;font-family:var(--display, inherit);letter-spacing:.06em;text-transform:uppercase}
+.atc{white-space:nowrap}
+.atc .atcopy{margin-left:6px;padding:1px 8px;font-size:11.5px;vertical-align:1px}
 </style>
 </head>
 <body>
@@ -255,10 +257,10 @@ figure.wide{grid-column:1 / -1}
     <div class="box"><h3 data-i18n="pr_tab_t"></h3>
       <table class="prices"><thead><tr><th data-i18n="pr_chars"></th><th data-i18n="pr_price"></th><th data-i18n="pr_reason"></th></tr></thead><tbody>
         <tr><td>1 – 5</td><td data-i18n="pr_free"></td><td>—</td></tr>
-        <tr><td>6 – 10</td><td>50 M ISK <span data-i18n="pr_week"></span></td><td><code>AT-<span data-i18n="pr_you"></span>-10</code></td></tr>
-        <tr><td>11 – 15</td><td>100 M ISK <span data-i18n="pr_week"></span></td><td><code>AT-<span data-i18n="pr_you"></span>-15</code></td></tr>
-        <tr><td>16 – 20</td><td>150 M ISK <span data-i18n="pr_week"></span></td><td><code>AT-<span data-i18n="pr_you"></span>-20</code></td></tr>
-        <tr><td>21 – 25</td><td>200 M ISK <span data-i18n="pr_week"></span></td><td><code>AT-<span data-i18n="pr_you"></span>-25</code></td></tr>
+        <tr><td>6 – 10</td><td>50 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>AT-<span class="atname" data-i18n="pr_you"></span>-10</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
+        <tr><td>11 – 15</td><td>100 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>AT-<span class="atname" data-i18n="pr_you"></span>-15</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
+        <tr><td>16 – 20</td><td>150 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>AT-<span class="atname" data-i18n="pr_you"></span>-20</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
+        <tr><td>21 – 25</td><td>200 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>AT-<span class="atname" data-i18n="pr_you"></span>-25</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
       </tbody></table>
       <p class="mini" data-i18n="pr_more"></p></div>
     <div class="box"><h3 data-i18n="pr_how_t"></h3><ol data-i18n="pr_how"></ol>
@@ -663,6 +665,10 @@ Object.assign(T.en, {"pr_you": "Your Name"});
 Object.assign(T.fr, {"pr_you": "Votre Nom"});
 Object.assign(T.de, {"pr_you": "Dein Name"});
 Object.assign(T.es, {"pr_you": "Tu Nombre"});
+Object.assign(T.en, {"pr_copy": "Copy"});
+Object.assign(T.fr, {"pr_copy": "Copier"});
+Object.assign(T.de, {"pr_copy": "Kopieren"});
+Object.assign(T.es, {"pr_copy": "Copiar"});
 const LANGS = Object.keys(T);
 const $ = s => document.querySelector(s);
 function pick(){
@@ -683,9 +689,17 @@ function apply(l){
   $('#rafLink').href = `https://www.eveonline.com/${l === 'en' ? '' : l + '/'}signup?invc=${RAF}`;
   try{ localStorage.setItem('at.lang', l); }catch(e){}
   const u = new URL(location.href); u.searchParams.set('lang', l); history.replaceState(null, '', u);
+  // logged in on the map in this browser: the reasons carry your own main character's name
+  const me = atName(); if (me) document.querySelectorAll('.atname').forEach(e => e.textContent = me);
+}
+function atName(){
+  try{ const id = localStorage.getItem('whmap.lastChar'), tk = id && JSON.parse(localStorage.getItem('whmap.tok.' + JSON.parse(id)) || 'null'); return tk && tk.charName || ''; }catch(e){ return ''; }
 }
 document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => apply(b.dataset.lang)));
 document.addEventListener('click', async e => {
+  const a = e.target.closest('.atcopy');
+  if (a){ const v = a.parentElement.querySelector('code').textContent.trim(); try{ await navigator.clipboard.writeText(v); }catch(x){}
+    const t = $('#toast'); t.textContent = `${T[lang].copied}: ${v}`; t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 1600); return; }
   const c = e.target.closest('[data-copy]'); if (!c) return;
   try{ await navigator.clipboard.writeText(c.dataset.copy); }catch(x){}
   const t = $('#toast'); t.textContent = `${T[lang].copied}: ${c.dataset.copy}`; t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 1600);
