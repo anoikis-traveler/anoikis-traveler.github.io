@@ -1260,14 +1260,14 @@ function setupPoch(){
   setInterval(() => renderPoch(), 30000);
 }
 /* ---------- Admin and Payments, inside the map (the site owner's characters only; the server checks it) ---------- */
-const OWN_NAMES = ['Sava Yesh'];
+const OWN_NAMES = ['Sava Yesh', 'Calimeroombrageux'];   // with the site owner (cloporte): the only characters who see Admin and Payments
 const isOwnerChar = c => !!c && ('eve-' + c.charId === String((share.site || {}).owner || 'eve-1199302756') || OWN_NAMES.includes(c.charName));
 let adm = { sort:'until', open:new Set(), data:null };
 const iskM = n => (Math.round(n / 1e5) / 10).toLocaleString() + ' M';
 const whenT = t => t ? new Date(t).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
 const leftT = ms => { if (ms <= 0) return 'ended'; const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5); return d ? `${d} d ${h} h` : `${h} h ${Math.floor(ms % 36e5 / 6e4)} min`; };
 function admGate(box){
-  if (!tok || !isOwnerChar(tok)){ box.innerHTML = `<p class="dim">Make <b>cloporte</b> or <b>Sava Yesh</b> the active character (Characters window) to see this.</p>`; return false; }
+  if (!tok || !isOwnerChar(tok)){ box.innerHTML = `<p class="dim">Make <b>cloporte</b>, <b>Sava Yesh</b> or <b>Calimeroombrageux</b> the active character (Characters window) to see this.</p>`; return false; }
   if (!share.ws || !share.uid){ box.innerHTML = '<p class="dim">Connecting to the server…</p>'; return false; }
   return true;
 }

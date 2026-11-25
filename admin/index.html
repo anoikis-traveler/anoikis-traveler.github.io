@@ -121,7 +121,7 @@ async function loadHistory(o){
     await load();
     $('#login').hidden = true; $('#app').hidden = false;
     setInterval(() => load().catch(() => {}), 120000);
-  }catch(e){ $('#msg').innerHTML = `<span class="bad">${esc(e.message === 'Permission denied' ? 'This page is for the site owner only.' : e.message)}</span>`; }
+  }catch(e){ $('#msg').innerHTML = `<span class="bad">${esc(e.message === 'Permission denied' ? 'This page is for cloporte, Sava Yesh and Calimeroombrageux only.' : e.message)}</span>`; }
 })();
 </script>
 </body>
