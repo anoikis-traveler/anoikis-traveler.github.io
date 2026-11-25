@@ -87,6 +87,12 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .mepulse{fill:none;stroke:var(--ok);stroke-width:2;animation:pulse 1.8s ease-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes pulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.6)}}
 .pil{font-family:var(--mono);font-size:10.5px;fill:var(--ok);paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.hublbl{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;paint-order:stroke;stroke:#070a12;stroke-width:4px;pointer-events:none}
+.hubsub{font-family:var(--mono);font-size:10.5px;fill:#c3cde0;paint-order:stroke;stroke:#070a12;stroke-width:3px;pointer-events:none}
+.netlist li{display:grid;grid-template-columns:34px 1fr;column-gap:6px;align-items:baseline;cursor:pointer}
+.netlist li > .dim{grid-column:2}
+.netlist li:hover .nm{color:var(--accent)}
+.netlist .sc{font-family:var(--mono);font-size:12px}
 .stub{font-family:var(--mono);font-size:10.5px;fill:#cdb8ff;paint-order:stroke;stroke:#070a12;stroke-width:3px;cursor:pointer}
 /* Autopilot route widget */
 #apBox{position:absolute;left:12px;top:12px;z-index:4;width:250px;max-height:calc(100% - 60px);display:flex;flex-direction:column;background:rgba(14,20,36,.94);border:1px solid var(--line);border-left:3px solid var(--ap);border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
@@ -213,7 +219,7 @@ const holeCol = (here, other) => WH_COL[classOf(other)] || WH_COL.J;
 /* systems of this region touched by an active hole, with the colour of where the hole leads */
 function whTouch(){
   const m = {};
-  for (const l of whLinks()){
+  for (const l of allHoles()){
     const a = String(l.a), b = String(l.b);
     if (byId[a] && !byId[a].ext && !m[a]) m[a] = holeCol(a, b);
     if (byId[b] && !byId[b].ext && !m[b]) m[b] = holeCol(b, a);
@@ -300,7 +306,7 @@ const whLinks = () => Object.values(mapper.links).filter(l => l && l.type !== 'g
 function renderWhSel(){
   const sel_ = $('#whSel'); if (!sel_ || !index) return;
   const byReg = {};
-  for (const l of whLinks()){
+  for (const l of allHoles()){
     if (!whAlive(l)) continue;
     for (const [here, other] of [[l.a, l.b], [l.b, l.a]]){
       const reg = regionOf(here); if (!reg) continue;               // J-space side: no region page
@@ -318,6 +324,32 @@ function renderWhSel(){
   const unknown = [...new Set(regs.flatMap(r => byReg[r].map(c => c.other)))].filter(id => sysName(id) === id && !(id in nameCache)).slice(0, 15);
   if (unknown.length) Promise.all(unknown.map(async id => { await lookupName(id); if (!(id in nameCache)) nameCache[id] = id; })).then(renderWhSel);
 }
+/* ---------- Thera & Turnur: their whole network, straight from EVE-Scout (same source as the mapper) ---------- */
+const HUB_LIST = ['31000005', '30002086'];                 // Thera, Turnur
+const HUB_CLASS = { '31000005':'THERA', '30002086':'TURNUR' };
+const SCOUT_SIZE = { small:'S', medium:'M', large:'L', xlarge:'XL', capital:'XL' };
+let scout = [], scoutT = 0;
+async function loadScout(){
+  try{
+    const r = await fetch('https://api.eve-scout.com/v2/public/signatures'); if (!r.ok) throw 0;
+    const j = await r.json();
+    scout = (Array.isArray(j) ? j : []).filter(c => c && (c.signature_type || 'wormhole') === 'wormhole' && HUB_LIST.includes(String(c.out_system_id)) && c.in_system_id).map(c => {
+      if (c.in_system_name) nameCache[String(c.in_system_id)] = c.in_system_name;
+      return { id:'es' + c.id, a:Number(c.out_system_id), b:Number(c.in_system_id), type:'wh', src:'eve-scout', wh:c.wh_type || '', size:SCOUT_SIZE[String(c.max_ship_size || '').toLowerCase()] || '?',
+               expires:Date.parse(c.expires_at) || null, mass:'fresh', eol:false, outSig:c.out_signature || '', inSig:c.in_signature || '', regionTxt:c.in_region_name || '', clsTxt:c.in_system_class || '' };
+    });
+    scoutT = Date.now();
+  }catch(e){}
+  renderWhSel(); if (R){ computeRoute(); render(); renderPanel(); }
+}
+nameCache['31000005'] = 'Thera';
+/* every active hole: the mapper's chain plus EVE-Scout's Thera/Turnur connections (no duplicates) */
+function allHoles(){
+  const out = whLinks(), seen = new Set(out.map(l => pairKey(l.a, l.b)));
+  for (const l of scout) if (whPhase(l) !== 'dead' && !seen.has(pairKey(l.a, l.b))){ seen.add(pairKey(l.a, l.b)); out.push(l); }
+  return out;
+}
+const isHubVirtual = id => HUB_LIST.includes(String(id)) && !byId[String(id)];
 const pilotsAt = id => Object.values(mapper.pilots).filter(p => p && String(p.sys) === String(id) && (!p.t || Date.now() - p.t < 30 * 60000));
 
 /* ---------- EVE login (shared with the mapper) ---------- */
@@ -419,7 +451,7 @@ function graph(){
   const g = {};
   const add = (a, b, k) => { (g[a] = g[a] || []).push([b, k]); (g[b] = g[b] || []).push([a, k]); };
   for (const [a, b] of R.links) add(String(a), String(b), 'g:' + [a, b].sort().join('-'));
-  for (const l of whLinks()) add(String(l.a), String(l.b), 'w:' + l.id);
+  for (const l of allHoles()) add(String(l.a), String(l.b), 'w:' + l.id);
   return g;
 }
 function computeRoute(){
@@ -455,6 +487,26 @@ function centerOn(id, soft){
   cam.px = tx; cam.py = ty;
 }
 
+/* ---------- Thera / Turnur as nodes floating above the region ---------- */
+let hubNodes = [];
+function placeHubs(){
+  hubNodes = [];
+  for (const h of HUB_LIST) if (!byId[h]) delete norm[h];
+  if (!R) return;
+  const own = Object.keys(norm).filter(id => byId[id] && !byId[id].ext);
+  if (!own.length) return;
+  const top = Math.max(...own.map(id => norm[id].y));
+  HUB_LIST.filter(h => !byId[h]).forEach((h, i) => {
+    const conns = allHoles().filter(l => (String(l.a) === h && byId[String(l.b)]) || (String(l.b) === h && byId[String(l.a)]));
+    if (!conns.length) return;
+    const ends = conns.map(l => norm[String(String(l.a) === h ? l.b : l.a)]).filter(Boolean);
+    const c = ends.reduce((m, p) => ({ x:m.x + p.x / ends.length, z:m.z + p.z / ends.length }), { x:0, z:0 });
+    norm[h] = { x:c.x * 0.5 + (i ? 0.32 : -0.32), y:top + 0.95, z:c.z * 0.5 + 0.15 };
+    hubNodes.push({ h, conns });
+  });
+}
+const hubColour = h => WH_COL[HUB_CLASS[String(h)]];
+function leftTxt(ms){ if (ms == null) return ''; const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; }
 /* ---------- Render ---------- */
 let rafId = 0;
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); }); };
@@ -475,6 +527,7 @@ function draw(){
   el('stop', { offset:'0%', 'stop-color':'#fff', 'stop-opacity':'.75' }, sh); el('stop', { offset:'35%', 'stop-color':'#fff', 'stop-opacity':'.12' }, sh);
   el('stop', { offset:'75%', 'stop-color':'#000', 'stop-opacity':'.15' }, sh); el('stop', { offset:'100%', 'stop-color':'#000', 'stop-opacity':'.55' }, sh);
   const zs = Math.max(0.85, Math.min(1.9, Math.pow(cam.zoom, 0.4)));
+  placeHubs();
   const P = {}; for (const id in norm) P[id] = proj(norm[id]);
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
   touch = whTouch();
@@ -500,16 +553,16 @@ function draw(){
   for (const s of R.systems){ if (s.ext) continue; const p = P[s.id]; (cs[s.c] = cs[s.c] || []).push(p); }
   for (const c in cs){ const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
     const t = el('text', { x, y, 'text-anchor':'middle', class:'clbl' }, gConst); t.textContent = R.constellations[c]; }
-  // wormholes from the mapper
+  // wormholes: the mapper's chain and the Thera/Turnur network
   const stubs = {};
-  for (const l of whLinks()){
+  for (const l of allHoles()){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
     const cls = 'whl ' + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
     const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : ''].filter(Boolean).join(' ');
     if (pa && pb){
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - Math.hypot(pb.x - pa.x, pb.y - pa.y) * 0.25;
-      const path = el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${holeCol(a, b)}` : '' }, gWh);
-      el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${label}`;
+      const path = el('path', { d:`M${pa.x},${pa.y} Q${mx},${my} ${pb.x},${pb.y}`, class:cls, style:!/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b)) ? `stroke:${isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b)}` : '' }, gWh);
+      el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${label}${l.expires ? ' · ' + leftTxt(l.expires - Date.now()) + ' left' : ''}${l.outSig ? ` · sig ${l.outSig} / ${l.inSig}` : ''}`;
     } else if (pa || pb){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
       const i = (stubs[here] = (stubs[here] || 0) + 1) - 1;
@@ -524,6 +577,21 @@ function draw(){
       t.addEventListener('click', ev => { ev.stopPropagation(); location.href = `${MAPPER}?sys=${other}`; });
       el('title', {}, t).textContent = 'Open in the wormhole mapper';
     }
+  }
+  // Thera / Turnur hubs
+  const defs2 = svg.querySelector('defs');
+  for (const { h, conns } of hubNodes){
+    const p = P[h], col = hubColour(h), total = allHoles().filter(l => String(l.a) === h || String(l.b) === h).length;
+    const gr = el('radialGradient', { id:'hg' + h }, defs2);
+    el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
+    const g = el('g', { class:'sys hub', 'data-id':h, tabindex:'0', role:'button', 'aria-label':`${sysName(h)}: ${total} connections` }, gNodes);
+    el('circle', { cx:p.x, cy:p.y, r:34, fill:`url(#hg${h})` }, g);
+    if (sel === h) el('circle', { cx:p.x, cy:p.y, r:20, class:'halo' }, g);
+    el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:col, class:'dot' }, g);
+    el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:'url(#shine)', 'pointer-events':'none' }, g);
+    el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (EVE-Scout). Click for the whole network.`;
+    const t = el('text', { x:p.x + 20, y:p.y - 4, class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
+    const t2 = el('text', { x:p.x + 20, y:p.y + 10, class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
   }
   // systems, far to near; labels are placed afterwards, skipping those that would overlap (zoom in to see them all)
   const labels = [];
@@ -559,14 +627,38 @@ function draw(){
 }
 
 /* ---------- Side panel ---------- */
+function hubHtml(h){
+  const name = sysName(h), col = hubColour(h), now = Date.now();
+  const conns = allHoles().filter(l => String(l.a) === h || String(l.b) === h).map(l => {
+    const o = String(String(l.a) === h ? l.b : l.a), reg = regionOf(o);
+    return { o, l, reg, regName:reg ? regionName(reg) : (l.regionTxt || (isJ(o) ? 'J-space' : '—')), s:secOf(o) };
+  });
+  const here = conns.filter(c => byId[c.o] && !byId[c.o].ext);
+  const groups = {}; for (const c of conns) (groups[c.regName] = groups[c.regName] || []).push(c);
+  const names = Object.keys(groups).sort((a, b) => (a === R.region.name ? -1 : b === R.region.name ? 1 : a.localeCompare(b)));
+  const row = c => { const cls = c.s != null ? `<span class="sc" style="color:${secCol(c.s)}">${secR(c.s).toFixed(1)}</span>` : `<span class="sc" style="color:var(--eol)">${esc((c.l.clsTxt || 'WH').toUpperCase())}</span>`;
+    const info = [c.l.wh, c.l.size && c.l.size !== '?' ? c.l.size : '', c.l.expires ? leftTxt(c.l.expires - now) : '', c.l.outSig ? `${c.l.outSig} › ${c.l.inSig}` : ''].filter(Boolean).join(' · ');
+    return `<li data-sys="${c.o}">${cls}<span class="nm">${esc(sysName(c.o))}</span><span class="dim" style="font-size:11.5px">${esc(info)}</span></li>`; };
+  return `<h2 style="color:${col}">${esc(name)}</h2>
+    <div class="dim">${conns.length} connection${conns.length > 1 ? 's' : ''} in New Eden · ${here.length} into ${esc(R.region.name)}${scoutT ? ` · EVE-Scout, ${new Date(scoutT).toLocaleTimeString([], { timeStyle:'short' })}` : ''}</div>
+    <div class="row"><a href="${MAPPER}?sys=${h}"><button type="button">Open in mapper</button></a><button id="bClose" type="button">Back to region</button></div>
+    ${names.map(n => `<h3>${esc(n)} <span class="dim" style="font-size:.85rem">(${groups[n].length})</span></h3><ul class="plain netlist">${groups[n].sort((a, b) => (b.s ?? -9) - (a.s ?? -9)).map(row).join('')}</ul>`).join('')}
+    <p class="dim" style="font-size:12px">Signatures: ${esc(name)} side › other side. Click a system to open its region.</p>`;
+}
 function renderPanel(){
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
+  if (sel && isHubVirtual(sel) && norm[sel]){
+    P.innerHTML = hubHtml(sel);
+    $('#bClose').onclick = () => select(null);
+    P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
+    return;
+  }
   const s = sel && byId[sel];
   if (!s){
     const own = R.systems.filter(x => !x.ext);
     const inRegion = id => byId[String(id)] && !byId[String(id)].ext;
-    const whs = whLinks().filter(l => inRegion(l.a) || inRegion(l.b));
+    const whs = allHoles().filter(l => inRegion(l.a) || inRegion(l.b));
     const pil = Object.values(mapper.pilots).filter(p => p && inRegion(p.sys) && (!p.t || Date.now() - p.t < 30 * 60000));
     const exits = [...new Set(R.systems.filter(x => x.ext).map(x => x.r))];
     P.innerHTML = `<h2>${esc(R.region.name)}</h2>
@@ -588,7 +680,7 @@ function renderPanel(){
   } else {
     const id = String(s.id);
     const nb = adj[id] || [];
-    const whs = whLinks().filter(l => String(l.a) === id || String(l.b) === id);
+    const whs = allHoles().filter(l => String(l.a) === id || String(l.b) === id);
     const pil = pilotsAt(id);
     const wpOk = tok && canWp();
     const wpTitle = !tok ? 'Log in through the mapper first' : !wpOk ? 'Turn on waypoints in the mapper (log in again with the waypoint option)' : '';
@@ -631,6 +723,7 @@ function renderPanel(){
 function select(id){ sel = id == null ? null : String(id); computeRoute(); render(); renderPanel(); }
 async function goTo(id){
   id = String(id);
+  if (isHubVirtual(id) && norm[id]){ select(id); return; }
   if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ location.href = `${MAPPER}?sys=${id}`; return; } await loadRegion(r); }
   select(id); centerOn(id); render();
 }
@@ -649,7 +742,7 @@ function apSave(){
 }
 function whConns(){
   const out = [];
-  for (const l of whLinks()){ if (!/^\d+$/.test(String(l.a)) || !/^\d+$/.test(String(l.b))) continue;
+  for (const l of allHoles()){ if (!/^\d+$/.test(String(l.a)) || !/^\d+$/.test(String(l.b))) continue;
     out.push({ from:Number(l.a), to:Number(l.b) }, { from:Number(l.b), to:Number(l.a) }); }
   return out;
 }
@@ -665,7 +758,7 @@ async function esiRoute(a, b, pref, conns){
   routeCache.set(key, ids);
   return ids;
 }
-function apWhPairs(){ const m = {}; for (const l of whLinks()) m[pairKey(l.a, l.b)] = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : ''].filter(Boolean).join(' ') || 'wormhole'; return m; }
+function apWhPairs(){ const m = {}; for (const l of allHoles()) m[pairKey(l.a, l.b)] = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : ''].filter(Boolean).join(' ') || 'wormhole'; return m; }
 async function computeAp(force){
   if (!ap){ renderAp(); render(); return; }
   if (!me.sys){ ap.err = 'Waiting for your position…'; renderAp(); return; }
@@ -842,6 +935,7 @@ function setupInput(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   poll();
+  loadScout(); setInterval(loadScout, 5 * 60000);
 })();
 })();
 </script>
