@@ -54,7 +54,7 @@ async function login(){
   const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
   const state = 'ad' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "ad": the site root sends the answer back here
   sessionStorage.setItem('at.admin.pkce', JSON.stringify({ verifier, state }));
-  location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:site.clientId, scope:'publicData', code_challenge:challenge, code_challenge_method:'S256', state });
+  location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:site.clientId, scope:'esi-location.read_location.v1', code_challenge:challenge, code_challenge_method:'S256', state });
 }
 function send(o){ return new Promise((res, rej) => { const id = ++seq; wait.set(id, { res, rej }); ws.send(JSON.stringify({ ...o, id })); setTimeout(() => { if (wait.has(id)){ wait.delete(id); rej(new Error('No answer from the server')); } }, 30000); }); }
 function connect(access){
