@@ -250,8 +250,19 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .chainform{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px}
 .chainform input,.chainform select{font-size:12px;padding:3px 6px}
 .chainform #cfName{width:150px}
+.chainform[hidden],.chainact[hidden]{display:none}
 .cbox.sel .cb{stroke:var(--accent);stroke-width:2}
 .cbox{cursor:move}
+.cband{fill:rgba(242,167,75,.12);stroke:var(--accent);stroke-dasharray:4 3;pointer-events:none}
+.cmenu{position:fixed;z-index:9999;min-width:190px;padding:4px;background:rgba(12,17,30,.97);border:1px solid var(--line);border-radius:7px;box-shadow:0 10px 28px rgba(0,0,0,.55);display:flex;flex-direction:column}
+.cmenu[hidden]{display:none}
+.cmenu .cmh{padding:5px 9px 6px;font-family:var(--display);letter-spacing:.06em;text-transform:uppercase;font-size:13px;border-bottom:1px solid var(--line);margin-bottom:3px}
+.cmenu .cmh span{color:var(--dim);font-size:11px;margin-left:4px}
+.cmenu button{all:unset;padding:6px 10px;border-radius:4px;font-size:13px;cursor:pointer;color:var(--text)}
+.cmenu button:hover,.cmenu button:focus-visible{background:rgba(242,167,75,.14);color:var(--accent)}
+.cmenu button.danger{color:#ec7d76}
+.cmenu button.danger:hover{background:rgba(224,86,79,.16);color:#ff9a93}
+.cmenu hr{border:0;border-top:1px solid var(--line);margin:3px 0}
 .cbox .cb{fill:#111a2c;stroke:#2c3a58;stroke-width:1}
 .cbox:hover .cb{stroke:#8b98b0}
 .cbox.here .cb{stroke:var(--ok);stroke-width:1.6}
@@ -1857,6 +1868,14 @@ let chainView = { k:1, x:0, y:0 };
 const BW = 160, BH = 50, CW = 220, RH = 70, GRID = 10;   // layout units; boxes snap to the grid
 const chainPos = store.get('whmap.reg.chainpos', {});     // systems moved by hand
 let chainT = null, chainDrag = null, chainSel = null, linkFrom = null;
+const chainPicked = new Set();            // multiple selection (chainSel = the last one clicked)
+function chainSelect(ids, add){
+  if (!add) chainPicked.clear();
+  for (const id of ids) chainPicked.add(String(id));
+  chainSel = chainPicked.size ? [...chainPicked].pop() : null;
+}
+function chainToggle(id){ id = String(id); if (chainPicked.has(id)) chainPicked.delete(id); else chainPicked.add(id); chainSel = chainPicked.size ? (chainPicked.has(id) ? id : [...chainPicked].pop()) : null; }
+function chainClear(){ chainPicked.clear(); chainSel = null; linkFrom = null; }
 function chainLayout(g){
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
   const root = g.set.has(homeId) ? homeId : (me.sys && g.set.has(me.sys) ? me.sys : g.ids.find(isJ) || g.ids[0]);
@@ -1921,7 +1940,7 @@ function renderChain(){
   for (const id of g.ids){
     const p = pos[id]; if (!p) continue;
     const cl = classOf(id), col = WH_COL[cl] || WH_COL.J, here = mine[id] || (me.sys === id ? [me.name] : null);
-    const n = el('g', { class:'cbox' + (here ? ' here' : '') + (chainSel === id ? ' sel' : ''), 'data-id':id, transform:`translate(${p.x} ${p.y})` }, gN);
+    const n = el('g', { class:'cbox' + (here ? ' here' : '') + (chainPicked.has(id) ? ' sel' : ''), 'data-id':id, transform:`translate(${p.x} ${p.y})` }, gN);
     el('rect', { width:BW, height:BH, rx:5, class:'cb' }, n);
     el('rect', { width:4, height:BH, rx:2, fill:col }, n);
     const badge = isK(id) ? secR(secOf(id)).toFixed(1) : cl;
@@ -1933,7 +1952,7 @@ function renderChain(){
     if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
-  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · click a system for its actions, double-click a k-space one to open its region, drag to move it on the grid · your additions and deletions stay in this browser`;
+  $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · click a system for its actions, right-click for the menu, Ctrl/Shift+click or Shift+drag to select several, drag to move them on the grid, Delete to remove · your additions and deletions stay in this browser`;
 }
 function openRegionOf(id){ follow = false; $('#btnFollow').setAttribute('aria-pressed', 'false'); goTo(id); }
 function afterEdit(){ renderWhSel(); computeRoute(); render(); renderPanel(); buildChains(); }
@@ -1942,6 +1961,12 @@ function renderChainAct(){
   $('#chainRestore').hidden = !E().del.length;
   if (!id){ a.hidden = true; return; }
   a.hidden = false;
+  if (chainPicked.size > 1 && !linkFrom){
+    a.innerHTML = `<b>${chainPicked.size} systems selected</b> <button type="button" id="caDelN" class="danger">Delete ${chainPicked.size}</button><button type="button" id="caClear">Clear selection</button>`;
+    a.querySelector('#caDelN').onclick = () => deleteSystems([...chainPicked]);
+    a.querySelector('#caClear').onclick = () => { chainClear(); renderChainAct(); renderChain(); };
+    return;
+  }
   a.innerHTML = linkFrom ? `Click the system to link <b>${esc(sysName(linkFrom))}</b> to · <button type="button" id="caCancel">Cancel</button>`
     : `<b>${esc(sysName(id))}</b> <span class="dim">${esc(classOf(id))}</span>
        ${isK(id) ? '<button type="button" id="caOpen">Open region</button>' : ''}
@@ -1953,12 +1978,52 @@ function renderChainAct(){
   on('#caCancel', () => { linkFrom = null; renderChainAct(); });
   on('#caDel', () => deleteSystem(id));
 }
-function deleteSystem(id){
-  id = String(id);
-  if (E().nodes[id]){ delete E().nodes[id]; for (const k in E().links){ const l = E().links[k]; if (String(l.a) === id || String(l.b) === id) delete E().links[k]; } }
-  else if (!E().del.includes(id)) E().del.push(id);
-  saveEdits(); chainSel = null; readMapper(); renderChainAct(); afterEdit();
-  toast(`${sysName(id)} removed from your chain${E().del.includes(id) ? ' (Restore deleted to undo)' : ''}`);
+function deleteSystem(id){ deleteSystems([id]); }
+function deleteSystems(ids){
+  ids = ids.map(String); if (!ids.length) return;
+  for (const id of ids){
+    if (E().nodes[id]){ delete E().nodes[id]; for (const k in E().links){ const l = E().links[k]; if (String(l.a) === id || String(l.b) === id) delete E().links[k]; } }
+    else if (!E().del.includes(id)) E().del.push(id);
+  }
+  saveEdits(); chainClear(); readMapper(); renderChainAct(); afterEdit();
+  const undo = ids.some(id => E().del.includes(id)) ? ' (Restore deleted to undo)' : '';
+  toast(ids.length > 1 ? `${ids.length} systems removed from your chain${undo}` : `${sysName(ids[0])} removed from your chain${undo}`);
+}
+/* Right-click menu of the Chain widget */
+function chainMenu(e, id){
+  const m = $('#chainMenu'), g = chainGroups[chainPick || 0];
+  const item = (act, label, cls) => `<button type="button" role="menuitem" data-act="${act}"${cls ? ` class="${cls}"` : ''}>${label}</button>`;
+  let html;
+  if (id && chainPicked.size > 1 && chainPicked.has(id)){
+    html = `<div class="cmh">${chainPicked.size} systems selected</div>` + item('delN', `Delete ${chainPicked.size} systems`, 'danger') + '<hr>' + item('all', 'Select the whole chain') + item('clear', 'Clear selection');
+  } else if (id){
+    if (!chainPicked.has(id)) chainSelect([id]);
+    html = `<div class="cmh">${esc(sysName(id))} <span>${esc(classOf(id))}</span></div>`
+      + (isK(id) ? item('region', 'Open its region') + item('dest', 'Set destination') + item('wp', 'Add waypoint') + '<hr>' : '')
+      + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + '<hr>' + item('del', 'Delete', 'danger');
+  } else {
+    html = item('add0', '+ Add a system') + (g ? item('all', 'Select the whole chain') : '') + (chainPicked.size ? item('clear', 'Clear selection') : '') + item('auto', 'Auto layout');
+  }
+  m.innerHTML = html; m.hidden = false;
+  renderChainAct(); renderChain();
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.min(e.clientX, innerWidth - w - 6) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - h - 6) + 'px';
+  m.onclick = ev => {
+    const b = ev.target.closest('[data-act]'); if (!b) return; m.hidden = true;
+    const act = b.dataset.act;
+    if (act === 'del') deleteSystems([id]);
+    else if (act === 'delN') deleteSystems([...chainPicked]);
+    else if (act === 'region') openRegionOf(id);
+    else if (act === 'dest') sendWaypoint(id, false);
+    else if (act === 'wp') sendWaypoint(id, true);
+    else if (act === 'add') openChainForm(id);
+    else if (act === 'add0') openChainForm();
+    else if (act === 'link'){ linkFrom = id; chainSelect([id]); renderChainAct(); }
+    else if (act === 'linked'){ const ids = [id]; for (const l of chainLinks()){ if (String(l.a) === id) ids.push(String(l.b)); if (String(l.b) === id) ids.push(String(l.a)); } chainSelect(ids.filter(x => !g || g.set.has(x))); renderChainAct(); renderChain(); }
+    else if (act === 'all'){ if (g) chainSelect(g.ids); renderChainAct(); renderChain(); }
+    else if (act === 'clear'){ chainClear(); renderChainAct(); renderChain(); }
+    else if (act === 'auto') $('#chainAuto').click();
+  };
 }
 function addLink(a, b, o = {}){
   const id = 'loc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -1995,7 +2060,7 @@ async function submitChainForm(){
     if (chainPos[to]) chainPos[s2.id] = { x:chainPos[to].x + CW, y:chainPos[to].y + RH / 2 };
     addLink(to, s2.id, { type:$('#cfKind').value, wh:$('#cfWh').value.trim().toUpperCase(), size:$('#cfSize').value });
   } else { saveEdits(); readMapper(); afterEdit(); }
-  $('#chainForm').hidden = true; chainSel = s2.id; renderChainAct();
+  $('#chainForm').hidden = true; chainSelect([s2.id]); renderChainAct();
 }
 function setupChain(){
   const box = $('#wChain'), btn = $('#btnChain'), svg = $('#chainSvg');
@@ -2003,33 +2068,61 @@ function setupChain(){
   btn.onclick = () => show(box.hidden);
   $('#chainSel').onchange = e => { chainPick = Number(e.target.value) || 0; chainView = { k:1, x:0, y:0 }; renderChain(); };
   $('#chainX').onchange = e => { chainX = Math.max(0, Math.min(40, Number(e.target.value) || 0)); store.set('whmap.reg.chainX', chainX); buildChains(); };
-  let st = null;
+  let st = null, band = null;
+  const menu = $('#chainMenu');
+  const closeMenu = () => { menu.hidden = true; };
+  document.addEventListener('pointerdown', e => { if (!menu.hidden && !e.target.closest('#chainMenu')) closeMenu(); }, true);
+  svg.addEventListener('contextmenu', e => { e.preventDefault(); const b = e.target.closest('.cbox'); chainMenu(e, b ? b.dataset.id : null); });
   svg.addEventListener('pointerdown', e => {
-    const b = e.target.closest('.cbox');
+    if (e.button === 2) return;
+    const b = e.target.closest('.cbox'), multi = e.ctrlKey || e.metaKey || e.shiftKey;
     if (b && chainT){ const g = chainGroups[chainPick || 0], { pos } = chainLayout(g), id = b.dataset.id;
-      chainDrag = { id, x:e.clientX, y:e.clientY, px:pos[id].x, py:pos[id].y, moved:false }; }
-    else st = { x:e.clientX, y:e.clientY, vx:chainView.x, vy:chainView.y };
+      // dragging a selected system moves the whole selection
+      const ids = chainPicked.has(id) && !multi ? [...chainPicked].filter(x => pos[x]) : [id];
+      chainDrag = { id, x:e.clientX, y:e.clientY, start:Object.fromEntries(ids.map(x => [x, { ...pos[x] }])), moved:false, multi }; }
+    else if (e.shiftKey || e.ctrlKey || e.metaKey){ const r = svg.getBoundingClientRect(); band = { x0:e.clientX - r.left, y0:e.clientY - r.top, x1:e.clientX - r.left, y1:e.clientY - r.top, add:true }; }
+    else st = { x:e.clientX, y:e.clientY, vx:chainView.x, vy:chainView.y, moved:false };
     svg.setPointerCapture(e.pointerId);
   });
+  const drawBand = () => { let r = svg.querySelector('.cband'); if (!r){ r = el('rect', { class:'cband' }, svg); }
+    r.setAttribute('x', Math.min(band.x0, band.x1)); r.setAttribute('y', Math.min(band.y0, band.y1)); r.setAttribute('width', Math.abs(band.x1 - band.x0)); r.setAttribute('height', Math.abs(band.y1 - band.y0)); };
   svg.addEventListener('pointermove', e => {
     if (chainDrag){
       const dx = e.clientX - chainDrag.x, dy = e.clientY - chainDrag.y;
       if (!chainDrag.moved && Math.hypot(dx, dy) < 4) return;
       chainDrag.moved = true;
       const snap = v => Math.round(v / GRID) * GRID;
-      chainPos[chainDrag.id] = { x:snap(chainDrag.px + dx / chainT.k), y:snap(chainDrag.py + dy / chainT.k) };
+      for (const [x, p0] of Object.entries(chainDrag.start)) chainPos[x] = { x:snap(p0.x + dx / chainT.k), y:snap(p0.y + dy / chainT.k) };
       renderChain(); return;
     }
-    if (!st) return; chainView.x = st.vx + e.clientX - st.x; chainView.y = st.vy + e.clientY - st.y; renderChain();
+    if (band){ const r = svg.getBoundingClientRect(); band.x1 = e.clientX - r.left; band.y1 = e.clientY - r.top; drawBand(); return; }
+    if (!st) return; if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 3) st.moved = true;
+    chainView.x = st.vx + e.clientX - st.x; chainView.y = st.vy + e.clientY - st.y; renderChain();
   });
   svg.addEventListener('pointerup', () => {
     if (chainDrag){
       const d = chainDrag; chainDrag = null;
       if (d.moved) store.set('whmap.reg.chainpos', chainPos);
       else if (linkFrom && linkFrom !== d.id){ addLink(linkFrom, d.id); linkFrom = null; }
-      else { chainSel = chainSel === d.id ? null : d.id; linkFrom = null; renderChainAct(); renderChain(); }
-    }
+      else if (d.multi){ chainToggle(d.id); linkFrom = null; renderChainAct(); renderChain(); }
+      else { if (chainPicked.size === 1 && chainPicked.has(d.id)) chainClear(); else chainSelect([d.id]); linkFrom = null; renderChainAct(); renderChain(); }
+    } else if (band){
+      const g = chainGroups[chainPick || 0];
+      if (g && chainT){ const { pos } = chainLayout(g), { k, ox, oy } = chainT;
+        const x0 = Math.min(band.x0, band.x1), x1 = Math.max(band.x0, band.x1), y0 = Math.min(band.y0, band.y1), y1 = Math.max(band.y0, band.y1);
+        const hit = g.ids.filter(id => { const p = pos[id]; if (!p) return false; const bx = ox + p.x * k, by = oy + p.y * k; return bx < x1 && bx + BW * k > x0 && by < y1 && by + BH * k > y0; });
+        chainSelect(hit, true); }
+      band = null; renderChainAct(); renderChain();
+    } else if (st && !st.moved && chainPicked.size){ chainClear(); renderChainAct(); renderChain(); }
     st = null;
+  });
+  // keyboard: Delete removes the selection, Escape clears it, Ctrl+A selects the chain (while the pointer is over the widget)
+  let overChain = false; box.addEventListener('pointerenter', () => overChain = true); box.addEventListener('pointerleave', () => overChain = false);
+  document.addEventListener('keydown', e => {
+    if (box.hidden || !overChain || e.target.closest('input,select,textarea')) return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && chainPicked.size){ e.preventDefault(); deleteSystems([...chainPicked]); }
+    else if (e.key === 'Escape'){ closeMenu(); chainClear(); renderChainAct(); renderChain(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a'){ const g = chainGroups[chainPick || 0]; if (g){ e.preventDefault(); chainSelect(g.ids); renderChainAct(); renderChain(); } }
   });
   svg.addEventListener('dblclick', e => { const b = e.target.closest('.cbox'); if (b && isK(b.dataset.id)) openRegionOf(b.dataset.id); });
   $('#chainAdd').onclick = () => openChainForm();
@@ -2119,5 +2212,6 @@ function setupWidgets(){
 })();
 })();
 </script>
+<div id="chainMenu" class="cmenu" role="menu" hidden></div>
 </body>
 </html>
