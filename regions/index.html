@@ -299,6 +299,14 @@ body.nf #hint{transform:translateY(-16px)}
 #pochList .pr .k{font-size:11.5px;color:var(--dim);text-align:right}
 #pochList .pr .wl{grid-column:1 / 4;font-size:11.5px;color:#e79bc4}
 #wPoch .wcol + .wcol{margin-left:0}
+.statn{font-family:var(--mono);font-size:8.5px;font-weight:700;fill:#05080f;pointer-events:none}
+.stwb{width:min(330px,calc(100vw - 40px));font-size:12.5px;display:flex;flex-direction:column;gap:6px}
+.stwb label{display:flex;gap:6px;align-items:center}
+.stwb .grad{height:10px;border-radius:3px;border:1px solid var(--line)}
+.stwb .gl{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;font-family:var(--mono)}
+.stwb .top{display:grid;grid-template-columns:1fr auto;gap:2px 8px}
+.stwb .top .lk{justify-self:start}
+#wStats .wcol + .wcol{margin-left:0}
 .setwb{width:min(460px,calc(100vw - 40px));max-height:min(600px,calc(100vh - 120px));overflow:auto;font-size:12.5px}
 .setwb h4{margin:10px 0 4px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .setwb h4:first-child{margin-top:0}
@@ -469,6 +477,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
+        <button id="btnStats" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
         <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
         <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
@@ -530,6 +539,11 @@ body.nf #hint{transform:translateY(-16px)}
   <section class="widget" id="wSet" data-title="Settings" hidden>
     <header class="wh"><span class="wt">Settings</span><span class="wsub dim">timers and thresholds</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="setClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb setwb" id="setBody"></div>
+  </section>
+
+  <section class="widget" id="wStats" data-title="Statistics" hidden>
+    <header class="wh"><span class="wt">Statistics</span><span class="wsub dim" id="statSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="statClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb stwb" id="statBody"></div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -700,6 +714,7 @@ async function loadRegion(id, keepCam){
   history.replaceState(null, '', `?r=${slug}${DEMO ? '&demo' : ''}`);
   store.set('whmap.reg.last', id);
   if (typeof pollKills === 'function' && !DEMO) setTimeout(pollKills, 300);
+  if (typeof statMax === 'function'){ statMaxCache = statMax(); setTimeout(renderStats, 0); }
   if (!keepCam){ cam.zoom = 1; cam.px = 0; cam.py = 0; }
   if (sel && !byId[sel]) sel = null;
   computeRoute(); render(); renderPanel();
@@ -841,6 +856,7 @@ const SETTINGS = [
   { g:'Refresh', k:'scout', label:'Thera & Turnur connections (EVE-Scout) every', unit:'min', def:5, min:2, max:60 },
   { g:'Refresh', k:'inc', label:'Incursions every', unit:'min', def:10, min:5, max:120 },
   { g:'Refresh', k:'assets', label:'Your assets every', unit:'min', def:60, min:15, max:1440 },
+  { g:'Refresh', k:'stats', label:'Statistics (kills, jumps…) every', unit:'min', def:10, min:5, max:120 },
 ];
 const SET = Object.fromEntries(SETTINGS.map(x => [x.k, x.def]));
 Object.assign(SET, store.get('whmap.reg.settings', {}));
@@ -1421,6 +1437,61 @@ function setupKills(){
   if (DEMO){ setTimeout(() => { demoKills(); render(); }, 1500); setInterval(() => { renderKillBar(); }, 30000); return; }
   setTimeout(pollKills, 2500); every(pollKills, () => SET.killPoll * 1000);
   setInterval(() => { renderKillBar(); render(); }, 30000);   // halos fade out when the kills get older
+}
+/* ---------- Statistics (CCP, last hour): the systems take a colour scale for the chosen figure ---------- */
+const STATS = {
+  ship:{ label:'Ship kills / hour', get:id => (stats.kills[id] || {}).ship_kills || 0 },
+  pod:{ label:'Pod kills / hour', get:id => (stats.kills[id] || {}).pod_kills || 0 },
+  pvp:{ label:'Ships + pods killed / hour', get:id => ((stats.kills[id] || {}).ship_kills || 0) + ((stats.kills[id] || {}).pod_kills || 0) },
+  npc:{ label:'NPC kills / hour (ratting)', get:id => (stats.kills[id] || {}).npc_kills || 0 },
+  jumps:{ label:'Jumps / hour (traffic)', get:id => stats.jumps[id] || 0 },
+  zk:{ label:'Kills in the last hour (zKillboard)', get:id => (killMap[id] || []).filter(k => Date.now() - k.time < 3600e3).length },
+};
+let stats = { kills:{}, jumps:{}, t:0 }, statMode = store.get('whmap.reg.statMode', ''), statNums = store.get('whmap.reg.statNums', true);
+if (statMode && !STATS[statMode]) statMode = '';
+const statVal = id => statMode ? STATS[statMode].get(String(id)) : 0;
+function statMax(){ let m = 0; if (R) for (const s2 of R.systems) if (!s2.ext) m = Math.max(m, statVal(String(s2.id))); return m; }
+// 0 = dark; then blue → teal → yellow → red, on a log scale so a few busy systems do not hide the rest
+const STAT_STOPS = [[0, [43, 92, 191]], [0.35, [47, 181, 165]], [0.7, [242, 209, 75]], [1, [239, 72, 72]]];
+let statMaxCache = 1;
+function statCol(v){
+  if (!v) return '#262f45';
+  const t = Math.min(1, Math.log1p(v) / Math.log1p(Math.max(1, statMaxCache)));
+  for (let i = 1; i < STAT_STOPS.length; i++){ const [t1, c1] = STAT_STOPS[i]; if (t <= t1){ const [t0, c0] = STAT_STOPS[i - 1], f = (t - t0) / (t1 - t0 || 1);
+    return `rgb(${c0.map((c, j) => Math.round(c + (c1[j] - c) * f)).join(',')})`; } }
+  return 'rgb(239,72,72)';
+}
+async function loadStats(){
+  try{
+    const [k, j] = await Promise.all([fetch(`${ESI}/universe/system_kills/`).then(r => r.ok ? r.json() : []), fetch(`${ESI}/universe/system_jumps/`).then(r => r.ok ? r.json() : [])]);
+    const kills = {}, jumps = {}; for (const x of k) kills[String(x.system_id)] = x; for (const x of j) jumps[String(x.system_id)] = x.ship_jumps;
+    if (Object.keys(kills).length || Object.keys(jumps).length) stats = { kills, jumps, t:Date.now() };
+  }catch(e){}
+  if (DEMO && !stats.t && R){ const kills = {}, jumps = {}; R.systems.forEach((s2, i) => { const id = String(s2.id); jumps[id] = (i * 37) % 60; kills[id] = { ship_kills:(i * 7) % 9 === 0 ? (i % 5) : 0, pod_kills:(i % 11 === 0) ? 1 : 0, npc_kills:(i * 53) % 400 }; }); stats = { kills, jumps, t:Date.now() }; }
+  statMaxCache = statMax(); render(); renderStats();
+}
+function renderStats(){
+  const box = $('#statBody'); if (!box || $('#wStats').hidden) return;
+  statMaxCache = statMax();
+  const top = statMode && R ? R.systems.filter(s2 => !s2.ext).map(s2 => ({ id:String(s2.id), n:s2.n, v:statVal(String(s2.id)) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 8) : [];
+  const grad = `linear-gradient(90deg, ${STAT_STOPS.map(([t, c]) => `rgb(${c.join(',')}) ${t * 100}%`).join(', ')})`;
+  $('#statSub').textContent = stats.t ? 'CCP · ' + new Date(stats.t).toLocaleTimeString([], { timeStyle:'short' }) : '';
+  box.innerHTML = `<label><input type="radio" name="statm" value=""${!statMode ? ' checked' : ''}> Off (normal colours)</label>`
+    + Object.entries(STATS).map(([k, d]) => `<label><input type="radio" name="statm" value="${k}"${statMode === k ? ' checked' : ''}> ${esc(d.label)}</label>`).join('')
+    + `<label><input type="checkbox" id="statNums"${statNums ? ' checked' : ''}> Show the figure on each system</label>`
+    + (statMode ? `<div class="grad" style="background:${grad}"></div><div class="gl"><span>1</span><span>${Math.max(1, Math.round(Math.sqrt(statMaxCache)))}</span><span>${statMaxCache} max</span></div>
+      <div class="dim" style="font-size:11.5px">Dark grey = 0. Scale over ${esc(R ? R.region.name : 'this region')}, CCP figures of the last hour${statMode === 'zk' ? ' (zKillboard: the kills read for the halos)' : ''}.</div>
+      ${top.length ? `<div class="top">${top.map(x => `<button type="button" class="lk" data-sys="${x.id}">${esc(x.n)}</button><b>${x.v}</b>`).join('')}</div>` : '<div class="dim">Nothing in this region.</div>'}` : '');
+  box.querySelectorAll('input[name=statm]').forEach(r => r.onchange = () => { statMode = r.value; store.set('whmap.reg.statMode', statMode); statMaxCache = statMax(); render(); renderStats(); });
+  $('#statNums').onchange = e => { statNums = e.target.checked; store.set('whmap.reg.statNums', statNums); render(); };
+  box.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { lookAway(); goTo(b.dataset.sys); });
+}
+function setupStats(){
+  const box = $('#wStats'), btn = $('#btnStats');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderStats(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#statClose').onclick = () => show(false);
+  loadStats(); every(loadStats, () => SET.stats * 60000);
 }
 function saveSettings(){ store.set('whmap.reg.settings', SET); }
 function applySettings(k){
@@ -2057,6 +2128,7 @@ let rafId = 0;
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); }); };
 let touch = {};
 function colourOf(s){
+  if (statMode && !s.ext) return statCol(statVal(String(s.id)));
   if (colorMode === 'wh') return touch[String(s.id)] || secGrey(s.s);
   if (s.ext) return secCol(s.s);
   return colorMode === 'sec' ? secCol(s.s) : constCol(constIdx[s.c] || 0);
@@ -2187,6 +2259,7 @@ function draw(){
     if (apNodes.has(id) && me.sys !== id) el('circle', { cx:p.x, cy:p.y, r:r + 2.2, class:'apdot' }, g);
     el('circle', { cx:p.x, cy:p.y, r:Math.max(13, r + 5), fill:'transparent' }, g);
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
+    if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : v; } }
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none' }, g);
     el('title', {}, g).textContent = s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`;
     const as = assetsAt(id);
@@ -3091,7 +3164,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -3125,13 +3198,13 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -3156,7 +3229,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); setupSettings();
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); setupSettings(); setupStats();
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
