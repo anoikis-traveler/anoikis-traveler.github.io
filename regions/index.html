@@ -215,6 +215,14 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
 .view .proxy{display:none!important}
+body > *{transition:opacity .6s}
+body.splashing > :not(.sovsplash),body.splashing .widget,body.splashing .hubcard{opacity:.13}
+.sovsplash{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;pointer-events:auto}
+.sovsplash img{width:256px;height:256px;border-radius:50%;animation:sovbreath 2.4s ease-in-out infinite;filter:drop-shadow(0 0 30px rgba(242,167,75,.55))}
+.sovsplash .sn{font:700 44px var(--display);letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 0 18px var(--accent),0 0 40px rgba(242,167,75,.6);animation:sovbreath 2.4s ease-in-out infinite;text-align:center;padding:0 20px}
+.sovsplash .ss{font-size:16px;color:var(--dim)} .sovsplash .ss b{color:var(--text)}
+@keyframes sovbreath{0%,100%{opacity:.55;transform:scale(.97)}50%{opacity:1;transform:scale(1.03)}}
+@media (prefers-reduced-motion:reduce){.sovsplash img,.sovsplash .sn{animation:none}}
 .sovline{display:flex;align-items:center;gap:7px;margin:2px 0 6px;font-size:13px}.sovline img{border-radius:50%;background:#000}
 .winlist h5{margin:8px 0 3px;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .winlist .wg{display:flex;flex-wrap:wrap;gap:4px}
@@ -781,6 +789,43 @@ function readMapper(){
   const loc = store.get('whmap.reg.marks', {}); for (const k of ['enter', 'exit']) if (k in loc) mapper[k] = loc[k];
   applyEdits();
 }
+const _readMapper = readMapper;
+readMapper = function(){ _readMapper(); setTimeout(checkNewHoles, 0); };
+/* A wormhole newly opened to a system that was not on the map: zoom on it; in null-sec sovereignty, show who holds it */
+function checkNewHoles(){
+  const key = 'whmap.reg.seen.' + (DEMO ? 'demo' : share.owner || 'local');
+  const links = whLinks(), sysNow = new Set([...Object.keys(mapper.nodes || {}), ...links.flatMap(l => [String(l.a), String(l.b)])]);
+  const seen = store.get(key, null);
+  if (!seen){ store.set(key, { l:links.map(l => pairKey(l.a, l.b)), s:[...sysNow] }); return; }     // first visit: nothing is "new"
+  const sl = new Set(seen.l), ss = new Set(seen.s);
+  const fresh = links.filter(l => !sl.has(pairKey(l.a, l.b))).sort((x, y) => (y.created || 0) - (x.created || 0));
+  let hit = null;
+  for (const l of fresh){ const a = String(l.a), b = String(l.b), n = !ss.has(b) ? b : !ss.has(a) ? a : null; if (n && !isHubVirtual(n)){ hit = n; break; } }
+  store.set(key, { l:[...new Set([...seen.l, ...links.map(l => pairKey(l.a, l.b))])].slice(-3000), s:[...new Set([...seen.s, ...sysNow])].slice(-5000) });
+  if (hit) newSystem(hit);
+}
+let holdCam = 0;   // while the new system is shown, a jump of your pilot does not pull the map away
+async function newSystem(id){
+  holdCam = Date.now() + 12000;
+  const r = regionOf(id);
+  if (!r){ toast(`New wormhole: ${sysName(id)} (wormhole space)`); return; }
+  if (!R || R.region.id !== r) await loadRegion(r);
+  if (me.sys !== id) lookAway();
+  select(id); zoomTo(id);
+  if (!Object.keys(sovMap).length) await loadSov();
+  const a = sovOf(id); if (!a) return;
+  if (!sovNames[a]){ try{ const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([a]) }); if (n.ok){ sovNames[a] = (await n.json())[0].name; store.set('whmap.reg.allyNames', sovNames); } }catch(e){} }
+  sovSplash(id, a);
+}
+function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over a nearly faded map
+  document.querySelectorAll('.sovsplash').forEach(x => x.remove());
+  const d = document.createElement('div'); d.className = 'sovsplash'; d.setAttribute('role', 'status');
+  d.innerHTML = `<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
+    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · new wormhole</div>`;
+  document.body.appendChild(d); document.body.classList.add('splashing');
+  const end = () => { d.remove(); if (!document.querySelector('.sovsplash')) document.body.classList.remove('splashing'); };
+  d.onclick = end; setTimeout(end, 10000);
+}
 /* Same rule as the mapper: past its estimated lifetime a wormhole blinks for 1 h, then it no longer counts.
    Lifetime by type from the mapper's wormhole data (same browser storage), 48 h if the type is unknown; 4 h after EOL. */
 const whTypes = () => { const d = store.get('whmap.data2', null); return (d && d.types) || {}; };
@@ -952,8 +997,11 @@ function demoMapper(){
     links:{ d1:L('d1', K('KDG-TA'), 31000123, { wh:'N062' }), d2:L('d2', 31000123, 31000900, { wh:'H296', size:'XL' }), d3:L('d3', 31000900, 31000901, { wh:'D382', mass:'reduced' }),
             d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }),
             ...(K('Kino') && K('QYD-WK') ? { d5:L('d5', K('QYD-WK'), K('Kino'), { wh:'C729', size:'L' }) } : {}),
-            ...(K('Nalvula') && K('Y-4CFK') ? { d6:L('d6', K('Y-4CFK'), K('Nalvula'), { wh:'C729', size:'L', mass:'reduced' }) } : {}) } };
+            ...(K('Nalvula') && K('Y-4CFK') ? { d6:L('d6', K('Y-4CFK'), K('Nalvula'), { wh:'C729', size:'L', mass:'reduced' }) } : {}),
+            ...(demoNewWh ? { d7:L('d7', 31000901, K('1DQ1-A') || 30004759, { wh:'X877', size:'L', created:demoNewWh }) } : {}) } };
 }
+let demoNewWh = 0;   // the demo opens a new hole into null-sec a few seconds in, to show the sovereignty splash
+if (DEMO) try{ localStorage.removeItem('whmap.reg.seen.demo'); }catch(e){}
 function demoScout(){
   const now = Date.now(), K = n => Number(sysByName(n)), S = (i, hub, b, wh, size, h, cls) => ({ id:'demo' + i, a:hub, b, type:'wh', src:'eve-scout', wh, size, expires:now + h * 3600e3, mass:'fresh', eol:false, outSig:'ABC-' + (100 + i), inSig:'XYZ-' + (200 + i), clsTxt:cls || '' });
   nameCache['31000456'] = 'J000456'; nameCache['31002002'] = 'J002002';
@@ -1899,7 +1947,7 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
   requestAnimationFrame(step);
 }
 async function onMove(){
-  if (!me.sys) return;
+  if (!me.sys || Date.now() < holdCam) return;
   if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
@@ -3359,7 +3407,8 @@ function setupWidgets(){
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
   if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
-  if (DEMO){ demoStep(); pickChar(); }
+  if (DEMO){ demoStep(); pickChar();
+    setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
