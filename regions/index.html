@@ -2178,9 +2178,9 @@ function placeHubsScreen(P){
     if (!exits.length) continue;
     const cx = exits.reduce((m, e) => m + e.x, 0) / exits.length, cy = exits.reduce((m, e) => m + e.y, 0) / exits.length;
     let best = null, bc = Infinity;
-    // frozen on screen while the map turns: same spot as long as the region and the zoom stay the same (a pan carries it along)
-    const fk = R.region.id + '|' + cam.zoom.toFixed(4), fx = hubFix[hn.h];
-    if (fx && fx.k === fk){ best = { x:fx.x + cam.px - fx.px, y:fx.y + cam.py - fx.py }; hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy }; P[hn.h] = { x:best.x, y:best.y, d:-1 }; taken.push(best); continue; }
+    // it keeps its place next to the system(s) it is linked to: while the map turns it moves with them, same offset on screen
+    const fk = R.region.id + '|' + hn.exits.join(','), fx = hubFix[hn.h];
+    if (fx && fx.k === fk){ best = { x:cx + fx.dx, y:cy + fx.dy }; hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy }; P[hn.h] = { x:best.x, y:best.y, d:-1 }; taken.push(best); continue; }
     const prev = hubOff[hn.h];
     if (prev){ const q = { x:cx + prev.dx, y:cy + prev.dy }, c = cost(q, exits); if (c < 400){ best = q; bc = c; } }
     if (!best){
@@ -2190,7 +2190,7 @@ function placeHubsScreen(P){
       }
     }
     hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy };
-    hubFix[hn.h] = { k:fk, x:best.x, y:best.y, px:cam.px, py:cam.py };
+    hubFix[hn.h] = { k:fk, dx:best.x - cx, dy:best.y - cy };
     P[hn.h] = { x:best.x, y:best.y, d:-1 };
     taken.push(best);
   }
