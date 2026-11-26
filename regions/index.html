@@ -236,6 +236,11 @@ body.splashing > :not(.sovsplash),body.splashing .widget,body.splashing .hubcard
 .wnav a{font-size:12px;color:var(--dim);text-decoration:none;padding:2px 7px;border-radius:3px}
 .wnav a:hover{color:var(--text);background:var(--panel-2)}
 .wb.tool{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#wTool{width:max-content;max-width:calc(100vw - 16px)}
+#wTool .wb.tool{display:grid;grid-template-columns:repeat(3,auto);justify-content:start}
+#wTool .marksbar{grid-column:1/-1}
+@media (max-width:700px){#wTool .wb.tool{grid-template-columns:1fr}}
+#navAdmin,#navPay{display:none!important}   /* owner links: opened from the View window only */
 .wb.tool select,.wb.tool input{max-width:220px}
 .wb.view{display:flex;flex-direction:column;gap:8px}
 .wb.view .btns{display:flex;gap:5px;flex-wrap:wrap}
