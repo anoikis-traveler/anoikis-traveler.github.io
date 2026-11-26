@@ -220,6 +220,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
 .view .proxy{display:none!important}
+.as-who{display:flex;gap:5px;margin-bottom:6px}
 #pilotBig{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:4;pointer-events:none;font:700 34px var(--display);letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.9),0 0 24px rgba(242,167,75,.35);opacity:.85;white-space:nowrap;text-align:center;line-height:1.05}
 #pilotBig small{display:block;font-family:var(--body);font-weight:500;letter-spacing:.04em;text-transform:none;color:var(--dim)}
 #pilotBig[hidden]{display:none}
@@ -1312,6 +1313,7 @@ function logout(id){
 function switchChar(id){
   sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
   pickChar(); if (!DEMO && tok && share.charId !== tok.charId){ shareClose(); shareConnect(); } readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
+  render(); if (!$('#wAssets').hidden && assetsSys) openAssets(assetsSys);      // the assets follow the selected pilot
 }
 async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
 /* a fresh access token for any stored character; one tab renews it, the others pick it up (same lock as the mapper) */
@@ -2353,9 +2355,9 @@ function demoAssets(sys){
     it(11172, 1, [it(11578, 1), it(2048, 1), it(30013, 16)]), it(3467, 1, [it(34, 125000), it(35, 40000)]), it(28668, 200), it(29984, 1) ] }] }];
 }
 async function assetsDetail(sys){
-  if (DEMO) return demoAssets(sys);
+  if (DEMO) return demoAssets(sys).filter(c => assetsAll || !tok || c.name === tok.charName);
   const out = [];
-  for (const c of vaultChars()){
+  for (const c of assetChars()){
     const d = assetData[c.charId]; if (!d || !d.bySys || !d.bySys[sys]) continue;
     if (!assetFull[c.charId]){ try{ assetFull[c.charId] = await esiPages(c, `/characters/${c.charId}/assets/`); }catch(e){ out.push({ name:c.charName, err:e.message, places:[] }); continue; } }
     const list = assetFull[c.charId], byItem = {}, kids = {};
@@ -2434,12 +2436,15 @@ async function openAssets(sys){
   body.innerHTML = '<p class="dim">Loading…</p>';
   const data = await assetsDetail(sys);
   if (assetsSys !== sys) return;
+  const who = `<div class="as-who"><button type="button" class="small" data-aswho="0" aria-pressed="${!assetsAll}">${tok ? esc(tok.charName) : 'Selected pilot'}</button><button type="button" class="small" data-aswho="1" aria-pressed="${assetsAll}">All my characters</button></div>`;
   const flat = [];
   const row = x => { flat.push(x); const nm = typeNames[x.type_id] || ('Type ' + x.type_id), has = x.kids.length;
     return `<li><div class="as-it${has ? ' box' : ''}" data-t="${x.type_id}" data-q="${x.quantity}"><img loading="lazy" alt="" src="https://images.evetech.net/types/${x.type_id}/icon?size=32"><span class="nm">${esc(nm)}${has ? ` <span class="dim">(${x.kids.length})</span>` : ''}</span><span class="q">${x.quantity > 1 ? '×' + x.quantity.toLocaleString('en-US') : ''}</span><span class="v"></span></div>${has ? `<ul class="as-list" hidden>${x.kids.map(row).join('')}</ul>` : ''}</li>`; };
   body.innerHTML = data.length ? data.map(c => `<div class="as-char">${esc(c.name)}</div>${c.err ? `<p class="dim">${esc(c.err)}</p>` : ''}${c.places.map(p => `<div class="as-loc">${esc(p.place)}</div><ul class="as-list">${p.items.map(row).join('')}</ul>`).join('')}`).join('')
       + `<div class="as-tools"><button type="button" class="primary" id="asSellBtn" title="What these assets fetch if sold right now to the buy orders of this system">Sell here</button><button type="button" id="asAppr" title="Value of these assets in the trade hubs (Appraisal)">Appraise</button><button type="button" id="asOpen">Open all</button></div><div id="asSell"></div>`
-    : '<p class="dim">No assets of your characters here.</p>';
+    : `<p class="dim">No assets of ${assetsAll || !tok ? 'your characters' : esc(tok.charName)} here.</p>`;
+  body.insertAdjacentHTML('afterbegin', who);
+  body.querySelectorAll('[data-aswho]').forEach(b => b.onclick = () => { assetsAll = b.dataset.aswho === '1'; store.set('whmap.reg.assetsAll', assetsAll); render(); openAssets(sys); });
   body.querySelectorAll('.as-it.box').forEach(b => b.addEventListener('click', () => { b.classList.toggle('open'); b.nextElementSibling.hidden = !b.classList.contains('open'); }));
   const all = $('#asOpen'); if (all) all.onclick = () => body.querySelectorAll('.as-it.box').forEach(b => { b.classList.add('open'); b.nextElementSibling.hidden = false; });
   const sb = $('#asSellBtn'); if (sb) sb.onclick = () => sellHere(sys, flat);
@@ -2448,9 +2453,12 @@ async function openAssets(sys){
     window.open('../appraisal/#t=' + encodeURIComponent([...m].map(([n, q]) => `${n}\t${q}`).join('\n')), '_blank', 'noopener');
   };
 }
+// whose assets: the selected (followed) pilot, or all your characters of this browser
+let assetsAll = store.get('whmap.reg.assetsAll', false);
+const assetChars = () => { const all = vaultChars(); return assetsAll || !tok ? all : all.filter(c => c.charId === tok.charId); };
 function assetsAt(sys){
   if (!assetsOn) return [];
-  const ids = new Set(vaultChars().map(c => String(c.charId)));
+  const ids = new Set(assetChars().map(c => String(c.charId)));
   return Object.entries(assetData).filter(([id, d]) => ids.has(id) && d && d.bySys && d.bySys[sys]).map(([id, d]) => ({ name:d.name, n:d.bySys[sys] }));
 }
 
