@@ -1376,7 +1376,7 @@ function pickPilot(id){
   if (typeof followRemote !== 'undefined' && followRemote){ followRemote = null; sess.set('whmap.followRemote', ''); }
   if (!tok || tok.charId !== Number(id)) switchChar(Number(id));
   setFollow(true); peek = false;
-  const sys = me.sys; if (sys){ const reg = regionOf(sys); (reg && (!R || reg !== R.region.id) ? loadRegion(reg) : Promise.resolve()).then(() => { if (byId[sys] && !byId[sys].ext){ select(sys); zoomTo(sys); } }); }
+  const sys = me.sys; if (sys){ const reg = regionOf(sys); (reg && (!R || reg !== R.region.id) ? loadRegion(reg) : Promise.resolve()).then(() => { if (byId[sys] && !byId[sys].ext){ select(sys); pivotPilot = true; zoomTo(sys); } }); }
   else toast(`${tok ? tok.charName : 'This character'}: position not known yet`, true);
 }
 function switchChar(id){
@@ -2234,6 +2234,7 @@ async function trackRemote(){
   if (!followRemote || !follow || peek) return;
   const p = remotePilot(); if (!p || !p.sys || p.sys === remoteLast) return;
   const was = remoteLast; remoteLast = p.sys; const reg = regionOf(p.sys);
+  if (was && was !== p.sys){ pivotPilot = true; if (sel === String(was)){ sel = String(p.sys); renderPanel(); } }
   if (was) travelShow(was, p.sys);                                     // the alt you follow changes region or leaves a hole: same big logo
   if (reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(p.sys); }
   if (byId[p.sys] && !byId[p.sys].ext){ if (!(was && byId[was] && tunnelFly(was, p.sys))) followTo(p.sys); }
@@ -2643,7 +2644,8 @@ function renderNoFollow(){
   const pb = $('#pilotBig');
   if (pb){ const rp = typeof remotePilot === 'function' ? remotePilot() : null, nm = followRemote ? followRemote : tok && tok.charName, sy = followRemote ? rp && rp.sys : me.sys;
     const show = !!nm && follow && SET.bigName > 0; pb.hidden = !show;
-    if (show){ pb.style.fontSize = SET.bigName + 'px'; pb.innerHTML = `${esc(nm)}${sy ? `<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">${esc(sysName(sy))}</small>` : ''}`; } }
+    if (show){ pb.style.fontSize = SET.bigName + 'px'; pb.innerHTML = `${esc(nm)}${sy ? `<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">${esc(sysName(sy))}</small>` : ''}`; }
+    if (bk) bk.style.bottom = (!pb.hidden ? 72 + pb.offsetHeight + 10 : 72) + 'px'; }
   const rb = $('#regionBig');
   if (rb){ const show = !!R && SET.bigName > 0; rb.hidden = !show;
     if (show){ const ps = followRemote && typeof remotePilot === 'function' && remotePilot() ? remotePilot().sys : me.sys, hub = ps && ['31000005', '30002086'].includes(String(ps)) ? String(ps) : null;
@@ -2744,6 +2746,8 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
 let tunPrev = null;
 async function onMove(){
   const from = tunPrev; tunPrev = me.sys;
+  // your pilot moved: the map now turns around the system it is in, not the one it came from
+  if (from && me.sys && from !== me.sys && !followRemote){ pivotPilot = true; if (sel === String(from)){ sel = String(me.sys); renderPanel(); } }
   holderOnMove();
   if (followRemote){ computeRoute(); render(); renderPanel(); renderWho(); return; }
   if (me.sys && Date.now() < holdCam){ renderWho(); renderPanel(); return; }
