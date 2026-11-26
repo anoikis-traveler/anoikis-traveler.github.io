@@ -33,7 +33,7 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--body);font-size:15px}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#sky{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+#sky{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;object-fit:cover;background:#03050b url(img/hero-poster.jpg) center/cover}
 .veil{position:fixed;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(3,5,11,.88) 0%,rgba(3,5,11,.55) 34%,rgba(3,5,11,0) 60%),linear-gradient(0deg,rgba(3,5,11,.9) 0%,rgba(3,5,11,0) 38%)}
 .wrap{position:relative;z-index:2;min-height:100%;display:grid;grid-template-rows:auto 1fr auto;padding:22px clamp(18px,4vw,56px)}
 .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -91,10 +91,9 @@ h1 b{color:var(--accent);display:block}
 </style>
 </head>
 <body>
-<canvas id="sky" aria-hidden="true"></canvas>
+<video id="sky" aria-hidden="true" muted loop playsinline preload="auto" poster="img/hero-poster.jpg"></video>
 <div class="veil"></div>
 <div class="hud" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-<div class="readout" id="ro1" aria-hidden="true">Signature <b id="sig">XQT-214</b><br>Wormhole · <span id="whType">K162</span><br>Mass <span id="mass">stable</span> · Life <span id="life">&gt; 24 h</span><br>Distance <b id="dist">—</b></div>
 <div class="wrap">
   <div class="top">
     <a class="brand" href="./">Anoikis <b>Traveler</b></a>
@@ -131,7 +130,7 @@ h1 b{color:var(--accent);display:block}
     </nav>
     <div class="foot">
       <span>Free up to 5 characters, no ads. Beyond that, 50 M ISK a week per block of 5 characters. Not affiliated with CCP Games. EVE Online © CCP hf.</span>
-      <button class="motion" id="motion" type="button" aria-pressed="false">Pause animation</button>
+      <button class="motion" id="motion" type="button" aria-pressed="false">Pause video</button>
     </div>
   </div>
 </div>
@@ -143,227 +142,17 @@ fetch('https://esi.evetech.net/latest/status/?datasource=tranquility').then(r =>
   .then(s => { const e = document.getElementById('tq'); e.classList.add('on'); e.lastChild.textContent = `Tranquility · ${s.players.toLocaleString('en-US')} pilots`; })
   .catch(() => { document.getElementById('tq').lastChild.textContent = 'Tranquility · offline'; });
 
-/* ---------- Background: a wormhole, and a covert-ops frigate flying into it ----------
-   Everything is drawn here (canvas), nothing is loaded. The ship is an original design. */
-const cv = document.getElementById('sky'), ctx = cv.getContext('2d');
-let W = 0, H = 0, DPR = 1, stars = [];
+/* ---------- Background: in-game footage (a ship in a wormhole nebula), muted, looping ---------- */
+const v = document.getElementById('sky');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+v.src = innerWidth > 1100 && !(navigator.connection && navigator.connection.saveData) ? 'img/hero.mp4' : 'img/hero-small.mp4';
 let paused = reduce;
-const rnd = (a, b) => a + Math.random() * (b - a);
-function hole(){ return { x:W * (W > 900 ? 0.68 : 0.5), y:H * (W > 900 ? 0.40 : 0.30), r:Math.min(W, H) * (W > 900 ? 0.2 : 0.24) }; }
-function resize(){
-  DPR = Math.min(2, devicePixelRatio || 1);
-  W = innerWidth; H = innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  stars = Array.from({ length:Math.round(W * H / 2600) }, () => ({ x:Math.random() * W, y:Math.random() * H, z:rnd(.2, 1), tw:rnd(0, 6.28) }));
-}
-addEventListener('resize', resize); resize();
-
-function drawStars(t, h){
-  for (const s of stars){
-    // gravitational lensing: stars close to the hole are pushed outward along the rim
-    let x = s.x, y = s.y; const dx = x - h.x, dy = y - h.y, d = Math.hypot(dx, dy);
-    if (d < h.r * 2.4){ const w = (h.r * 2.4 - d) / (h.r * 2.4), ang = Math.atan2(dy, dx) + w * w * 1.4 + w * w * Math.sin(t * 0.0002) * 0.1, nd = d * (1 + w * w * 0.5);
-      x = h.x + Math.cos(ang) * nd; y = h.y + Math.sin(ang) * nd; if (d < h.r * 0.2) continue; }
-    const a = (0.35 + 0.65 * s.z) * (0.75 + 0.25 * Math.sin(t * 0.0012 + s.tw));
-    ctx.fillStyle = `rgba(210,222,255,${a.toFixed(3)})`;
-    const sz = s.z * 1.5; ctx.fillRect(x, y, sz, sz);
-  }
-}
-function drawNebula(h){
-  const g = ctx.createRadialGradient(h.x - h.r * 1.5, h.y + h.r * 0.6, 0, h.x - h.r * 1.5, h.y + h.r * 0.6, Math.max(W, H) * 0.7);
-  g.addColorStop(0, 'rgba(70,40,40,.20)'); g.addColorStop(.45, 'rgba(40,24,30,.12)'); g.addColorStop(1, 'rgba(3,5,11,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  const g2 = ctx.createRadialGradient(W * 0.85, H * 0.75, 0, W * 0.85, H * 0.75, W * 0.6);
-  g2.addColorStop(0, 'rgba(150,70,50,.22)'); g2.addColorStop(1, 'rgba(3,5,11,0)');
-  ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
-}
-/* EVE-style wormhole: no hard edge. Rings of disturbed space ripple outward from a dark eye,
-   pale streaks spiral into it and light leaks out in rays. Everything drawn here, nothing loaded. */
-let vc = null, vx = null;    // offscreen layer for the vortex, blurred when composited
-/* EVE wormhole: mostly a distortion of space. Faint, broken rings; a few uneven pale streaks
-   bunched on one side; light leaking up-right; a dark tunnel for an eye. */
-function drawHole(t, h, flash){
-  const { x, y, r } = h;
-  const S = Math.ceil(r * 4.4 * 0.5), sc = 0.5;
-  if (!vc || vc.width !== S){ vc = document.createElement('canvas'); vc.width = vc.height = S; vx = vc.getContext('2d'); }
-  const c = vx, cx = S / 2, cy = S / 2, R = r * sc;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, S, S);
-  c.globalCompositeOperation = 'lighter';
-  // faint haze, a little greener toward the centre
-  let g = c.createRadialGradient(cx, cy, 0, cx, cy, R * 1.9);
-  g.addColorStop(0, 'rgba(205,218,208,.30)'); g.addColorStop(.25, 'rgba(170,182,178,.13)'); g.addColorStop(.6, 'rgba(130,138,140,.03)'); g.addColorStop(1, 'rgba(120,130,140,0)');
-  c.fillStyle = g; c.fillRect(0, 0, S, S);
-  // broken rings: each ring is a few arcs whose brightness depends on the angle (brighter top-left and right)
-  const N = 26;
-  for (let i = 0; i < N; i++){
-    const ph = (i / N + t * 0.000025) % 1, rr = R * (0.2 + ph * 1.7);
-    const wob = Math.sin(i * 12.9898) * R * 0.06, fade = Math.sin(ph * Math.PI) * (0.35 + 0.65 * Math.abs(Math.sin(i * 3.7)));
-    const segs = 7;
-    for (let k = 0; k < segs; k++){
-      const a0 = k / segs * 6.283 + i * 0.7 + t * 0.00004 * (i % 2 ? 1 : -1), a1 = a0 + 6.283 / segs * (0.55 + 0.4 * Math.abs(Math.sin(i + k)));
-      const mid = (a0 + a1) / 2, dir = 0.45 + 0.55 * Math.max(0, Math.cos(mid + 2.2)) + 0.35 * Math.max(0, Math.cos(mid));
-      const al = 0.19 * fade * dir;
-      if (al < 0.01) continue;
-      c.beginPath(); c.ellipse(cx + wob, cy - wob * 0.5, rr, rr * 0.95, i * 0.4, a0, a1);
-      c.strokeStyle = `rgba(214,222,216,${al.toFixed(3)})`; c.lineWidth = (1 + (i * 7 % 5) * 0.8) * sc * 2; c.stroke();
-    }
-  }
-  // light leaking toward the upper right, a soft fan
-  for (let i = 0; i < 5; i++){
-    const base = -0.55 + i * 0.16 + Math.sin(t * 0.00025 + i) * 0.04, w = 0.05 + 0.05 * Math.abs(Math.sin(i * 2.3));
-    const len = R * (0.95 + 0.35 * Math.sin(i * 1.7 + t * 0.0004));
-    const rg = c.createRadialGradient(cx, cy, R * 0.12, cx, cy, len);
-    rg.addColorStop(0, 'rgba(236,240,232,.30)'); rg.addColorStop(1, 'rgba(236,240,232,0)');
-    c.fillStyle = rg; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, len, base - w, base + w); c.closePath(); c.fill();
-  }
-  // a few uneven pale streaks, bunched on the upper and right side, curling into the eye
-  const arms = [ [-1.9, .95, 2.3, .55, 1.0], [-0.9, .75, 1.9, .5, .8], [0.35, .9, 2.0, .45, .9], [1.7, .55, 1.6, .3, .45], [2.8, .45, 1.4, .25, .35] ];
-  const spin = t * 0.00016;
-  arms.forEach(([a, reach, sweep, bright, thick], k) => {
-    const a0 = a + spin;
-    let px = null, py = null;
-    for (let s2 = 0; s2 <= 44; s2++){
-      const u = s2 / 44, rad = R * (0.14 + reach * Math.pow(1 - u, 1.25)), ang = a0 + u * sweep;
-      const qx = cx + Math.cos(ang) * rad, qy = cy + Math.sin(ang) * rad;
-      if (px != null){
-        const al = 1.3 * bright * Math.pow(Math.sin(u * Math.PI), 0.8) * (0.4 + 0.6 * u);
-        c.strokeStyle = k === 1 ? `rgba(200,238,222,${al})` : `rgba(240,242,234,${al})`;
-        c.lineWidth = (2 + 10 * thick * Math.sin(u * Math.PI)) * sc * (r / 170);
-        c.lineCap = 'butt'; c.beginPath(); c.moveTo(px, py); c.lineTo(qx, qy); c.stroke();
-      }
-      px = qx; py = qy;
-    }
-  });
-  // composite: soft blurred pass + faint sharp pass
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  const d = S / sc;
-  ctx.filter = `blur(${Math.max(2.5, r * 0.045).toFixed(1)}px)`;
-  ctx.drawImage(vc, x - d / 2, y - d / 2, d, d);
-  ctx.filter = 'none'; ctx.globalAlpha = 0.35;
-  ctx.drawImage(vc, x - d / 2, y - d / 2, d, d);
-  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  // the eye: a tunnel, dark rings closing in on a warm glimpse of the other side, lit from one edge
-  const er = r * 0.14;
-  for (let i = 4; i >= 1; i--){
-    const rr = er * (0.35 + i * 0.22);
-    const eg = ctx.createRadialGradient(x + er * 0.12, y + er * 0.1, rr * 0.2, x, y, rr);
-    eg.addColorStop(0, i === 1 ? 'rgba(150,90,80,.85)' : 'rgba(40,28,30,.55)'); eg.addColorStop(1, 'rgba(10,9,12,0)');
-    ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.283); ctx.fill();
-  }
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.lineWidth = Math.max(1, er * 0.08);
-  ctx.strokeStyle = `rgba(230,236,228,${0.35 + 0.1 * Math.sin(t * 0.002)})`;
-  ctx.beginPath(); ctx.arc(x, y, er * 0.95, -2.6, -0.6); ctx.stroke();                 // lit rim, upper side only
-  ctx.strokeStyle = 'rgba(230,236,228,.12)'; ctx.beginPath(); ctx.arc(x, y, er * 0.62, 0.4, 2.4); ctx.stroke();
-  if (flash > 0){
-    const fg = ctx.createRadialGradient(x, y, 0, x, y, r * (0.4 + flash * 1.2));
-    fg.addColorStop(0, `rgba(240,245,238,${0.7 * flash})`); fg.addColorStop(1, 'rgba(200,220,210,0)');
-    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x, y, r * (0.4 + flash * 1.2), 0, 6.283); ctx.fill();
-  }
-  ctx.restore();
-  return () => {};
-}
-/* A distant sun with a horizontal lens flare, low on the right */
-function drawSun(t){
-  const x = W * (W > 900 ? 0.93 : 0.88), y = H * (W > 900 ? 0.66 : 0.58), k = Math.min(W, H) / 900;
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  let g = ctx.createRadialGradient(x, y, 0, x, y, 260 * k);
-  g.addColorStop(0, 'rgba(255,140,90,.30)'); g.addColorStop(.4, 'rgba(180,70,50,.10)'); g.addColorStop(1, 'rgba(120,40,30,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 260 * k, 0, 6.283); ctx.fill();
-  const pulse = 1 + 0.04 * Math.sin(t * 0.0015);
-  g = ctx.createRadialGradient(x, y, 0, x, y, 22 * k * pulse);
-  g.addColorStop(0, 'rgba(255,255,245,1)'); g.addColorStop(.35, 'rgba(255,210,170,.85)'); g.addColorStop(1, 'rgba(255,140,90,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 22 * k * pulse, 0, 6.283); ctx.fill();
-  // flare streak
-  g = ctx.createLinearGradient(x - 520 * k, y, x + 520 * k, y);
-  g.addColorStop(0, 'rgba(255,130,90,0)'); g.addColorStop(.5, 'rgba(255,200,170,.55)'); g.addColorStop(1, 'rgba(255,130,90,0)');
-  ctx.fillStyle = g; ctx.fillRect(x - 520 * k, y - 1.2 * k, 1040 * k, 2.4 * k);
-  ctx.restore();
-}
-
-/* A covert-ops frigate seen from afar, the way EVE shows distant ships: a small dark shape lit on one edge,
-   bright engines and a faint trail. Original design, nose pointing to -y. */
-function drawShip(s, cloak, t){
-  ctx.save();
-  ctx.translate(s.x, s.y); ctx.rotate(s.rot); ctx.scale(s.k, s.k);
-  ctx.globalAlpha = cloak;
-  // engine plume (toward the viewer)
-  ctx.globalCompositeOperation = 'lighter';
-  for (const ex of [-6.5, 6.5]){
-    const fl = 0.85 + 0.15 * Math.sin(t * 0.03 + ex);
-    const g = ctx.createRadialGradient(ex, 44, 0, ex, 44, 30 * fl);
-    g.addColorStop(0, 'rgba(210,240,255,.95)'); g.addColorStop(.25, 'rgba(90,190,255,.55)'); g.addColorStop(1, 'rgba(40,90,255,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(ex, 50, 9 * fl, 30 * fl, 0, 0, 6.283); ctx.fill();
-  }
-  ctx.globalCompositeOperation = 'source-over';
-  const hull = ctx.createLinearGradient(-30, 0, 30, 0);
-  hull.addColorStop(0, '#3a4456'); hull.addColorStop(.5, '#151b27'); hull.addColorStop(1, '#07090e');
-  ctx.fillStyle = hull; ctx.strokeStyle = 'rgba(200,215,235,.35)'; ctx.lineWidth = 1.1 / s.k + .4; ctx.lineJoin = 'round';
-  const poly = pts => { ctx.beginPath(); pts.forEach(([a, b], i) => i ? ctx.lineTo(a, b) : ctx.moveTo(a, b)); ctx.closePath(); ctx.fill(); ctx.stroke(); };
-  // swept outriggers
-  poly([[-12, 4], [-36, -30], [-40, -52], [-30, -40], [-16, -14], [-10, 22]]);
-  poly([[12, 4], [36, -30], [40, -52], [30, -40], [16, -14], [10, 22]]);
-  // tail fins
-  poly([[-10, 26], [-26, 46], [-22, 49], [-6, 38]]);
-  poly([[10, 26], [26, 46], [22, 49], [6, 38]]);
-  // main hull
-  poly([[0, -70], [7, -44], [13, -10], [12, 30], [8, 44], [-8, 44], [-12, 30], [-13, -10], [-7, -44]]);
-  // spine and panel lines
-  ctx.strokeStyle = 'rgba(150,185,240,.35)'; ctx.lineWidth = .8 / s.k + .2;
-  ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(0, 38); ctx.moveTo(-10, -6); ctx.lineTo(10, -6); ctx.moveTo(-11, 18); ctx.lineTo(11, 18); ctx.stroke();
-  // sensor glints
-  ctx.fillStyle = `rgba(242,167,75,${0.6 + 0.4 * Math.sin(t * 0.006)})`;
-  ctx.beginPath(); ctx.arc(-38, -50, 1.6, 0, 6.283); ctx.arc(38, -50, 1.6, 0, 6.283); ctx.fill();
-  // engines
-  ctx.fillStyle = '#cfefff'; ctx.beginPath(); ctx.ellipse(-6.5, 44, 3.2, 2, 0, 0, 6.283); ctx.ellipse(6.5, 44, 3.2, 2, 0, 0, 6.283); ctx.fill();
-  ctx.restore();
-}
-
-/* Flight: 16 s from the foreground to the hole, a short cloak on the way, a flash as it jumps, then again */
-const CYCLE = 21000, FLY = 16000;
-const SHOW_SHIP = false;   // no ship for now: the wormhole alone, until the in-game screenshot
-const dist = document.getElementById('dist');
-let t0 = performance.now(), lastT = 0;
-function frame(now){
-  const t = paused ? lastT : now - t0; lastT = t;
-  const h = hole();
-  ctx.fillStyle = '#03050b'; ctx.fillRect(0, 0, W, H);
-  drawNebula(h); drawStars(t, h); drawSun(t);
-  const c = t % CYCLE, u = Math.min(1, c / FLY);
-  const flash = SHOW_SHIP && c > FLY && c < FLY + 900 ? 1 - (c - FLY) / 900 : 0;
-  const front = drawHole(t, h, flash);
-  if (SHOW_SHIP && c < FLY){
-    const e = u * u * (3 - 2 * u) * 0.35 + u * 0.65;                  // slow start, steady approach
-    const sx = W * (W > 900 ? 0.30 : 0.15), sy = H * 1.12;
-    const cx = sx + (h.x - W * 0.05 - sx) * 0.5, cy = H * 0.62;        // gentle curve
-    const x = (1 - e) * (1 - e) * sx + 2 * (1 - e) * e * cx + e * e * h.x;
-    const y = (1 - e) * (1 - e) * sy + 2 * (1 - e) * e * cy + e * e * h.y;
-    const dx = 2 * (1 - e) * (cx - sx) + 2 * e * (h.x - cx), dy = 2 * (1 - e) * (cy - sy) + 2 * e * (h.y - cy);
-    const k = (0.02 + 0.5 * Math.pow(1 - e, 1.4)) * Math.min(W, H) / 900;
-    const rot = Math.atan2(dy, dx) + Math.PI / 2 + Math.sin(t * 0.0009) * 0.05;
-    // cloak shimmer between 35 % and 55 % of the flight
-    let cloak = 1;
-    if (u > 0.35 && u < 0.55){ const v = (u - 0.35) / 0.2; cloak = 0.12 + 0.88 * Math.abs(Math.cos(v * Math.PI)); }
-    if (u > 0.93) cloak *= (1 - u) / 0.07;
-    // engine trail: where the ship was a moment ago
-    const tail = Math.max(0, e - 0.06), tx = (1 - tail) * (1 - tail) * sx + 2 * (1 - tail) * tail * cx + tail * tail * h.x, ty = (1 - tail) * (1 - tail) * sy + 2 * (1 - tail) * tail * cy + tail * tail * h.y;
-    const tg = ctx.createLinearGradient(tx, ty, x, y); tg.addColorStop(0, 'rgba(90,170,255,0)'); tg.addColorStop(1, `rgba(150,210,255,${0.35 * Math.max(0, cloak)})`);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = tg; ctx.lineWidth = Math.max(1, 6 * k); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke(); ctx.restore();
-    drawShip({ x, y, k, rot }, Math.max(0, cloak), t);
-    dist.textContent = u > 0.35 && u < 0.55 ? 'cloaked' : ((1 - e) * 42.6).toFixed(1) + ' km';
-  }
-  front();
-  if (!SHOW_SHIP) dist.textContent = 'on grid';
-  else if (c >= FLY) dist.textContent = c < FLY + 1500 ? 'jump' : '—';
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
 const mb = document.getElementById('motion');
-const syncBtn = () => { mb.textContent = paused ? 'Play animation' : 'Pause animation'; mb.setAttribute('aria-pressed', String(paused)); };
-mb.onclick = () => { if (paused){ t0 = performance.now() - lastT; } paused = !paused; syncBtn(); };
-syncBtn();
+const syncBtn = () => { mb.textContent = paused ? 'Play video' : 'Pause video'; mb.setAttribute('aria-pressed', String(paused)); };
+const apply = () => { if (paused) v.pause(); else v.play().catch(() => { paused = true; syncBtn(); }); };
+mb.onclick = () => { paused = !paused; syncBtn(); apply(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) v.pause(); else apply(); });
+syncBtn(); apply();
 })();
 </script>
 </body>
