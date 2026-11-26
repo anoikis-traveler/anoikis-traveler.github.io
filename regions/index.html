@@ -149,6 +149,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .netlist li > .dim{grid-column:2}
 .netlist li:hover .nm{color:var(--accent)}
 .netlist .sc{font-family:var(--mono);font-size:12px}
+.stubball{cursor:pointer} .stubball:hover circle:first-child{stroke:#fff;stroke-width:1.5}
 .stub{font-family:var(--mono);font-size:10.5px;fill:#cdb8ff;paint-order:stroke;stroke:#070a12;stroke-width:3px;cursor:pointer}
 /* Autopilot route widget */
 #apBox{border-left:3px solid var(--ap)}
@@ -407,7 +408,7 @@ body.nf #hint{transform:translateY(-16px)}
 @keyframes threatpulse{0%,100%{opacity:.25}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.threatframe{animation:none;opacity:.8}}
 .holdwb .warn{color:var(--warn)} .holdwb .bad{color:var(--bad)}
-#wSigs{width:560px;max-width:calc(100vw - 16px)}
+#wSigs{width:760px;max-width:calc(100vw - 16px)}
 .sigwb{display:flex;flex-direction:column;gap:7px;max-height:min(620px,calc(100vh - 120px));overflow:auto}
 .sigwb textarea{width:100%;min-height:58px;resize:vertical;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:6px;font:12px var(--mono)}
 .sigwb .row{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:12px;color:var(--dim)}
@@ -431,7 +432,7 @@ body.nf #hint{transform:translateY(-16px)}
 .sigt td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sigt td.nm .bm{font-size:11.5px;color:#e8c25a;margin-left:7px}
 .sigt td.nm .bm.dim{color:var(--dim)}
-.sigform{display:grid;grid-template-columns:62px 1.1fr .9fr .6fr;grid-auto-flow:column;grid-auto-columns:62px;gap:3px}
+.sigform{display:grid;grid-template-columns:80px 1.2fr 1fr .8fr;grid-auto-flow:column;grid-auto-columns:minmax(78px,auto);gap:3px}
 .sigform input,.sigform select{min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:1px 4px;font:12px var(--body);height:22px}
 .sigt .x.ok{color:var(--ok)}
 .sigf{border:0;cursor:pointer;width:auto!important;margin:1px 0}
@@ -1917,6 +1918,10 @@ async function pasteSigs(txt){
   }
 }
 let sigEdit = null, sigFilter = new Set(store.get('whmap.reg.sigFilter', []));   // types shown; empty = all   // the signature being edited
+async function setLinkMass(l, mass){
+  if (!DEMO && share.owner && share.ws && !l.local){ try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/links/${l.id}/mass`, data:mass }); return; }catch(e){} }
+  E().links[l.id] = { ...(E().links[l.id] || l), mass }; saveEdits(); readMapper();
+}
 const sigLinksOf = id => allHoles().filter(l => l.src !== 'eve-scout' && l.type !== 'gate' && (String(l.a) === String(id) || String(l.b) === String(id)));
 const SIG_TYPES = ['Wormhole', 'Data Site', 'Relic Site', 'Gas Site', 'Combat Site', 'Ore Site'];
 const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h' : Math.floor(m / 1440) + ' d'; };
@@ -1947,10 +1952,11 @@ function renderSigs(force){
             <input data-f="bm" value="${esc(v.bm || '')}" placeholder="🔖 bookmark" title="Name of your bookmark in game">
             <input data-f="note" value="${esc(v.note || '')}" placeholder="note" title="Anything for your group">
             ${c && c[0] === 'wh' || !v.type ? `<select data-f="life" title="Show info of the wormhole: how long it has left. The hole is expected to close then, and leaves the map 1 hour later"><option value="">⌛ ?</option>${Object.entries(LIFE).map(([k2, x]) => `<option value="${k2}"${v.life === k2 ? ' selected' : ''} title="${esc(x[1])}">${x[0]}</option>`).join('')}${[2, 8, 12, 16].map(h => `<option value="${h}"${String(v.life) === String(h) ? ' selected' : ''}>${h} h</option>`).join('')}</select>
+            <select data-f="mass" title="Show info of the wormhole: its mass (stability)"><option value="">⚖ ?</option>${[['fresh', 'Mass > 50%', 'has not yet had its stability significantly disrupted'], ['reduced', 'Mass < 50%', 'has had its stability reduced, but not to a critical degree yet'], ['critical', 'Mass < 10%', 'has had its stability critically disrupted']].map(([k2, n, t]) => `<option value="${k2}"${v.mass === k2 ? ' selected' : ''} title="${t}">${n}</option>`).join('')}</select>
             <select data-f="link" title="Which connection of the map this signature is"><option value="">↔ ?</option>${sigLinksOf(id).map(l => `<option value="${esc(l.id)}"${String(v.link || '') === String(l.id) || (!v.link && sigLinksOf(id).length === 1) ? ' selected' : ''}>→ ${esc(sysName(String(l.a) === String(id) ? l.b : l.a))}</option>`).join('')}</select>` : ''}</div></td>
             <td style="white-space:nowrap"><button type="button" class="x ok" data-save="${esc(k)}" title="Save (Enter)">✓</button><button type="button" class="x" data-cancel="1" title="Cancel (Esc)">↶</button></td></tr>`;
         return `<tr class="${Date.now() - v.t < 10 * 60000 ? 'new' : ''}" data-editsig="${esc(k)}" title="Click to edit"><td class="id">${esc(k)}</td><td>${c ? `<span class="sigc" style="background:${c[2]}">${c[1]}</span>` : '<span class="sigc" style="background:#59627a;color:#fff">?</span>'}</td>
-          <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}${v.life && v.lifeAt ? (() => { const h = LIFE[v.life] ? LIFE[v.life][2] : Number(v.life), t = v.lifeAt + h * 3600e3; return `<span class="bm" style="color:${Date.now() > t ? 'var(--bad)' : 'var(--eol)'}" title="Show info ${LIFE[v.life] ? LIFE[v.life][0] : h + ' h'} at ${closeTxt(v.lifeAt)}${v.link ? '' : ' · link it to a connection to time the hole'}">⌛ ~${closeTxt(t)}</span>`; })() : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
+          <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}${v.mass && v.mass !== 'fresh' ? `<span class="bm" style="color:${v.mass === 'critical' ? 'var(--bad)' : 'var(--warn)'}">⚖ ${v.mass === 'critical' ? '< 10%' : '< 50%'}</span>` : ''}${v.life && v.lifeAt ? (() => { const h = LIFE[v.life] ? LIFE[v.life][2] : Number(v.life), t = v.lifeAt + h * 3600e3; return `<span class="bm" style="color:${Date.now() > t ? 'var(--bad)' : 'var(--eol)'}" title="Show info ${LIFE[v.life] ? LIFE[v.life][0] : h + ' h'} at ${closeTxt(v.lifeAt)}${v.link ? '' : ' · link it to a connection to time the hole'}">⌛ ~${closeTxt(t)}</span>`; })() : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
           <td style="white-space:nowrap"><button type="button" class="x" data-editsig="${esc(k)}" title="Edit ${esc(k)}">✎</button><button type="button" class="x" data-delsig="${esc(k)}" title="Remove ${esc(k)}">✕</button></td></tr>`; }).join('')}</table>`;
   $('#sigList').querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { const k = b.dataset.sf;
     if (k === '*') sigFilter.clear(); else if (sigFilter.has(k)) sigFilter.delete(k); else sigFilter.add(k);
@@ -1962,7 +1968,9 @@ function renderSigs(force){
     const doSave = async () => { const rec = sigsOf(id); if (!rec) return; const k = save.dataset.save, f = n => $('#sigList [data-f="' + n + '"]').value.trim();
       const g = n => { const e = $('#sigList [data-f="' + n + '"]'); return e ? e.value : undefined; }, old = rec.list[k], life = g('life'), link = g('link');
       const list2 = { ...rec.list, [k]:{ ...old, type:f('type'), name:f('name'), bm:f('bm'), note:f('note'), edited:true, u:Date.now(),
-        ...(life !== undefined ? { life:life || '', lifeAt:life ? (life === old.life && old.lifeAt ? old.lifeAt : Date.now()) : 0, link:link || '' } : {}) } };
+        ...(life !== undefined ? { life:life || '', lifeAt:life ? (life === old.life && old.lifeAt ? old.lifeAt : Date.now()) : 0, link:link || '', mass:g('mass') || '' } : {}) } };
+      const ms = g('mass'), lk = link && allHoles().find(l => String(l.id) === String(link));
+      if (ms && lk && lk.mass !== ms) await setLinkMass(lk, ms);      // the mass goes on the connection itself
       if (await saveSigs(id, { ...rec, list:list2 })){ sigEdit = null; renderSigs(true); renderPanel(); render(); if (!$('#wChain').hidden) renderChain(); } };
     save.onclick = doSave;
     $('#sigList').querySelectorAll('.sigform input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') doSave(); if (e.key === 'Escape'){ sigEdit = null; renderSigs(true); } });
@@ -3059,11 +3067,12 @@ function draw(){
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
       // the system at the other end: a ball of its class colour, like a system of the map
       const bg = el('g', { class:'stubball', 'data-stub':other }, gWh);
+      if (sel === String(other)) el('circle', { cx:ex, cy:ey, r:br + 5, class:'halo' }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:WH_COL[classOf(other)] || hc }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:'url(#shine)', 'pointer-events':'none' }, bg);
       el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)}`;
       const node = mapper.nodes[other] || {};
-      const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
+      const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', 'data-stub':other, style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
       t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${label ? ' · ' + label : ''}`;
       el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
     }
@@ -3215,6 +3224,25 @@ function hubHtml(h){
     ${names.map(n => `<h3>${esc(n)} <span class="dim" style="font-size:.85rem">(${groups[n].length})</span></h3><ul class="plain netlist">${groups[n].sort((a, b) => (b.s ?? -9) - (a.s ?? -9)).map(row).join('')}</ul>`).join('')}
     <p class="dim" style="font-size:12px">Signatures: ${esc(name)} side › other side. Click a system to open its region.</p>`;
 }
+function outHtml(id){
+  const holes = allHoles().filter(l => String(l.a) === id || String(l.b) === id), hd = holdAll()[id], hl = hd ? holdLvl(hd) : null, sg = sigsOf(id), reg = regionOf(id);
+  const sec = secOfId(id);
+  return `<h2>${esc(sysName(id))} <span style="color:${WH_COL[classOf(id)] || 'var(--eol)'}">${esc(sec != null ? secR(sec).toFixed(1) : classOf(id) || '')}</span></h2>
+    <div class="dim">${reg ? esc(regionName(reg)) : 'Wormhole space'}${me.sys === id ? ' · <span style="color:var(--ok)">you are here</span>' : ''}</div>
+    ${hd && hd.holder ? `<div class="sovline">${hd.holder.id ? `<img src="${holdLogo(hd.holder)}64" alt="" width="22" height="22">` : ''}<span>Holder: <b>${esc(hd.holder.name)}</b>${hl && hl.lvl ? ` · <b style="color:${THREAT[hl.lvl].c}">${THREAT[hl.lvl].n}</b>` : ''}</span></div>` : ''}
+    ${sg ? `<div class="sovline"><a href="#" data-opensigs="1">📡 ${Object.keys(sg.list).length} signatures</a></div>` : ''}
+    <h3>Wormholes</h3><ul class="plain">${holes.map(l => { const o = String(l.a) === id ? String(l.b) : String(l.a), sc = sigClose(l);
+      return `<li>↔ ${byId[o] || regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : `<button class="lk" data-out="${o}">${esc(sysName(o))}</button>`} <span class="dim">${esc([l.wh, l.size && l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : '', sc ? '⌛ ~' + closeTxt(sc) : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('') || '<li class="dim">none</li>'}</ul>
+    <div class="btns" style="margin-top:8px">${reg ? `<button type="button" class="small" data-sys="${id}">Open ${esc(regionName(reg))}</button>` : ''}<button type="button" class="small" id="outChain">Show in Chain</button>
+      <a class="small btn" href="https://zkillboard.com/system/${id}/" target="_blank" rel="noopener"><button type="button" class="small">zKillboard</button></a>${isJ(id) ? `<a href="https://anoik.is/systems/${encodeURIComponent(sysName(id))}" target="_blank" rel="noopener"><button type="button" class="small">anoik.is</button></a>` : `<a href="https://evemaps.dotlan.net/system/${encodeURIComponent(sysName(id).replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button" class="small">Dotlan</button></a>`}
+      <button type="button" class="small" id="bClose">Close</button></div>`;
+}
+function wireOut(P, id){
+  P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
+  P.querySelectorAll('[data-out]').forEach(b => b.addEventListener('click', () => select(b.dataset.out)));
+  const c = $('#outChain'); if (c) c.onclick = () => { chainFocus = id; if ($('#wChain').hidden) $('#btnChain').click(); else buildChains(); chainSelect && chainSelect([id]); };
+  const x = $('#bClose'); if (x) x.onclick = () => select(null);
+}
 function renderPanel(){
   if (typeof renderSigs === 'function') try{ renderSigs(); }catch(e){}
   if (typeof renderHubr === 'function') try{ renderHubr(); }catch(e){}
@@ -3222,7 +3250,8 @@ function renderPanel(){
   if (typeof renderWhc === 'function') try{ renderWhc(); }catch(e){}
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
-  $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
+  $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && (byId[sel] || !regionOf(sel)) ? 'System' : 'Region';
+  if (sel && !byId[sel] && !isHubVirtual(sel) && /^\d+$/.test(sel)){ P.innerHTML = outHtml(sel); wireOut(P, sel); return; }   // a system beyond a hole (wormhole space or another region)
   if (sel && isHubVirtual(sel) && hubNodes.some(x => x.h === sel)){
     P.innerHTML = hubHtml(sel);
     $('#bClose').onclick = () => select(null);
@@ -3459,7 +3488,7 @@ function setupInput(){
     svg.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = { d:Math.hypot(a.x - b.x, a.y - b.y), z:cam.zoom }; }
-    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, right:e.button === 2, zk:e.target.closest('[data-zk]'), jb:e.target.closest('[data-jbgo]'), target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
+    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, right:e.button === 2, zk:e.target.closest('[data-zk]'), jb:e.target.closest('[data-jbgo]'), stub:e.target.closest('[data-stub]'), target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
     moved = false;
   });
   svg.addEventListener('pointermove', e => {
@@ -3479,6 +3508,7 @@ function setupInput(){
     if (!moved && start && ptrs.size === 0){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
       else if (start.zk){ open(`https://zkillboard.com/kill/${start.zk.dataset.zk}/`, '_blank', 'noopener'); }
+      else if (start.stub){ select(start.stub.dataset.stub); lookAway(); }
       else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
       else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); zoomTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
       else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null);
