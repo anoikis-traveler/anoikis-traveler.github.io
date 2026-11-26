@@ -225,6 +225,9 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #pilotBig{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:4;pointer-events:none;font:700 34px var(--display);letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.9),0 0 24px rgba(242,167,75,.35);opacity:.85;white-space:nowrap;text-align:center;line-height:1.05}
 #pilotBig small{display:block;font-family:var(--body);font-weight:500;letter-spacing:.04em;text-transform:none;color:var(--dim)}
 #pilotBig[hidden]{display:none}
+#regionBig{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:4;pointer-events:none;font:700 34px var(--display);letter-spacing:.1em;text-transform:uppercase;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.9),0 0 24px rgba(143,176,216,.35);opacity:.8;white-space:nowrap;text-align:center;line-height:1.05}
+#regionBig small{display:block;font-family:var(--body);font-weight:500;letter-spacing:.04em;text-transform:none;color:var(--dim)}
+#regionBig[hidden]{display:none}
 .kst{font-size:11.5px;margin:2px 0 4px}
 body > *{transition:opacity .6s}
 body.splashing > :not(.sovsplash),body.splashing .widget,body.splashing .hubcard{opacity:.13}
@@ -583,6 +586,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="pilRing" hidden></div>
   <button type="button" id="nfBack" hidden title="Follow me is still on: the map comes back on your next jump. Click to go back now."></button>
   <div id="pilotBig" hidden></div>
+  <div id="regionBig" hidden></div>
   <div id="noFollow" hidden><button type="button" id="nfTxt" title="Follow your pilot again"></button></div>
   <div id="pilPop" hidden></div>
   <div id="banner"></div>
@@ -917,6 +921,7 @@ async function loadRegion(id, keepCam){
   norm = {}; for (const s of R.systems) norm[String(s.id)] = { x:(s.x - c.x) / rad, y:(s.y - c.y) / rad, z:(s.z - c.z) / rad };
   $('#regSel').value = String(id);
   document.title = `${R.region.name} · Anoikis Traveler`;
+  if (typeof renderNoFollow === 'function') renderNoFollow();      // the region name at the top
   const slug = (index.regions.find(g => g.id === id) || {}).slug || id;
   history.replaceState(null, '', `?r=${slug}${DEMO ? '&demo' : ''}`);
   store.set('whmap.reg.last', id);
@@ -1151,7 +1156,7 @@ const SETTINGS = [
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
-  { g:'Pilots', k:'bigName', label:'Name of the followed pilot at the bottom of the map: text size (0 = hidden)', unit:'px', def:34, min:0, max:120 },
+  { g:'Pilots', k:'bigName', label:'Name of the followed pilot (bottom) and of the region (top): text size (0 = hidden)', unit:'px', def:34, min:0, max:120 },
   { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
   { g:'Pilots', k:'show', label:'Show a pilot\'s name on a system for', unit:'min', def:30, min:1, max:1440 },
   { g:'Pilots', k:'pos', label:'Read your characters\' positions every', unit:'s', def:6, min:4, max:120 },
@@ -2616,6 +2621,11 @@ function renderNoFollow(){
   if (pb){ const rp = typeof remotePilot === 'function' ? remotePilot() : null, nm = followRemote ? followRemote : tok && tok.charName, sy = followRemote ? rp && rp.sys : me.sys;
     const show = !!nm && follow && SET.bigName > 0; pb.hidden = !show;
     if (show){ pb.style.fontSize = SET.bigName + 'px'; pb.innerHTML = `${esc(nm)}${sy ? `<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">${esc(sysName(sy))}</small>` : ''}`; } }
+  const rb = $('#regionBig');
+  if (rb){ const show = !!R && SET.bigName > 0; rb.hidden = !show;
+    if (show){ const ps = followRemote && typeof remotePilot === 'function' && remotePilot() ? remotePilot().sys : me.sys, hub = ps && ['31000005', '30002086'].includes(String(ps)) ? String(ps) : null;
+      rb.style.fontSize = SET.bigName + 'px';
+      rb.innerHTML = hub ? `${esc(sysName(hub))}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">map: ${esc(R.region.name)}</small>` : esc(R.region.name); placeTop(); } }
   if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
@@ -2985,8 +2995,16 @@ function hubCard(h, p, gLine){
 /* ---------- Render ---------- */
 let rafId = 0;
 // the map is redrawn at each frame while it turns: new elements would restart their blinking at 0, so every CSS animation runs on one shared clock
+function placeTop(){   // the region name: centred in the free space between the windows at the top of the screen
+  const rb = $('#regionBig'); if (!rb || rb.hidden) return;
+  const w = rb.offsetWidth, h = rb.offsetHeight + 12; let L = 0, Rt = innerWidth;
+  for (const el2 of document.querySelectorAll('.widget:not([hidden])')){ const r = el2.getBoundingClientRect(); if (r.top > h || r.bottom < 0) continue;
+    if (r.left + r.width / 2 < innerWidth / 2) L = Math.max(L, r.right); else Rt = Math.min(Rt, r.left); }
+  const x = Rt - L >= w + 20 ? (L + Rt) / 2 : innerWidth / 2;
+  rb.style.left = Math.round(x) + 'px'; rb.style.top = (Rt - L >= w + 20 ? 10 : Math.min(innerHeight - 60, h + 60)) + 'px';
+}
 function syncBlink(){ if (!document.getAnimations) return; for (const an of document.getAnimations()) if (typeof CSSAnimation !== 'undefined' && an instanceof CSSAnimation && an.startTime !== 0) an.startTime = 0; }
-const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); syncBlink(); }); };
+const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); syncBlink(); placeTop(); }); };
 let touch = {};
 function colourOf(s){
   if (statMode && !s.ext) return statCol(statVal(String(s.id)));
