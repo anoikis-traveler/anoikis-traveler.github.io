@@ -1164,7 +1164,7 @@ const SETTINGS = [
   { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
   { g:'Map', k:'constNames', label:'Names of the constellations', type:'bool', def:0 },
   { g:'Map', k:'tunnel', label:'Tunnel animation along the connection when your pilot jumps from one system to the next', type:'bool', def:1 },
-  { g:'Map', k:'tunnelSec', label:'Tunnel animation length', unit:'s', def:4, min:1.5, max:12, step:0.1 },
+  { g:'Map', k:'tunnelSec', label:'Tunnel animation length', unit:'s', def:6, min:5, max:8, step:0.1 },
   { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
   { g:'Map', k:'spinSpeed', label:'Turning speed', unit:'°/s', def:3, min:1, max:30 },
   { g:'Map', k:'spinIdle', label:'Start turning again after you stop touching the map for', unit:'s', def:5, min:1, max:120 },
@@ -2672,7 +2672,7 @@ function tunnelFly(a, b, done){
   const wh = !(adj[a] || []).includes(b), col = wh ? '#c58bff' : '#7fd4ff', glow = wh ? 'rgba(197,139,255,' : 'rgba(127,212,255,';
   const hx = cam.hx, A = { x:pa.x, y:pa.y * hx, z:pa.z }, B = { x:pb.x, y:pb.y * hx, z:pb.z };
   const D = { x:B.x - A.x, y:B.y - A.y, z:B.z - A.z }, L = Math.hypot(D.x, D.y, D.z) || 1e-3, f0 = { x:D.x / L, y:D.y / L, z:D.z / L };
-  const T = Math.max(1500, (SET.tunnelSec || 4) * 1000), t0 = performance.now(), my = ++camAnim, tc = freeCentre();
+  const T = Math.max(5, Math.min(8, SET.tunnelSec || 6)) * 1000, t0 = performance.now(), my = ++camAnim, tc = freeCentre();
   // the flat view at the end: zoom max on the arrival, the connection pointing up the screen
   let yawEnd = Math.atan2(D.x, D.z); while (yawEnd - cam.yaw > Math.PI) yawEnd -= 2 * Math.PI; while (yawEnd - cam.yaw < -Math.PI) yawEnd += 2 * Math.PI;
   const st = { yaw:cam.yaw, pitch:cam.pitch, zoom:cam.zoom }, q0 = proj(pa), en = { yaw:yawEnd, pitch:Math.max(cam.pitch, 50 * Math.PI / 180), zoom:Math.max(cam.zoom, ZOOM_MAX * 0.7) };
