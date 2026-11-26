@@ -345,6 +345,21 @@ body.nf #hint{transform:translateY(-16px)}
 .stwb .top .lk{justify-self:start}
 #wStats .wcol + .wcol{margin-left:0}
 #wSigs .wcol + .wcol{margin-left:0}
+#wHubs .wcol + .wcol{margin-left:0}
+#wHubs{width:520px;max-width:calc(100vw - 16px)}
+.hubrwb{display:flex;flex-direction:column;gap:7px;max-height:min(640px,calc(100vh - 120px));overflow:auto}
+.hubrt{width:100%;border-collapse:collapse;font-size:13px}
+.hubrt th{text-align:left;font-weight:600;font-size:11.5px;color:var(--dim);padding:3px 6px;white-space:nowrap}
+.hubrt td{padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.hubrt td.h{font-weight:600}
+.hubrt button.rc{width:100%;text-align:left;background:#0e1527;border:1px solid var(--line);border-radius:4px;color:var(--text);padding:3px 7px;font:12.5px var(--body);cursor:pointer;white-space:nowrap}
+.hubrt button.rc:hover{border-color:#3a4d75} .hubrt button.rc.on{border-color:var(--accent);background:rgba(242,167,75,.1)}
+.hubrt button.rc b{font:600 13px var(--mono)} .hubrt button.rc .best{color:var(--ok)}
+.hubrt .sb{display:inline-flex;gap:2px;margin-left:5px;vertical-align:middle}
+.hubrt .sb i{display:inline-block;height:7px;border-radius:2px}
+.hubrd{font-size:12.5px;display:flex;flex-direction:column;gap:5px}
+.hubrd .path{display:flex;flex-wrap:wrap;gap:3px 2px;align-items:center}
+.hubrd .path span{white-space:nowrap} .hubrd .path .wh{color:#a98bff;font-weight:600}
 #wHold .wcol + .wcol{margin-left:0}
 #wHold{width:540px;max-width:calc(100vw - 16px)}
 .holdwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
@@ -570,6 +585,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnAll" class="proxy" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" class="proxy" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
         <button id="btnHold" class="proxy" type="button" aria-pressed="false">WH holders</button>
+        <button id="btnHubr" class="proxy" type="button" aria-pressed="false">Hub routes</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
@@ -659,6 +675,16 @@ body.nf #hint{transform:translateY(-16px)}
         <tfoot><tr><td><input id="holdSys" list="holdSysList" placeholder="J123456" autocomplete="off"></td><td><input id="holdWho" placeholder="optional" autocomplete="off"></td><td><select id="holdLvl" class="hlvl"></select></td><td><button type="button" class="small primary" id="holdAdd">Add</button></td></tr></tfoot></table>
       <datalist id="holdSysList"></datalist>
       <div id="holdMsg" class="dim" style="font-size:12px"></div>
+    </div>
+  </section>
+
+  <section class="widget" id="wHubs" data-title="Hub routes" hidden>
+    <header class="wh"><span class="wt">Hub routes</span><span class="wsub dim" id="hubrSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="hubrClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb hubrwb">
+      <div class="sigfor" id="hubrFor"></div>
+      <label class="dim" style="font-size:12.5px"><input type="checkbox" id="hubrWh"> also through Thera / Turnur (and the holes of your chain)</label>
+      <table class="hubrt" id="hubrT"></table>
+      <div id="hubrDetail"></div>
     </div>
   </section>
 
@@ -2014,6 +2040,62 @@ function setupHold(){
   $('#holdAdd').onclick = add;
   ['holdSys', 'holdWho'].forEach(i => $('#' + i).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
 }
+/* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
+const HUBS_T = [ [30000142, 'Jita'], [30002187, 'Amarr'], [30002659, 'Dodixie'], [30002510, 'Rens'], [30002053, 'Hek'] ];
+let hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0;
+const secOfId = id => { id = String(id); return byId[id] ? byId[id].s : index && index.sys[id] ? index.sys[id][2] : null; };
+function hubrMix(ids){ const n = { hs:0, ls:0, ns:0, wh:0 }; for (const id of ids.slice(1)){ const v = secOfId(id); if (v == null) n.wh++; else { const r = secR(v); if (r >= 0.5) n.hs++; else if (r > 0) n.ls++; else n.ns++; } } return n; }
+const scoutOnly = () => whConns();
+async function hubrCompute(){
+  const from = sigSys(); hubrFrom = from; hubrRes = {}; hubrPick = null; $('#hubrDetail').innerHTML = '';
+  if (!from){ renderHubr(); return; }
+  const wh = $('#hubrWh').checked, gates = jbList().flatMap(j => [{ from:Number(j.a), to:Number(j.b) }, { from:Number(j.b), to:Number(j.a) }]), all = whConns();
+  const my = ++hubrBusy; renderHubr();
+  const jobs = [];
+  for (const [h] of HUBS_T) for (const [k, pref, conns] of [['short', 'Shorter', gates], ['safe', 'Safer', gates], ...(wh ? [['wshort', 'Shorter', all], ['wsafe', 'Safer', all]] : [])])
+    jobs.push(esiRoute(from, h, pref, conns).then(r => { hubrRes[h + ':' + k] = r; }, e => { hubrRes[h + ':' + k] = { err:e.message }; }));
+  await Promise.all(jobs); if (my !== hubrBusy) return;
+  hubrBusy = 0; renderHubr();
+}
+function renderHubr(){
+  const box = $('#wHubs'); if (!box || box.hidden) return;
+  const from = sigSys(), m = me.sys && /^\d+$/.test(me.sys) ? me.sys : null, s2 = sel && /^\d+$/.test(sel) ? sel : null;
+  $('#hubrFor').innerHTML = from ? `<span class="dim">From</span> <b>${esc(sysName(from))}</b> <span class="dim">${byId[from] || (index && index.sys[from]) ? secR(secOfId(from)).toFixed(1) : esc(classOf(from) || '')}</span><span style="margin-left:auto"></span>${m ? `<button type="button" class="small" data-hpin="me" aria-pressed="${sigPin !== 'sel'}">📍 where I am</button>` : ''}${s2 ? `<button type="button" class="small" data-hpin="sel" aria-pressed="${sigPin === 'sel'}">◎ selected</button>` : ''}`
+    : '<span class="dim">Select a system on the map, or log in a character.</span>';
+  $('#hubrFor').querySelectorAll('[data-hpin]').forEach(b => b.onclick = () => { sigPin = b.dataset.hpin; store.set('whmap.reg.sigPin', sigPin); hubrCompute(); renderSigs && renderSigs(); });
+  if (from && from !== hubrFrom && !hubrBusy){ hubrCompute(); return; }
+  const wh = $('#hubrWh').checked, cols = [['short', 'Shortest'], ['safe', 'Safest'], ...(wh ? [['wshort', 'Shortest · WH'], ['wsafe', 'Safest · WH']] : [])];
+  $('#hubrSub').textContent = hubrBusy ? 'computing…' : '';
+  const bar = n => { const t = n.hs + n.ls + n.ns + n.wh || 1, w = x => Math.max(x ? 3 : 0, Math.round(x / t * 46)); return `<span class="sb" title="${n.hs} high-sec · ${n.ls} low-sec · ${n.ns} null-sec${n.wh ? ' · ' + n.wh + ' wormhole' : ''}"><i style="width:${w(n.hs)}px;background:#4fa3ff"></i><i style="width:${w(n.ls)}px;background:#f2a74b"></i><i style="width:${w(n.ns)}px;background:#ef5a5a"></i><i style="width:${w(n.wh)}px;background:#a98bff"></i></span>`; };
+  $('#hubrT').innerHTML = !from ? '' : `<tr><th>Hub</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>` + HUBS_T.map(([h, n]) => {
+    const vals = cols.map(([k]) => hubrRes[h + ':' + k]), best = Math.min(...vals.filter(Array.isArray).map(r => r.length));
+    return `<tr><td class="h">${esc(n)}</td>${cols.map(([k], i) => { const r = vals[i];
+      if (!r) return `<td class="dim">${hubrBusy ? '…' : ''}</td>`; if (r.err) return `<td class="dim" title="${esc(r.err)}">—</td>`;
+      const mx = hubrMix(r); return `<td><button type="button" class="rc${hubrPick === h + ':' + k ? ' on' : ''}" data-hr="${h}:${k}"><b class="${r.length === best && cols.length > 1 ? 'best' : ''}">${r.length - 1}</b> j${bar(mx)}</button></td>`; }).join('')}</tr>`; }).join('');
+  $('#hubrT').querySelectorAll('[data-hr]').forEach(b => b.onclick = () => { hubrPick = b.dataset.hr; renderHubr(); hubrShow(); });
+}
+function hubrShow(){
+  const r = hubrRes[hubrPick]; if (!Array.isArray(r)) return;
+  const pairs = apWhPairs(), [h, k] = hubrPick.split(':'), hubN = (HUBS_T.find(x => String(x[0]) === h) || [])[1];
+  const firstWh = r.findIndex((id, i) => i && pairs[pairKey(r[i - 1], id)]);
+  const path = r.map((id, i) => { const v = secOfId(id), via = i && pairs[pairKey(r[i - 1], id)];
+    return `${i ? (via ? `<span class="wh" title="${esc(via)}">⟿</span>` : '<span class="dim">›</span>') : ''}<span class="${v == null ? 'wh' : ''}" style="${v != null ? `color:${secCol(v)}` : ''}">${esc(sysName(id))}${v != null ? ` ${secR(v).toFixed(1)}` : ''}</span>`; }).join(' ');
+  const mx = hubrMix(r);
+  $('#hubrDetail').innerHTML = `<div class="hubrd"><div><b>${esc(hubN)}</b> · ${r.length - 1} jumps · ${mx.hs} high, ${mx.ls} low, ${mx.ns} null${mx.wh ? `, ${mx.wh} in wormholes` : ''}</div>
+    <div class="path">${path}</div>
+    <div>${firstWh === 1 ? `<span class="dim">The first hole is right here: jump it, then</span> <button type="button" class="small primary" data-hdest="${h}">➤ Set destination ${esc(hubN)}</button>` : firstWh > 0 ? `<button type="button" class="small primary" data-hdest="${r[firstWh - 1]}" title="EVE's autopilot does not use wormholes: go to the hole first">➤ Destination: ${esc(sysName(r[firstWh - 1]))} (the hole)</button>` : `<button type="button" class="small primary" data-hdest="${h}">➤ Set destination ${esc(hubN)}</button>`}
+      <button type="button" class="small" data-hmap="${h}" title="Draw this route on the map">Show on the map</button></div></div>`;
+  $('#hubrDetail').querySelectorAll('[data-hdest]').forEach(b => b.onclick = e => sendWaypoint(b.dataset.hdest, e.shiftKey));
+  $('#hubrDetail').querySelectorAll('[data-hmap]').forEach(b => b.onclick = () => { if (regionOf(h)) goTo(h); });
+}
+function setupHubr(){
+  const box = $('#wHubs'), btn = $('#btnHubr');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ hubrFrom = null; renderHubr(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#hubrClose').onclick = () => show(false);
+  $('#hubrWh').checked = store.get('whmap.reg.hubrWh', true);
+  $('#hubrWh').onchange = () => { store.set('whmap.reg.hubrWh', $('#hubrWh').checked); hubrCompute(); };
+}
 function setupStats(){
   const box = $('#wStats'), btn = $('#btnStats');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderStats(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -2935,6 +3017,7 @@ function hubHtml(h){
 }
 function renderPanel(){
   if (typeof renderSigs === 'function') try{ renderSigs(); }catch(e){}
+  if (typeof renderHubr === 'function') try{ renderHubr(); }catch(e){}
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
   $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
@@ -3739,7 +3822,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 }, wHubs:{ x:Math.max(12, W0 / 2 - 260), y:130 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -3785,10 +3868,10 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
-  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
   ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
@@ -3816,10 +3899,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -3846,7 +3929,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); loadStandings(); setInterval(loadStandings, 30 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
