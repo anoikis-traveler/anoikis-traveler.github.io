@@ -358,7 +358,8 @@ body.nf #hint{transform:translateY(-16px)}
 .holdt .k{font-size:10.5px;color:var(--dim);text-transform:uppercase}
 .holdt .x{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 3px}
 .holdt .x:hover{color:var(--accent)}
-.holdt select.hlvl,#holdLvl{background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:2px 3px;font:12.5px var(--body)}
+.sovline select.hlvl{font-size:11.5px;padding:0 2px;margin-right:4px}
+.holdt select.hlvl,#holdLvl,.sovline select.hlvl{background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:2px 3px;font:12.5px var(--body)}
 .threatframe{position:fixed;inset:0;pointer-events:none;border:var(--tw) solid var(--tc);box-shadow:inset 0 0 calc(var(--tw) * 5) var(--tc),0 0 0 0 transparent;animation:threatpulse var(--ts) ease-in-out infinite}
 @keyframes threatpulse{0%,100%{opacity:.25}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.threatframe{animation:none;opacity:.8}}
@@ -910,9 +911,10 @@ async function regionSplash(id, r){   // no alliance holds it: the region itself
     <div class="sn">${esc(regionName(r))}</div>
     <div class="ss">new wormhole into <b>${esc(sysName(id))}</b>${sec != null ? ` <span style="color:${secCol(s.s)}">${sec.toFixed(1)}</span>` : ''} · ${fac ? esc(fac.name) + ' space' : 'no sovereignty'}</div>`);
 }
-function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over a nearly faded map
+function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over a nearly faded map; a frame of its threat colour
+  const L = sovLvl(a), t = THREAT[L.lvl];
   splash(`<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
-    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · new wormhole</div>`);
+    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · new wormhole${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)}</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
 function splash(html, lvl){
   document.querySelectorAll('.sovsplash').forEach(x => x.remove());
@@ -995,6 +997,15 @@ async function loadSov(){
   }catch(e){}
 }
 const sovOf = id => sovMap[String(id)] || null;
+function sovOver(){ return share.owner && !DEMO ? ((share.map && share.map.data && share.map.data.sovlvl) || {}) : store.get(DEMO ? 'whmap.reg.sovlvl.demo' : 'whmap.reg.sovlvl', {}); }
+function sovLvl(a){ const o = sovOver()[a]; if (o != null) return { lvl:o, auto:false }; return { lvl:standReady() ? lvlOfStanding(standOf(a, 'alliance')) : 0, auto:true, st:standOf(a, 'alliance') }; }
+async function setSovLvl(a, v){   // null = back to automatic
+  if (!DEMO && share.owner && share.ws){
+    try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/sovlvl/${a}`, data:v }); share.map.data = share.map.data || {}; share.map.data.sovlvl = { ...(share.map.data.sovlvl || {}) }; if (v == null) delete share.map.data.sovlvl[a]; else share.map.data.sovlvl[a] = v; }
+    catch(e){ toast('The shared map did not accept it: ' + e.message, true); return; }
+  } else { const key = DEMO ? 'whmap.reg.sovlvl.demo' : 'whmap.reg.sovlvl', o = store.get(key, {}); if (v == null) delete o[a]; else o[a] = v; store.set(key, o); }
+  render(); renderPanel();
+}
 async function loadIncursions(){
   try{
     const r = await fetch(`${ESI}/incursions/`); if (!r.ok) throw 0;
@@ -1157,6 +1168,7 @@ function demoSpin(){
 const ROOT = location.origin + location.pathname.replace(/regions\/(index\.html)?$/, '');   // the callback registered with EVE
 const SCOPES = 'esi-location.read_location.v1 esi-location.read_online.v1 esi-location.read_ship_type.v1';
 const AS_SCOPE = 'esi-assets.read_assets.v1', ST_SCOPE = 'esi-universe.read_structures.v1';
+const STD_SCOPES = 'esi-characters.read_contacts.v1 esi-corporations.read_contacts.v1 esi-alliances.read_contacts.v1';
 const chars = {};                          // charId -> { sys, online }
 function jwt(t){ try{ return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }catch(e){ return {}; } }
 const scopesOf = t => { if (!t || !t.access_token) return []; const s = jwt(t.access_token).scp; return Array.isArray(s) ? s : (s ? [s] : []); };
@@ -1194,8 +1206,9 @@ async function login(){
   const state = 'rg' + b64url(crypto.getRandomValues(new Uint8Array(12)));      // "rg": the site root sends the answer back here
   sess.set('whmap.reg.pkce', JSON.stringify({ verifier, state }));
   if (store.get('whmap.reg.askjb', false)) store.set('whmap.reg.jbTry', Date.now()); else try{ localStorage.removeItem('whmap.reg.jbTry'); }catch(e){}
-  const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true), jb = store.get('whmap.reg.askjb', false);
-  const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as || jb ? ` ${ST_SCOPE}` : '') + (as ? ` ${AS_SCOPE}` : '') + (jb ? ` ${JB_SCOPE}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
+  if (store.get('whmap.reg.askst', false)) store.set('whmap.reg.stTry', Date.now()); else try{ localStorage.removeItem('whmap.reg.stTry'); }catch(e){}
+  const wp = store.get('whmap.reg.askwp', true), as = store.get('whmap.reg.askassets', true), jb = store.get('whmap.reg.askjb', false), sd = store.get('whmap.reg.askst', false);
+  const p = new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:cid, scope:SCOPES + (wp ? ' ' + WP_SCOPE : '') + (as || jb ? ` ${ST_SCOPE}` : '') + (as ? ` ${AS_SCOPE}` : '') + (jb ? ` ${JB_SCOPE}` : '') + (sd ? ` ${STD_SCOPES}` : ''), code_challenge:challenge, code_challenge_method:'S256', state });
   location.href = `${SSO}/authorize/?${p}`;
 }
 async function tokenRequest(params){
@@ -1207,6 +1220,9 @@ async function tokenRequest(params){
 async function handleCallback(){
   const q = new URLSearchParams(location.search);
   const jbTry = store.get('whmap.reg.jbTry', 0); try{ localStorage.removeItem('whmap.reg.jbTry'); }catch(e){}
+  const stTry = store.get('whmap.reg.stTry', 0); try{ localStorage.removeItem('whmap.reg.stTry'); }catch(e){}
+  if (!q.has('code') && !q.has('error') && stTry && Date.now() - stTry < 15 * 60000){ store.set('whmap.reg.askst', false);
+    toast('EVE refused the standings permission: the EVE application of the site does not have the contacts scopes yet. The option is now off; add them on developers.eveonline.com, then tick it again.', true); return; }
   if (!q.has('code') && !q.has('error')){
     // came back without an answer right after asking for the jump bridge permission: CCP refused it (invalid_scope page)
     if (jbTry && Date.now() - jbTry < 15 * 60000){ store.set('whmap.reg.askjb', false);
@@ -1838,6 +1854,7 @@ function renderSigs(force){
   $('#sigList').querySelectorAll('[data-delsig]').forEach(b => b.onclick = async () => { const rec = sigsOf(id); if (!rec) return; const list2 = { ...rec.list }; delete list2[b.dataset.delsig];
     if (await saveSigs(id, Object.keys(list2).length ? { ...rec, list:list2 } : null)){ renderSigs(); renderPanel(); } });
 }
+document.addEventListener('change', e => { const sl = e.target.closest('[data-sovlvl]'); if (sl) setSovLvl(sl.dataset.sovlvl, sl.value === 'a' ? null : +sl.value); });
 document.addEventListener('click', e => { const a = e.target.closest('[data-opensigs]'); if (!a) return; e.preventDefault(); sigPin = 'sel'; store.set('whmap.reg.sigPin', sigPin); if ($('#wSigs').hidden) $('#btnSigs').click(); else renderSigs(); });
 function setupSigs(){
   const box = $('#wSigs'), btn = $('#btnSigs');
@@ -1856,7 +1873,47 @@ function setupSigs(){
     store.set('whmap.reg.sigs.demo', { '31000123':{ t, by:'Demo Scout', list:L } });
   }
 }
+/* Standings: your contacts, your corporation's and your alliance's (personal first, like in game); your own corp and alliance count +10 */
+let stand = store.get('whmap.reg.stand', { map:{}, own:[], t:0, who:'' }), allyOfCorp = store.get('whmap.reg.allyOfCorp', {});
+const standReady = () => stand.t > 0;
+async function loadStandings(){
+  if (DEMO){ if (!stand.t) stand = { map:{ 1900696668:-10, 99003581:-5, 1354830081:4 }, own:[98000001], t:Date.now(), who:'Demo' }; return; }
+  const list = vaultChars().filter(c => scopesOf(c).some(x => /read_contacts/.test(x))); if (!list.length) return;
+  const map = {}, own = new Set(), pri = {};
+  const put = (id, v, p) => { if (pri[id] == null || p < pri[id]){ map[id] = v; pri[id] = p; } };
+  for (const c of list){
+    try{
+      const f = await freshTok(c), H = { Authorization:'Bearer ' + f.access_token };
+      const pub = await (await fetch(`${ESI}/characters/${c.charId}/`)).json();
+      own.add(pub.corporation_id); if (pub.alliance_id) own.add(pub.alliance_id);
+      const pages = async u => { const out = []; for (let p = 1; p <= 10; p++){ const r = await fetch(`${ESI}${u}?page=${p}`, { headers:H }); if (!r.ok) break; out.push(...await r.json()); if (p >= Number(r.headers.get('x-pages') || 1)) break; } return out; };
+      if (scopesOf(f).includes('esi-characters.read_contacts.v1')) for (const x of await pages(`/characters/${c.charId}/contacts/`)) put(x.contact_id, x.standing, 0);
+      if (scopesOf(f).includes('esi-corporations.read_contacts.v1')) for (const x of await pages(`/corporations/${pub.corporation_id}/contacts/`)) put(x.contact_id, x.standing, 1);
+      if (pub.alliance_id && scopesOf(f).includes('esi-alliances.read_contacts.v1')) for (const x of await pages(`/alliances/${pub.alliance_id}/contacts/`)) put(x.contact_id, x.standing, 2);
+    }catch(e){}
+  }
+  stand = { map, own:[...own], t:Date.now(), who:list.map(c => c.charName).join(', ') }; store.set('whmap.reg.stand', stand);
+  render(); renderPanel(); if (typeof renderHold === 'function') renderHold();
+}
+async function corpAlly(id){   // the alliance of a corporation (public), remembered
+  if (id in allyOfCorp) return allyOfCorp[id];
+  try{ const r = await fetch(`${ESI}/corporations/${id}/`); if (r.ok){ allyOfCorp[id] = (await r.json()).alliance_id || 0; store.set('whmap.reg.allyOfCorp', allyOfCorp); } }catch(e){}
+  return allyOfCorp[id] || 0;
+}
+function standOf(id, kind){
+  if (!standReady() || !id) return null;
+  if (stand.own.includes(Number(id))) return 10;
+  if (Number(id) in stand.map) return stand.map[id];
+  if (kind === 'corporation' && allyOfCorp[id]){ const a = allyOfCorp[id]; if (stand.own.includes(a)) return 10; if (a in stand.map) return stand.map[a]; }
+  return 0;   // neutral
+}
+const lvlOfStanding = st => st == null ? 0 : st > 0 ? 1 : st <= -10 ? 5 : st <= -5 ? 4 : st < 0 ? 3 : 2;   // blue · neutral = low · red: medium, high, extreme
 const THREAT = [ { k:0, n:'—', c:'' }, { k:1, n:'Friendly', c:'#5fd68a' }, { k:2, n:'Low', c:'#f2e05a' }, { k:3, n:'Medium', c:'#f2a74b' }, { k:4, n:'High', c:'#ef5a5a' }, { k:5, n:'Extreme', c:'#ff2bd6' } ];
+function holdLvl(r){   // set by hand, or from your standings
+  if (!r) return { lvl:0, auto:false };
+  if (r.lvlSet || !(r.holder && r.holder.id) || !standReady()) return { lvl:r.lvl || 0, auto:false };
+  return { lvl:lvlOfStanding(standOf(r.holder.id, r.holder.kind)), auto:true, st:standOf(r.holder.id, r.holder.kind) };
+}
 const lvlOpts = v => THREAT.map(t => `<option value="${t.k}"${+v === t.k ? ' selected' : ''}${t.c ? ` style="color:${t.c}"` : ''}>${t.n}</option>`).join('');
 /* Wormhole holders: who lives in a J system, shown in big each time one of your pilots jumps into it (on your chain) */
 function holdAll(){ return share.owner && !DEMO ? ((share.map && share.map.data && share.map.data.holders) || {}) : store.get(DEMO ? 'whmap.reg.holders.demo' : 'whmap.reg.holders', {}); }
@@ -1885,7 +1942,8 @@ async function addHolder(sysTxt, whoTxt, lvl){
   const holder = await resolveHolder(whoTxt);
   if (whoTxt && holder && !holder.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(whoTxt)}: no corporation or alliance with this exact name, kept as text (no logo).</span>`; else $('#holdMsg').textContent = '';
   const prev = holdAll()[id] || {};
-  if (await saveHold(id, { n:sysName(id), holder:holder || prev.holder || null, lvl:+lvl || 0, by:tok ? tok.charName : '', t:Date.now() })){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
+  if (holder && holder.kind === 'corporation' && holder.id) await corpAlly(holder.id);
+  if (await saveHold(id, { n:sysName(id), holder:holder || prev.holder || null, lvl:+lvl || 0, lvlSet:+lvl > 0, by:tok ? tok.charName : '', t:Date.now() })){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
 }
 function renderHold(){
   const box = $('#wHold'); if (!box || box.hidden) return;
@@ -1894,13 +1952,15 @@ function renderHold(){
   $('#holdList').innerHTML = ids.map(id => { const r = all[id], h = r.holder, on = onChain(id);
     return `<tr><td class="w" title="${on ? 'On your chain' : 'Not on your chain right now'}">${esc(r.n || sysName(id))} <span class="k">${esc(classOf(id) || '')}</span>${on ? ' <span style="color:var(--ok)">●</span>' : ''}</td>
       <td class="h">${h && h.id ? `<img src="${holdLogo(h)}64" alt="">` : ''}<input data-hw="${id}" value="${esc(h ? h.name : '')}" placeholder="optional" title="Corporation or alliance, exact name">${h && h.kind ? `<span class="k">${h.kind === 'alliance' ? 'ally' : 'corp'}</span>` : ''}</td>
-      <td><select class="hlvl" data-hl="${id}" title="Threat: the map gets a frame of this colour when you jump in" style="${THREAT[r.lvl || 0].c ? `color:${THREAT[r.lvl || 0].c};border-color:${THREAT[r.lvl || 0].c}` : ''}">${lvlOpts(r.lvl || 0)}</select></td>
+      <td>${(() => { const L = holdLvl(r), c = THREAT[L.lvl].c, canAuto = h && h.id && standReady();
+        return `<select class="hlvl" data-hl="${id}" title="${L.auto ? `From your standings (${L.st > 0 ? '+' : ''}${L.st}): choose a level to set it by hand` : 'Threat: the map gets a frame of this colour when you jump in'}" style="${c ? `color:${c};border-color:${c}` : ''}">${canAuto ? `<option value="a"${L.auto ? ' selected' : ''}>Auto · ${THREAT[lvlOfStanding(standOf(h.id, h.kind))].n}</option>` : ''}${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()}</td>
       <td style="white-space:nowrap">${h || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>`; }).join('')
     || '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>';
   $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; const h = await resolveHolder(i.value);
     if (i.value.trim() && h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
     if (await saveHold(id, { ...r, holder:h, t:Date.now() })) renderHold(); });
-  $('#holdList').querySelectorAll('[data-hl]').forEach(sl => sl.onchange = async () => { const id = sl.dataset.hl; if (await saveHold(id, { ...holdAll()[id], lvl:+sl.value, t:Date.now() })) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hl]').forEach(sl => sl.onchange = async () => { const id = sl.dataset.hl, a = sl.value === 'a';
+    if (await saveHold(id, { ...holdAll()[id], lvl:a ? 0 : +sl.value, lvlSet:!a, t:Date.now() })) renderHold(); });
   $('#holdList').querySelectorAll('[data-hd]').forEach(b => b.onclick = async () => { if (await saveHold(b.dataset.hd, null)) renderHold(); });
   $('#holdList').querySelectorAll('[data-hp]').forEach(b => b.onclick = () => holderSplash(b.dataset.hp, true));
   // suggestions: the J systems of your chain
@@ -1908,12 +1968,12 @@ function renderHold(){
 }
 const onChain = id => !!(mapper.nodes && mapper.nodes[String(id)]) || whLinks().some(l => String(l.a) === String(id) || String(l.b) === String(id));
 function holderSplash(id, preview){
-  const r = holdAll()[String(id)], h = r && r.holder; if (!r || (!h && !r.lvl)) return;
+  const r = holdAll()[String(id)], h = r && r.holder; if (!r || (!h && !holdLvl(r).lvl)) return;
   if (!preview && (!SET.holder || !onChain(id))) return;
-  const t = THREAT[r.lvl || 0];
-  if (!h){ splash(`<div class="sn" style="color:${t.c}">${esc(t.n)} threat</div><div class="ss"><b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}</div>`, r.lvl); return; }
+  const L = holdLvl(r), t = THREAT[L.lvl];
+  if (!h){ if (!L.lvl) return; splash(`<div class="sn" style="color:${t.c}">${esc(t.n)} threat</div><div class="ss"><b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}</div>`, L.lvl); return; }
   splash(`${h.id ? `<img src="${holdLogo(h)}256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(h.name.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
-    <div class="sn">${esc(h.name)}</div><div class="ss">lives in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${h.kind ? ` · ${h.kind}` : ''}${r.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>` : ''}</div>`, r.lvl);
+    <div class="sn">${esc(h.name)}</div><div class="ss">lives in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${h.kind ? ` · ${h.kind}` : ''}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
 let holdLast = null;   // the system your pilot was in: only a jump into the hole shows its holder (not opening the page inside)
 function holderOnMove(){ if (!me.sys) return; if (holdLast && me.sys !== holdLast && holdAll()[String(me.sys)]) holderSplash(me.sys); holdLast = me.sys; }
@@ -2345,6 +2405,7 @@ function renderChars(){
       : `<button type="button" class="primary" id="bLogin">${list.length ? 'Add a character' : 'Log in with EVE'}</button>
          <label><input type="checkbox" id="askWp"${wpAsk ? ' checked' : ''}> Allow "Set destination" (autopilot)</label>
          <label><input type="checkbox" id="askAs"${store.get('whmap.reg.askassets', true) ? ' checked' : ''}> Allow reading assets (shown on the map, stays in this browser)</label>
+         <label title="Your, your corporation's and your alliance's contacts: threat levels of WH holders and sovereignty are set from them (the EVE application of the site must allow the 3 contacts scopes)"><input type="checkbox" id="askSt"${store.get('whmap.reg.askst', false) ? ' checked' : ''}> Allow reading standings (contacts)</label>
          <label title="Finds the Ansiblex your character can use (the EVE application of the site must allow esi-search.search_structures.v1)"><input type="checkbox" id="askJb"${store.get('whmap.reg.askjb', false) ? ' checked' : ''}> Allow importing jump bridges</label>`}
       <span id="shareSt" class="share-st ${share.state}"${share.state === 'off' || DEMO ? ' hidden' : ''}></span>
       <span class="dim" style="font-size:11.5px">${DEMO ? 'Everything here is simulated.' : 'One login for the whole site. Tokens stay in this browser.'}</span>
@@ -2358,6 +2419,7 @@ function renderChars(){
   const aw = $('#askWp'); if (aw) aw.onchange = () => store.set('whmap.reg.askwp', aw.checked);
   const aa = $('#askAs'); if (aa) aa.onchange = () => store.set('whmap.reg.askassets', aa.checked);
   const aj = $('#askJb'); if (aj) aj.onchange = () => store.set('whmap.reg.askjb', aj.checked);
+  const ast = $('#askSt'); if (ast) ast.onchange = () => store.set('whmap.reg.askst', ast.checked);
   shareState(share.state);
   const pt = $('#payTier'); if (pt) pt.onchange = () => { const n = Number(pt.value); store.set('whmap.reg.payTier', n); $('#payCode').textContent = payV(); $('#payPrice').textContent = `${(n - 5) / 5 * 50} M ISK / week`; };
   const pb = $('#bPayId'); if (pb) pb.onclick = async () => { const v = payV(); try{ await navigator.clipboard.writeText(v); toast('Copied: ' + v); }catch(e){ toast(v); } };
@@ -2734,7 +2796,7 @@ function draw(){
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
     if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : STATS[statMode].dec ? (v < 10 ? v.toFixed(1) : Math.round(v)) : v; } }
     const ally = !s.ext && sovLogos && !statMode ? sovOf(id) : null;
-    if (ally){ const lr = r * 0.96; el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
+    if (ally){ const lr = r * 0.96, tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:p.x, cy:p.y, r:r + 2.5, fill:'none', stroke:THREAT[tl].c, 'stroke-width':2.2, class:'sovring', 'pointer-events':'none' }, g); el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none', opacity:ally ? .7 : 1 }, g);
     el('title', {}, g).textContent = (s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`) + (sovOf(id) ? ` · ${sovNames[sovOf(id)] || 'alliance'}` : '');
     const as = assetsAt(id);
@@ -2887,7 +2949,7 @@ function renderPanel(){
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
     P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
       ${sigsOf(id) ? (() => { const L = Object.values(sigsOf(id).list), u = L.filter(v => !v.type).length; return `<div class="sovline"><a href="#" data-opensigs="1">📡 ${L.length} signature${L.length > 1 ? 's' : ''}${u ? `, ${u} to scan` : ''}</a> <span class="dim">· ${agoTxt(sigsOf(id).t)}</span></div>`; })() : ''}
-      ${sovOf(id) ? `<div class="sovline"><img src="https://images.evetech.net/alliances/${sovOf(id)}/logo?size=64" alt="" width="22" height="22"><span>Sovereignty: <a href="${sovNames[sovOf(id)] ? 'https://evemaps.dotlan.net/alliance/' + encodeURIComponent(sovNames[sovOf(id)].replace(/ /g, '_')) : 'https://zkillboard.com/alliance/' + sovOf(id) + '/'}" target="_blank" rel="noopener">${esc(sovNames[sovOf(id)] || 'alliance ' + sovOf(id))}</a></span></div>` : ''}
+      ${sovOf(id) ? `<div class="sovline"><img src="https://images.evetech.net/alliances/${sovOf(id)}/logo?size=64" alt="" width="22" height="22"><span>${(() => { const a = sovOf(id), L = sovLvl(a), c = THREAT[L.lvl].c; return `<select class="hlvl" data-sovlvl="${a}" title="${L.auto ? (standReady() ? `From your standings (${L.st > 0 ? '+' : ''}${L.st})` : 'Automatic once standings are read (Characters window option)') : 'Set by hand'}" style="${c ? `color:${c};border-color:${c}` : ''}"><option value="a"${L.auto ? ' selected' : ''}>Auto${standReady() ? ' · ' + THREAT[lvlOfStanding(standOf(a, 'alliance'))].n : ''}</option>${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()} Sovereignty: <a href="${sovNames[sovOf(id)] ? 'https://evemaps.dotlan.net/alliance/' + encodeURIComponent(sovNames[sovOf(id)].replace(/ /g, '_')) : 'https://zkillboard.com/alliance/' + sovOf(id) + '/'}" target="_blank" rel="noopener">${esc(sovNames[sovOf(id)] || 'alliance ' + sovOf(id))}</a></span></div>` : ''}
       <div class="dim">${s.ext ? `${esc(s.ext)} (neighbouring region)` : `${esc(R.constellations[s.c] || '')} · ${esc(R.region.name)}`}</div>
       ${tags ? `<div style="margin-top:6px">${tags}</div>` : ''}
       <div style="margin-top:10px">${rt}</div>
@@ -3757,7 +3819,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold();
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
