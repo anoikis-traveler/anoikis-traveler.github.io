@@ -1122,6 +1122,7 @@ const SETTINGS = [
   { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
   { g:'Pilots', k:'show', label:'Show a pilot\'s name on a system for', unit:'min', def:30, min:1, max:1440 },
   { g:'Pilots', k:'pos', label:'Read your characters\' positions every', unit:'s', def:6, min:4, max:120 },
+  { g:'Wormholes', k:'autoMap', label:'Add a wormhole on the map when one of your characters jumps through one', type:'bool', def:1 },
   { g:'Wormholes', k:'blink', label:'An expired hole blinks, then disappears after', unit:'min', def:60, min:0, max:720 },
   { g:'Wormholes', k:'chainX', label:'Two groups are the same chain within', unit:'jumps', def:5, min:0, max:40 },
   { g:'Refresh', k:'scout', label:'Thera & Turnur connections (EVE-Scout) every', unit:'min', def:5, min:2, max:60 },
@@ -2503,7 +2504,9 @@ async function poll(){
       let online = null; try{ const o = await esiFor(c, `/characters/${c.charId}/online/`); online = !!(o && o.online); }catch(e){}
       const sys = String(loc.solar_system_id);
       if (isJ(sys) || !regionOf(sys)) await lookupName(sys);
+      const before = chars[c.charId] && chars[c.charId].sys;
       chars[c.charId] = { sys, online, name:c.charName };
+      if (before && before !== sys) autoMap(before, sys, c.charName, c);
       if (tok && c.charId === tok.charId){ lastErr = ''; if (sys !== me.sys){ me.sys = sys; onMove(); } }
     }catch(e){ if (tok && c.charId === tok.charId && e.message !== lastErr){ lastErr = e.message; if (!/ESI 5/.test(e.message)) toast(e.message, true); } }
   }));
@@ -2562,7 +2565,8 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
 async function onMove(){
   holderOnMove();
   if (followRemote){ computeRoute(); render(); renderPanel(); renderWho(); return; }
-  if (!me.sys || Date.now() < holdCam) return;
+  if (me.sys && Date.now() < holdCam){ renderWho(); renderPanel(); return; }
+  if (!me.sys) return;
   if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
@@ -3813,6 +3817,43 @@ function chainMenu(e, id){
     else if (act === 'clear'){ chainClear(); renderChainAct(); renderChain(); }
     else if (act === 'auto') $('#chainAuto').click();
   };
+}
+/* Auto-mapping: one of your characters went from A to B without a gate (and not by a jump bridge or a known EVE-Scout hole) = a wormhole.
+   It is added to the map, linked to the previous system, and lives as long as a hole of its type (48 h when the type is not known). */
+const gateAdj = store.get('whmap.reg.gateAdj', {});
+async function gateNeighbours(a){
+  a = String(a); if (gateAdj[a]) return gateAdj[a];
+  const sysr = await fetch(`${ESI}/universe/systems/${a}/`); if (!sysr.ok) return null;
+  const sg = (await sysr.json()).stargates || [], out = [];
+  for (const g of sg){ try{ const r = await fetch(`${ESI}/universe/stargates/${g}/`); if (r.ok){ const j = await r.json(); if (j.destination) out.push(String(j.destination.system_id)); } }catch(e){} }
+  gateAdj[a] = out; store.set('whmap.reg.gateAdj', gateAdj); return out;
+}
+async function autoMap(prev, now, who, c){
+  prev = String(prev); now = String(now);
+  if (!SET.autoMap || DEMO || prev === now) return;
+  if (allHoles().some(l => pairKey(l.a, l.b) === pairKey(prev, now))) return;              // already on the map (yours or EVE-Scout)
+  if (jbList().some(j => pairKey(j.a, j.b) === pairKey(prev, now))) return;                // a jump bridge
+  if (!isJ(prev) && !isJ(now)){ const nb = await gateNeighbours(prev); if (!nb || nb.includes(now)) return; }   // a gate (or no answer: do nothing)
+  if (c){ try{ const sh = await esiFor(c, `/characters/${c.charId}/ship/`); if (sh && [670, 33328].includes(sh.ship_type_id)) return; }catch(e){} }   // in a capsule: most likely a death or a clone jump, not a hole
+  await lookupName(prev); await lookupName(now);
+  // the type, when the previous system has exactly one scanned wormhole signature naming a known type
+  let wh = '';
+  const sg = sigsOf(prev); if (sg){ const ws = Object.values(sg.list).filter(v => sigCat(v.type) && sigCat(v.type)[0] === 'wh'), t = whTypes();
+    if (ws.length === 1){ const m = String(ws[0].name || '').toUpperCase().match(/\b([A-Z]\d{3}|K162)\b/); if (m && t[m[1]]) wh = m[1]; } }
+  const id = 'auto' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const link = { id, a:Number(prev), b:Number(now), type:'wh', wh, size:'?', mass:'fresh', eol:false, created:Date.now(), passes:[], auto:true, by:who || '' };
+  const node = x => ({ id:Number(x), name:sysName(x), cls:classOf(x) || '?' });
+  let shared = false;
+  if (share.owner && share.ws){
+    try{
+      const d = (share.map && share.map.data) || {}, nodes = d.nodes || {};
+      for (const x of [prev, now]) if (!nodes[x]){ const base = nodes[x === now ? prev : now]; await shareSend({ op:'put', path:`maps/${share.owner}/data/nodes/${x}`, data:{ ...node(x), ...(base && base.x != null ? { x:base.x + 320, y:base.y } : {}) } }); }
+      await shareSend({ op:'put', path:`maps/${share.owner}/data/links/${id}`, data:link }); shared = true;
+    }catch(e){}
+  }
+  if (!shared){ for (const x of [prev, now]) if (!mapper.nodes[x]) E().nodes[x] = { ...node(x), local:true }; E().links[id] = { ...link, local:true }; saveEdits(); }
+  readMapper(); afterEdit();
+  toast(`${who ? who + ': ' : ''}wormhole ${sysName(prev)} → ${sysName(now)} added${wh ? ' (' + wh + ')' : ''}${shared ? ' for your whole map' : ''}`);
 }
 function addLink(a, b, o = {}){
   const id = 'loc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
