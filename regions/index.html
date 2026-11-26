@@ -3000,8 +3000,10 @@ function placeTop(){   // the region name: centred in the free space between the
   const w = rb.offsetWidth, h = rb.offsetHeight + 12; let L = 0, Rt = innerWidth;
   for (const el2 of document.querySelectorAll('.widget:not([hidden])')){ const r = el2.getBoundingClientRect(); if (r.top > h || r.bottom < 0) continue;
     if (r.left + r.width / 2 < innerWidth / 2) L = Math.max(L, r.right); else Rt = Math.min(Rt, r.left); }
-  const x = Rt - L >= w + 20 ? (L + Rt) / 2 : innerWidth / 2;
-  rb.style.left = Math.round(x) + 'px'; rb.style.top = (Rt - L >= w + 20 ? 10 : Math.min(innerHeight - 60, h + 60)) + 'px';
+  // always centred across the screen; lowered under the windows only if one sits where it would be
+  const x0 = innerWidth / 2 - w / 2, x1 = innerWidth / 2 + w / 2; let top = 10;
+  for (const el2 of document.querySelectorAll('.widget:not([hidden])')){ const r = el2.getBoundingClientRect(); if (r.left < x1 && r.right > x0 && r.top < top + h) top = Math.max(top, r.bottom + 8); }
+  rb.style.left = '50%'; rb.style.top = Math.min(innerHeight - 80, top) + 'px';
 }
 function syncBlink(){ if (!document.getAnimations) return; for (const an of document.getAnimations()) if (typeof CSSAnimation !== 'undefined' && an instanceof CSSAnimation && an.startTime !== 0) an.startTime = 0; }
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); syncBlink(); placeTop(); }); };
