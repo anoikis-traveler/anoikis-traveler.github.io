@@ -503,7 +503,6 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="btns">
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
-        <button id="btnSpin" type="button" title="The map turns slowly on its own (it stops while you use it)">Rotate</button>
         <button id="btnSov" type="button" aria-pressed="true" title="Null-sec: the logo of the alliance holding the sovereignty on each system">Alliance logos</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
@@ -808,12 +807,13 @@ function checkNewHoles(){
 }
 let holdCam = 0;   // while the new system is shown, a jump of your pilot does not pull the map away
 async function newSystem(id){
-  holdCam = Date.now() + 12000;
+  holdCam = Date.now() + (SET.splashSec + 2) * 1000;
   const r = regionOf(id);
   if (!r){ toast(`New wormhole: ${sysName(id)} (wormhole space)`); return; }
-  if (!R || R.region.id !== r) await loadRegion(r);
-  if (me.sys !== id) lookAway();
-  select(id); zoomTo(id);
+  if (SET.newZoom){ if (!R || R.region.id !== r) await loadRegion(r);
+    if (me.sys !== id) lookAway();
+    select(id); zoomTo(id); }
+  if (!SET.splash) return;
   if (!Object.keys(sovMap).length) await loadSov();
   const a = sovOf(id); if (!a) return regionSplash(id, r);
   if (!sovNames[a]){ try{ const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([a]) }); if (n.ok){ sovNames[a] = (await n.json())[0].name; store.set('whmap.reg.allyNames', sovNames); } }catch(e){} }
@@ -837,7 +837,7 @@ function splash(html){
   d.innerHTML = html;
   document.body.appendChild(d); document.body.classList.add('splashing');
   const end = () => { d.remove(); if (!document.querySelector('.sovsplash')) document.body.classList.remove('splashing'); };
-  d.onclick = end; setTimeout(end, 10000);
+  d.onclick = end; setTimeout(end, SET.splashSec * 1000);
 }
 /* Same rule as the mapper: past its estimated lifetime a wormhole blinks for 1 h, then it no longer counts.
    Lifetime by type from the mapper's wormhole data (same browser storage), 48 h if the type is unknown; 4 h after EOL. */
@@ -954,6 +954,12 @@ function drawHoles(){
    green = map open (news less than 3 min old) · red = map closed · EVE badge = connected in the game */
 /* ---------- Settings: every timer and threshold of the map, in one place (Settings window) ---------- */
 const SETTINGS = [
+  { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
+  { g:'Map', k:'spinSpeed', label:'Turning speed', unit:'°/s', def:3, min:1, max:30 },
+  { g:'Map', k:'spinIdle', label:'Start turning again after you stop touching the map for', unit:'s', def:5, min:1, max:120 },
+  { g:'New wormhole', k:'newZoom', label:'Zoom on the system a new wormhole opens to', type:'bool', def:1 },
+  { g:'New wormhole', k:'splash', label:'Show the alliance logo (or the region) in big', type:'bool', def:1 },
+  { g:'New wormhole', k:'splashSec', label:'Show it for', unit:'s', def:10, min:2, max:60 },
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
@@ -1047,14 +1053,14 @@ function demoNews(html){
   b.innerHTML = `<b>Demo</b> · ${html} <span class="dim">· simulated characters, chain and Thera.</span> <a href="./">Leave the demo</a>`; b.classList.add('on');
 }
 // the map can turn slowly on its own (pauses 5 s after you touch it); on by default only in the demo
-let demoIdle = Date.now(), spinOn = store.get('whmap.reg.spin' + (DEMO ? '.demo' : ''), DEMO);
+let demoIdle = Date.now();
 function demoSpin(){
   ['pointerdown', 'wheel', 'keydown'].forEach(ev => addEventListener(ev, () => { demoIdle = Date.now(); }, { capture:true, passive:true }));
   let last = performance.now();
   const tick = t => {
     const dt = Math.min(100, t - last); last = t;
-    if (spinOn && !document.hidden && Date.now() - demoIdle > 5000 && R && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
-      keepPivot(() => { cam.yaw += dt * 0.00012; }); render();
+    if (SET.spin && !document.hidden && Date.now() - demoIdle > SET.spinIdle * 1000 && R && !document.body.classList.contains('splashing') && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
+      keepPivot(() => { cam.yaw += dt * SET.spinSpeed * Math.PI / 180000; }); render();   // turns around the selected system
     }
     requestAnimationFrame(tick);
   };
@@ -1636,12 +1642,14 @@ function renderSettings(){
   let g = '', h = '';
   for (const x of SETTINGS){
     if (x.g !== g){ g = x.g; h += `<h4>${esc(g)}</h4>`; }
+    if (x.type === 'bool'){ h += `<div class="sr"><span>${esc(x.label)}</span><input type="checkbox" data-sb="${x.k}"${SET[x.k] ? ' checked' : ''} aria-label="${esc(x.label)}" style="justify-self:start"><span class="u"></span><button type="button" class="rs small" data-sr="${x.k}" title="Back to the default"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`; continue; }
     h += `<div class="sr"><span>${esc(x.label)}</span><input type="number" min="${x.min}" max="${x.max}" step="1" value="${SET[x.k]}" data-sk="${x.k}" aria-label="${esc(x.label)}"><span class="u">${x.unit}</span><button type="button" class="rs small" data-sr="${x.k}" title="Back to ${x.def} ${x.unit}"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`;
   }
   box.innerHTML = h + '<div class="foot"><button type="button" class="small" id="setReset">Back to the defaults</button><span class="dim">Kept in this browser.</span></div>';
   box.querySelectorAll('[data-sk]').forEach(inp => inp.onchange = () => { const x = SETTINGS.find(y => y.k === inp.dataset.sk);
     let v = Math.round(Number(inp.value)); if (!isFinite(v)) v = x.def; v = Math.max(x.min, Math.min(x.max, v)); inp.value = v;
     SET[x.k] = v; saveSettings(); applySettings(x.k); inp.parentElement.querySelector('.rs').hidden = v === x.def; });
+  box.querySelectorAll('[data-sb]').forEach(c => c.onchange = () => { SET[c.dataset.sb] = c.checked ? 1 : 0; saveSettings(); applySettings(c.dataset.sb); renderSettings(); });
   box.querySelectorAll('[data-sr]').forEach(b => b.onclick = () => { const x = SETTINGS.find(y => y.k === b.dataset.sr); SET[x.k] = x.def; saveSettings(); applySettings(x.k); renderSettings(); });
   $('#setReset').onclick = () => { for (const x of SETTINGS) SET[x.k] = x.def; saveSettings(); applySettings('chainX'); renderSettings(); };
 }
@@ -2805,8 +2813,6 @@ function setupInput(){
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
     if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
       if (miss.length) toast(`No asset permission for ${miss.join(', ')}: log in again with "Allow reading assets" ticked`, true); } };
-  const rb = $('#btnSpin'); rb.setAttribute('aria-pressed', String(spinOn));
-  rb.onclick = () => { spinOn = !spinOn; store.set('whmap.reg.spin' + (DEMO ? '.demo' : ''), spinOn); rb.setAttribute('aria-pressed', String(spinOn)); demoIdle = 0; };
   const sb = $('#btnSov'); sb.setAttribute('aria-pressed', String(sovLogos));
   sb.onclick = () => { sovLogos = !sovLogos; store.set('whmap.reg.sovLogos', sovLogos); sb.setAttribute('aria-pressed', String(sovLogos)); render(); };
   const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
