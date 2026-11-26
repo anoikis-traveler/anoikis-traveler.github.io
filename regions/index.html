@@ -3053,13 +3053,17 @@ function draw(){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
       const i = (stubs[here] = (stubs[here] || 0) + 1) - 1;
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
-      const ex = p.x + Math.cos(ang) * 46, ey = p.y + Math.sin(ang) * 46;
+      const sl = 46 + 12 * zs, ex = p.x + Math.cos(ang) * sl, ey = p.y + Math.sin(ang) * sl, br = 6.5 * zs;
       const hc = holeCol(here, other);
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
-      el('rect', { x:ex - 4.5, y:ey - 4.5, width:9, height:9, transform:`rotate(45 ${ex} ${ey})`, fill:colorMode === 'wh' ? hc : 'var(--eol)' }, gWh);
+      // the system at the other end: a ball of its class colour, like a system of the map
+      const bg = el('g', { class:'stubball', 'data-stub':other }, gWh);
+      el('circle', { cx:ex, cy:ey, r:br, fill:WH_COL[classOf(other)] || hc }, bg);
+      el('circle', { cx:ex, cy:ey, r:br, fill:'url(#shine)', 'pointer-events':'none' }, bg);
+      el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)}`;
       const node = mapper.nodes[other] || {};
-      const t = el('text', { x:ex + 7, y:ey - 5, class:'stub', style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
+      const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
       t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${label ? ' · ' + label : ''}`;
       el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
     }
