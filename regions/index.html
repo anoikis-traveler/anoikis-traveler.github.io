@@ -936,24 +936,28 @@ async function loadRegion(id, keepCam){
   id = Number(id);
   const r = await fetch(DATA + id + '.json'); if (!r.ok){ toast('No data for this region', true); return; }
   R = await r.json();
+  setupR(id, keepCam);
+}
+function setupR(id, keepCam){
   byId = {}; adj = {}; constIdx = {};
   Object.keys(R.constellations).forEach((c, i) => constIdx[c] = i);
   for (const s of R.systems){ byId[String(s.id)] = s; adj[String(s.id)] = []; }
   for (const [a, b] of R.links){ adj[String(a)].push(String(b)); adj[String(b)].push(String(a)); }
   // normalise around the region's own systems
-  const own = R.systems.filter(s => !s.ext);
+  const own = R.chain ? R.systems : R.systems.filter(s => !s.ext);   // a chain: its exits are part of its shape
   const c = own.reduce((m, s) => ({ x:m.x + s.x / own.length, y:m.y + s.y / own.length, z:m.z + s.z / own.length }), { x:0, y:0, z:0 });
   let rad = 1; for (const s of own) rad = Math.max(rad, Math.hypot(s.x - c.x, s.z - c.z, s.y - c.y));
   norm = {}; for (const s of R.systems) norm[String(s.id)] = { x:(s.x - c.x) / rad, y:(s.y - c.y) / rad, z:(s.z - c.z) / rad };
-  $('#regSel').value = String(id);
+  $('#regSel').value = R.chain ? '' : String(id);
   document.title = `${R.region.name} · Anoikis Traveler`;
   if (typeof renderNoFollow === 'function') renderNoFollow();      // the region name at the top
-  const slug = (index.regions.find(g => g.id === id) || {}).slug || id;
-  history.replaceState(null, '', `?r=${slug}${DEMO ? '&demo' : ''}`);
-  store.set('whmap.reg.last', id);
+  if (R.chain) history.replaceState(null, '', `?c=${encodeURIComponent(R.chain)}${DEMO ? '&demo' : ''}`);
+  else { const slug = (index.regions.find(g => g.id === id) || {}).slug || id;
+    history.replaceState(null, '', `?r=${slug}${DEMO ? '&demo' : ''}`);
+    store.set('whmap.reg.last', id); }
   if (typeof pollKills === 'function' && !DEMO) setTimeout(pollKills, 300);
   if (typeof statMax === 'function'){ statMaxCache = statMax(); setTimeout(renderStats, 0); }
-  if (!keepCam){ cam.zoom = 1; cam.px = 0; cam.py = 0; }
+  if (!keepCam){ cam.zoom = R.chain ? 0.85 : 1; cam.px = 0; cam.py = 0; }
   if (sel && !byId[sel]) sel = null;
   computeRoute(); render(); renderPanel();
 }
@@ -985,7 +989,7 @@ function readMapper(){
   applyEdits();
 }
 const _readMapper = readMapper;
-readMapper = function(){ _readMapper(); setTimeout(checkNewHoles, 0); };
+readMapper = function(){ _readMapper(); whcT = 0; setTimeout(() => { checkNewHoles(); if (typeof renderWhSel === 'function') renderWhSel(); }, 0); };
 /* A wormhole newly opened to a system that was not on the map: zoom on it; in null-sec sovereignty, show who holds it */
 function checkNewHoles(){
   const key = 'whmap.reg.seen.' + (DEMO ? 'demo' : share.owner || 'local');
@@ -1062,6 +1066,103 @@ function whPhase(l){
 }
 const whAlive = l => whPhase(l) !== 'dead';
 const whLinks = () => Object.values(mapper.links).filter(l => l && l.type !== 'gate' && l.a != null && l.b != null && whPhase(l) !== 'dead');
+/* ---------- Wormhole chains as regions of their own: Alpha, Beta, Gamma…
+   A chain = the wormhole systems linked to each other by live holes (Thera and the other hubs left out: they have their own place).
+   Its known-space exits are the systems its holes open on. A chain keeps its name while it grows or shrinks;
+   when a hole dies and cuts it in pieces, each piece is a new chain with a new name. */
+const GREEK = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega'];
+const CNK = () => 'whmap.reg.chainReg.' + (DEMO ? 'demo' : share.owner || 'local');
+let whcCache = [], whcKey = null, whcT = 0;
+function whChains(){
+  if (performance.now() - whcT < 400) return whcCache;           // drawn many times a second while the map turns
+  whcT = performance.now();
+  const links = allHoles().filter(l => l.type !== 'gate' && !downOf(l)), own = new Set();
+  for (const l of whLinks()) if (!downOf(l)) { own.add(String(l.a)); own.add(String(l.b)); }
+  const key = CNK() + '#' + links.map(l => pairKey(l.a, l.b)).sort().join(',');
+  if (key === whcKey) return whcCache;
+  const inJ = x => isJ(x) && !HUB_LIST.includes(x), adjJ = {}, outK = {}, hubs = {};
+  for (const l of links){ const a = String(l.a), b = String(l.b);
+    for (const [x, y] of [[a, b], [b, a]]){ if (!inJ(x)) continue;
+      if (inJ(y)) (adjJ[x] = adjJ[x] || new Set()).add(y);
+      else if (isJ(y) || HUB_LIST.includes(y)) (hubs[x] = hubs[x] || new Set()).add(y);
+      else (outK[x] = outK[x] || new Set()).add(y); } }
+  const done = new Set(), comps = [];
+  for (const s0 of own){ if (!inJ(s0) || done.has(s0)) continue;      // only the chains of your own mapper (not every system EVE-Scout knows)
+    const c = { mem:[], exits:new Set(), hubs:new Set() }, q = [s0]; done.add(s0);
+    while (q.length){ const x = q.shift(); c.mem.push(x);
+      for (const y of outK[x] || []) c.exits.add(y); for (const y of hubs[x] || []) c.hubs.add(y);
+      for (const y of adjJ[x] || []) if (!done.has(y)){ done.add(y); q.push(y); } }
+    c.mem.sort(); comps.push(c); }
+  // names: a chain keeps the name of the one it continues; a chain cut in pieces gives new names to every piece
+  const reg = store.get(CNK(), { list:[], next:0 }), where = {}, claim = [];
+  comps.forEach((c, i) => c.mem.forEach(m => where[m] = i));
+  const keep = [];   // chains not seen right now (the map still loading, a moment without data): their name is kept a few hours
+  for (const o of reg.list){ const hit = new Set(o.mem.map(m => where[m]).filter(i => i != null));
+    if (!hit.size){ if (Date.now() - (o.t || 0) < 6 * 3600e3) keep.push(o); continue; }
+    if (hit.size > 1) continue;                                   // cut in pieces: its name is gone for good
+    const i = [...hit][0], ov = o.mem.filter(m => where[m] === i).length; if (!claim[i] || ov > claim[i].ov) claim[i] = { name:o.name, ov }; }
+  const used = new Set([...claim.filter(Boolean).map(x => x.name), ...keep.map(o => o.name)]);
+  if (!comps.length && !keep.length) reg.next = 0;
+  const fresh = () => { for (;;){ const k = reg.next++, n = GREEK[k % GREEK.length] + (k >= GREEK.length ? ' ' + (Math.floor(k / GREEK.length) + 1) : ''); if (!used.has(n)){ used.add(n); return n; } } };
+  comps.forEach((c, i) => c.name = claim[i] ? claim[i].name : fresh());
+  comps.sort((a, b) => GREEK.indexOf(a.name.split(' ')[0]) - GREEK.indexOf(b.name.split(' ')[0]) || a.name.localeCompare(b.name));
+  for (const c of comps) c.n = c.mem.length + c.exits.size;
+  reg.list = comps.map(c => ({ name:c.name, mem:c.mem, t:Date.now() })).concat(keep); store.set(CNK(), reg);
+  whcKey = key; whcCache = comps; return comps;
+}
+const chainOfSys = id => whChains().find(c => c.mem.includes(String(id))) || null;
+const chainTxt = c => `${c.n} system${c.n > 1 ? 's' : ''} (${c.mem.length} WH + ${c.exits.size} K-space)`;
+/* its 3D shape: a force layout, like a region of New Eden; each system keeps its place when the chain changes */
+const whcPos = store.get('whmap.reg.whcPos', {});
+function whcLayout(c, nodes, edges){
+  const hash = t => { let h = 2166136261; for (const ch of String(t)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return ((h >>> 0) % 10000) / 10000; };
+  const P = {}, nb = {};
+  for (const [a, b] of edges){ (nb[a] = nb[a] || []).push(b); (nb[b] = nb[b] || []).push(a); }
+  let fresh = 0;
+  for (const id of nodes) if (whcPos[id]) P[id] = whcPos[id].slice();
+  for (let pass = 0; pass < 3; pass++) for (const id of nodes){ if (P[id]) continue; const o = (nb[id] || []).find(x => P[x]);
+    if (!o && pass < 2) continue; const b = o ? P[o] : [0, 0, 0], u = hash(id) * 6.283, v = hash(id + 'v') - 0.5;
+    P[id] = [b[0] + Math.cos(u) * 1.1, b[1] + v * 0.6, b[2] + Math.sin(u) * 1.1]; fresh++; }
+  const it = fresh === nodes.length ? 400 : 90;
+  for (let k = 0; k < it; k++){
+    const t = 0.08 * (1 - k / it) + 0.01, F = {}; for (const id of nodes) F[id] = [0, 0, 0];
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++){ const a = P[nodes[i]], b = P[nodes[j]];
+      let dx = a[0] - b[0], dy = (a[1] - b[1]) * 1.6, dz = a[2] - b[2], d2 = dx * dx + dy * dy + dz * dz + 0.01, f = 0.9 / d2;
+      F[nodes[i]][0] += dx * f; F[nodes[i]][1] += dy * f * 0.5; F[nodes[i]][2] += dz * f; F[nodes[j]][0] -= dx * f; F[nodes[j]][1] -= dy * f * 0.5; F[nodes[j]][2] -= dz * f; }
+    for (const [a0, b0] of edges){ const a = P[a0], b = P[b0]; const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], d = Math.hypot(dx, dy, dz) || 0.01, f = (d - 1) * 0.6 / d;
+      F[a0][0] += dx * f; F[a0][1] += dy * f; F[a0][2] += dz * f; F[b0][0] -= dx * f; F[b0][1] -= dy * f; F[b0][2] -= dz * f; }
+    for (const id of nodes){ const p = P[id], f = F[id];
+      f[0] -= p[0] * 0.02; f[1] -= p[1] * 0.08; f[2] -= p[2] * 0.02;          // a flat-ish disc, like a region
+      const m = Math.hypot(...f), s = m > 1 ? 1 / m : 1; p[0] += f[0] * t * s * 4; p[1] += f[1] * t * s * 4; p[2] += f[2] * t * s * 4; } }
+  for (const id of nodes) whcPos[id] = P[id].map(v => Math.round(v * 1000) / 1000);
+  const ks = Object.keys(whcPos); if (ks.length > 3000) ks.slice(0, ks.length - 3000).forEach(k => delete whcPos[k]);
+  store.set('whmap.reg.whcPos', whcPos);
+  return P;
+}
+function chainR(c){
+  const ex = [...c.exits];
+  const nodes = [...c.mem, ...ex.filter(id => !isPoch(id))], ns = new Set(nodes), edges = [];
+  for (const l of allHoles()){ const a = String(l.a), b = String(l.b); if (ns.has(a) && ns.has(b) && !downOf(l)) edges.push([a, b]); }
+  const P = whcLayout(c, nodes, edges), S = 1e16;
+  const systems = nodes.map(id => { const k = !c.mem.includes(id), r = k ? regionOf(id) : null, p = P[id];
+    return { id:Number(id), n:sysName(id), s:k ? (secOfId(id) != null ? secOfId(id) : 0) : -1, x:p[0] * S, y:p[1] * S, z:p[2] * S, c:k ? 2 : 1, ...(k ? { ext:r ? regionName(r) : 'Known space', r } : { cls:classOf(id) }) }; });
+  return { region:{ id:'C:' + c.name, name:c.name }, chain:c.name, sig:c.mem.join(',') + '|' + [...c.exits].sort().join(','), constellations:{ 1:c.name, 2:'Known space' }, systems, links:[] };
+}
+async function openChain(name, keepCam){
+  const c = whChains().find(x => x.name === name); if (!c){ toast(`${name}: no such chain any more`, true); return false; }
+  R = chainR(c); setupR(R.region.id, keepCam); renderNoFollow(); return true;
+}
+// a chain on view that grows, shrinks or is cut: rebuilt, renamed
+function checkChainView(){
+  if (!R || !R.chain || cam.fly) return;
+  const cs = whChains(), c = cs.find(x => x.name === R.chain);
+  if (c){ if ((c.mem.join(',') + '|' + [...c.exits].sort().join(',')) !== R.sig) openChain(c.name, true); return; }
+  const was = R.systems.filter(s => !s.ext).map(s => String(s.id)), pieces = cs.filter(x => x.mem.some(m => was.includes(m)));
+  const keep = [sel, me.sys, ...was].find(id => id && pieces.some(x => x.mem.includes(String(id))));
+  const nc = keep ? pieces.find(x => x.mem.includes(String(keep))) : null;
+  if (nc){ toast(`${R.chain} was cut by a dying hole: ${pieces.map(x => x.name).join(', ')}`); openChain(nc.name, true); }
+  else { toast(`${R.chain} has closed`); const r = store.get('whmap.reg.last', null); if (r) loadRegion(r); }
+}
 /* Drop-down: one shortcut per region that has an active wormhole connection on the mapper, then its systems */
 function renderWhSel(){
   const sel_ = $('#whSel'); if (!sel_ || !index) return;
@@ -1076,11 +1177,13 @@ function renderWhSel(){
   const regs = Object.keys(byReg).sort((a, b) => regionName(a).localeCompare(regionName(b)));
   const n = regs.reduce((m, r) => m + byReg[r].length, 0);
   const lab = l => [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', l.src === 'eve-scout' ? 'EvE-Scout' : ''].filter(Boolean).join(' ');
-  sel_.innerHTML = `<option value="">${regs.length ? `⟿ WH regions (${regs.length})` : '⟿ No active wormhole'}</option>` + regs.map(r =>
+  const chs = whChains();
+  sel_.innerHTML = `<option value="">${regs.length || chs.length ? `⟿ WH regions (${regs.length})${chs.length ? ` · ${chs.length} chain${chs.length > 1 ? 's' : ''}` : ''}` : '⟿ No active wormhole'}</option>`
+    + chs.map(c => `<option class="r" value="c:${esc(c.name)}">◈ ${esc(c.name)} · ${esc(chainTxt(c))}</option>`).join('') + regs.map(r =>
     `<option class="r" value="r:${r}">${esc(regionName(r))} · ${byReg[r].length} WH</option>` +
     byReg[r].sort((a, b) => sysName(a.here).localeCompare(sysName(b.here))).map(c =>
       `<option value="s:${c.here}">\u00a0\u00a0\u00a0${esc(sysName(c.here))} → ${esc(sysName(c.other))}${lab(c.l) ? ' · ' + esc(lab(c.l)) : ''}</option>`).join('')).join('');
-  sel_.disabled = !n;
+  sel_.disabled = !n && !chs.length;
   const unknown = [...new Set(regs.flatMap(r => byReg[r].map(c => c.other)))].filter(id => sysName(id) === id && !(id in nameCache)).slice(0, 15);
   if (unknown.length) Promise.all(unknown.map(async id => { await lookupName(id); if (!(id in nameCache)) nameCache[id] = id; })).then(renderWhSel);
 }
@@ -1386,7 +1489,7 @@ function pickPilot(id){
   if (typeof followRemote !== 'undefined' && followRemote){ followRemote = null; sess.set('whmap.followRemote', ''); }
   if (!tok || tok.charId !== Number(id)) switchChar(Number(id));
   setFollow(true); peek = false;
-  const sys = me.sys; if (sys){ const reg = regionOf(sys); (reg && (!R || reg !== R.region.id) ? loadRegion(reg) : Promise.resolve()).then(() => { if (byId[sys] && !byId[sys].ext){ select(sys); pivotPilot = true; zoomTo(sys); } }); }
+  const sys = me.sys; if (sys){ const reg = regionOf(sys), jc = !reg && isJ(sys) ? chainOfSys(sys) : null; (reg && (!R || reg !== R.region.id) ? loadRegion(reg) : jc && (!R || R.chain !== jc.name) ? openChain(jc.name) : Promise.resolve()).then(() => { if (byId[sys] && !byId[sys].ext){ select(sys); pivotPilot = true; zoomTo(sys); } }); }
   else toast(`${tok ? tok.charName : 'This character'}: position not known yet`, true);
 }
 function switchChar(id){
@@ -1791,7 +1894,7 @@ async function pollKills(){
   killStat = { t:Date.now(), n:0, ok:0, err:'' };
   try{
     const lists = [];
-    if (R && R.region && R.region.id) lists.push(...(await zkList(`https://zkillboard.com/api/kills/regionID/${R.region.id}/pastSeconds/3600/`)));
+    if (R && R.region && R.region.id && !R.chain) lists.push(...(await zkList(`https://zkillboard.com/api/kills/regionID/${R.region.id}/pastSeconds/3600/`)));
     for (const id of Object.keys(mapper.nodes).filter(id => isJ(id) && /^\d+$/.test(id)).slice(0, 25)){
       lists.push(...(await zkList(`https://zkillboard.com/api/kills/solarSystemID/${id}/pastSeconds/3600/`)));
       await new Promise(res => setTimeout(res, 300));      // gentle with zKillboard
@@ -2246,7 +2349,9 @@ async function trackRemote(){
   const was = remoteLast; remoteLast = p.sys; const reg = regionOf(p.sys);
   if (was && was !== p.sys){ pivotPilot = true; if (sel === String(was)){ sel = String(p.sys); renderPanel(); } }
   if (was) travelShow(was, p.sys);                                     // the alt you follow changes region or leaves a hole: same big logo
+  const jc = !reg && isJ(p.sys) ? chainOfSys(p.sys) : null;
   if (reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(p.sys); }
+  else if (jc && (!R || R.chain !== jc.name)){ await openChain(jc.name); centerOn(p.sys); }
   if (byId[p.sys] && !byId[p.sys].ext){ if (!(was && byId[was] && tunnelFly(was, p.sys))) followTo(p.sys); }
   renderNoFollow();
 }
@@ -2661,7 +2766,8 @@ function renderNoFollow(){
   if (rb){ const show = !!R && SET.bigName > 0; rb.hidden = !show;
     if (show){ const ps = followRemote && typeof remotePilot === 'function' && remotePilot() ? remotePilot().sys : me.sys, hub = ps && ['31000005', '30002086'].includes(String(ps)) ? String(ps) : null;
       rb.style.fontSize = SET.bigName + 'px';
-      rb.innerHTML = hub ? `${esc(sysName(hub))}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">map: ${esc(R.region.name)}</small>` : esc(R.region.name); placeTop(); } }
+      const ch = R.chain ? whChains().find(x => x.name === R.chain) : null;
+      rb.innerHTML = hub ? `${esc(sysName(hub))}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">map: ${esc(R.region.name)}</small>` : ch ? `◈ ${esc(R.region.name)}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">wormhole chain · ${esc(chainTxt(ch))}</small>` : esc(R.region.name); placeTop(); } }
   if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
@@ -2766,7 +2872,9 @@ async function onMove(){
   if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
+  const jc = !reg && isJ(me.sys) ? chainOfSys(me.sys) : null;
   if (follow && reg && (!R || reg !== R.region.id)){ await loadRegion(reg); sel = null; centerOn(me.sys); followTo(me.sys); }
+  else if (follow && jc && (!R || R.chain !== jc.name)){ await openChain(jc.name); sel = null; centerOn(me.sys); followTo(me.sys); }
   else if (follow && byId[me.sys] && !byId[me.sys].ext){ if (!(from && from !== me.sys && byId[from] && tunnelFly(from, me.sys))) followTo(me.sys, true); }
   else if (follow && me.sys && isJ(me.sys) && !$('#wChain').hidden){ const i = chainGroups.findIndex(g => g.set.has(me.sys)); if (i >= 0 && i !== (chainPick || 0)){ chainPick = i; chainKey = chainGroups[i].ids[0]; renderChainSel(); renderChain(); } }
   computeRoute(); render(); renderPanel(); renderWho(); computeAp();
@@ -3124,7 +3232,7 @@ function drawBg(){
   const base = g.createRadialGradient(w * .5, h * .55, 0, w * .5, h * .55, Math.hypot(w, h) * .62);
   base.addColorStop(0, '#0c1324'); base.addColorStop(.55, '#070b16'); base.addColorStop(1, '#020309'); g.fillStyle = base; g.fillRect(0, 0, w, h);
   // nebula: two soft clouds, their hue picked from the region (same region, same colours), drifting with the turn of the map
-  const rid = R ? Number(R.region.id) : 1, hue1 = (rid * 47) % 360, hue2 = (hue1 + 140) % 360, sh = Math.sin(cam.yaw) * w * .06;
+  const rid = R ? (R.chain ? [...R.chain].reduce((m, ch) => m * 31 + ch.charCodeAt(0), 7) % 100000 : Number(R.region.id)) : 1, hue1 = (rid * 47) % 360, hue2 = (hue1 + 140) % 360, sh = Math.sin(cam.yaw) * w * .06;
   for (const [cx, cy, rr, hue, al] of [[w * .28 + sh, h * .32, Math.max(w, h) * .55, hue1, .16], [w * .78 - sh, h * .72, Math.max(w, h) * .5, hue2, .12], [w * .55 + sh * .5, h * .5, Math.max(w, h) * .3, (hue1 + 60) % 360, .06]]){
     const n = g.createRadialGradient(cx, cy, 0, cx, cy, rr); n.addColorStop(0, `hsla(${hue},70%,45%,${al})`); n.addColorStop(.45, `hsla(${hue},70%,35%,${al * .45})`); n.addColorStop(1, 'hsla(0,0%,0%,0)');
     g.fillStyle = n; g.fillRect(0, 0, w, h); }
@@ -3158,6 +3266,7 @@ function syncBlink(){ if (!document.getAnimations) return; for (const an of docu
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); drawBg(); syncBlink(); placeTop(); }); };
 let touch = {};
 function colourOf(s){
+  if (R && R.chain && !s.ext && !statMode) return WH_COL[classOf(String(s.id))] || WH_COL.J;
   if (statMode && !s.ext) return statCol(statVal(String(s.id)));
   if (colorMode === 'wh') return touch[String(s.id)] || secGrey(s.s);
   if (s.ext) return secCol(s.s);
@@ -3265,13 +3374,16 @@ function draw(){
       if (sel === String(other)) el('circle', { cx:ex, cy:ey, r:br + 5, class:'halo' }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:WH_COL[classOf(other)] || hc }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:'url(#shine)', 'pointer-events':'none' }, bg);
-      el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)} · click: details · drag: move it`;
+      el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)} · click: open its chain · drag: move it`;
       const node = mapper.nodes[other] || {};
       const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', 'data-stub':other, 'data-stubk':sk, style:colorMode === 'wh' ? `fill:${hc}` : '' }, gStub);
       t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${!isJ(other) && regionOf(other) && R && regionOf(other) !== R.region.id ? ' (' + regionName(regionOf(other)) + ')' : ''}${label ? ' · ' + label : ''}`;
       el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
       // where this hole (or the chain behind it) comes out in known space, in other regions: one line each, a click opens that region
-      chainExits(here, other).forEach((x, i) => { const lt = el('text', { x:ex + br + 4, y:ey + 18 + i * 14, class:'jbl ext go', 'data-jbgo':x.id, 'data-whgo':'1' }, gStub);
+      const ch = isJ(other) && !HUB_LIST.includes(other) ? chainOfSys(other) : null;
+      if (ch){ const ct = el('text', { x:ex + br + 4, y:ey + 18, class:'jbl ext go chaingo', 'data-chaingo':ch.name, 'data-chainsys':other }, gStub);
+        ct.textContent = `◈ ${ch.name} · ${chainTxt(ch)}`; el('title', {}, ct).textContent = `Open the chain ${ch.name} as a map of its own`; }
+      chainExits(here, other).forEach((x, i0) => { const i = i0 + (ch ? 1 : 0), lt = el('text', { x:ex + br + 4, y:ey + 18 + i * 14, class:'jbl ext go', 'data-jbgo':x.id, 'data-whgo':'1' }, gStub);
         lt.textContent = `⟿ ${sysName(x.id)} ${secR(secOfId(x.id)).toFixed(1)} · ${regionName(regionOf(x.id))}${x.n > 1 ? ` (${x.n} holes)` : ''}`;
         el('title', {}, lt).textContent = `Open ${regionName(regionOf(x.id))} on ${sysName(x.id)}`; });
     }
@@ -3304,7 +3416,7 @@ function draw(){
   for (const s of order){
     const id = String(s.id), p = P[id];
     const g = el('g', { class:'sys' + (s.ext ? ' ext' : '') + (onRoute.has(id) ? ' onr' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
-    const r = (s.ext ? 5 : 9) * zs;
+    const r = (s.ext && !R.chain ? 5 : 9) * zs;
     if (colorMode === 'wh' && touch[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4, fill:'none', stroke:touch[id], 'stroke-width':2, opacity:.85 }, g);
     else if (mapper.nodes[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4.5, class:'inmap' }, g);
     if (sel === id) el('circle', { cx:p.x, cy:p.y, r:r + 7, class:'halo' }, g);
@@ -3351,9 +3463,9 @@ function draw(){
   const pilotSys = followRemote && typeof remotePilot === 'function' && remotePilot() ? String(remotePilot().sys) : me.sys;
   for (const L of labels){
     // names kept: systems of other regions, and the system of the selected pilot (the others: hover a system for its name)
-    const named = SET.sysNames || L.s.ext || L.id === pilotSys || onRoute.has(L.id);
+    const named = SET.sysNames || !!R.chain || L.s.ext || L.id === pilotSys || onRoute.has(L.id);
     if (!named && !L.pil.length) continue;
-    const txt = !named ? '' : L.s.ext ? `${L.s.n} › ${L.s.ext}` : `${L.s.n} ${secR(L.s.s).toFixed(1)}`;
+    const txt = !named ? '' : L.s.ext ? `${L.s.n} › ${L.s.ext}` : isJ(L.id) ? `${L.s.n} ${classOf(L.id)}` : `${L.s.n} ${secR(L.s.s).toFixed(1)}`;
     const ptxt = L.pil.slice(0, 3).map(x => x.name).join(', '), box = { x:L.p.x + L.r + 3, y:L.p.y - 7, w:Math.max(txt.length, ptxt.length) * 6.3 + 2, h:L.pil.length ? 26 : 13 };
     if (L.pri > 2 && placed.some(q => box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h)) continue;
     placed.push(box);
@@ -3402,8 +3514,8 @@ function showHovName(g){
   const box = $('#hovName'); if (!box) return;
   const id = g && g.dataset.id, s = id && (byId[id] || (sysName(id) && sysName(id) !== String(id) ? { n:sysName(id), s:secOf(id) } : null));
   if (!s || pilHover){ box.hidden = true; return; }
-  const dot = g.querySelector('.dot') || g, r = dot.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), sv = secR(s.s), wh = s.s == null || isNaN(s.s);
-  box.innerHTML = `${esc(s.n)}${wh ? '' : `<span class="hs" style="color:${secCol(s.s)}">${sv.toFixed(1)}</span>`}${s.ext ? `<span class="hr">› ${esc(s.ext)}</span>` : ''}`;
+  const dot = g.querySelector('.dot') || g, r = dot.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), sv = secR(s.s), wh = s.s == null || isNaN(s.s) || isJ(id);
+  box.innerHTML = `${esc(s.n)}${wh ? '' : `<span class="hs" style="color:${secCol(s.s)}">${sv.toFixed(1)}</span>`}${wh && isJ(id) ? `<span class="hr">${esc(classOf(id))}</span>` : ''}${s.ext ? `<span class="hr">› ${esc(s.ext)}</span>` : ''}`;
   box.style.left = (r.right - st.left + 8) + 'px'; box.style.top = (r.top + r.height / 2 - st.top) + 'px'; box.hidden = false;
 }
 function setupPilPop(){
@@ -3556,7 +3668,7 @@ function select(id){ pivotPilot = false; sel = id == null ? null : String(id); c
 async function goTo(id){
   id = String(id);
   if (isHubVirtual(id) && hubNodes.some(x => x.h === id)){ select(id); return; }
-  if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ toast(`${sysName(id)} is in wormhole space: no region map`); return; } await loadRegion(r); }
+  if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ const c = isJ(id) ? chainOfSys(id) : null; if (!c){ toast(`${sysName(id)} is in wormhole space: no region map`); return; } await openChain(c.name); } else await loadRegion(r); }
   select(id); zoomTo(id);
 }
 
@@ -3704,7 +3816,7 @@ function setupInput(){
     svg.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = { d:Math.hypot(a.x - b.x, a.y - b.y), z:cam.zoom }; }
-    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, right:e.button === 2, zk:e.target.closest('[data-zk]'), jb:e.target.closest('[data-jbgo]'), stub:e.target.closest('[data-stub]'), target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
+    start = { x:e.clientX, y:e.clientY, pan:e.shiftKey || e.button === 2 || e.button === 1, right:e.button === 2, zk:e.target.closest('[data-zk]'), jb:e.target.closest('[data-jbgo]'), cg:e.target.closest('[data-chaingo]'), stub:e.target.closest('[data-stub]'), target:e.target.closest('.sys'), chest:e.target.closest('[data-assets]') };
     moved = false;
   });
   svg.addEventListener('pointermove', e => {
@@ -3729,9 +3841,11 @@ function setupInput(){
     if (!moved && start && ptrs.size === 0){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
       else if (start.zk){ open(`https://zkillboard.com/kill/${start.zk.dataset.zk}/`, '_blank', 'noopener'); }
-      else if (start.stub){ select(start.stub.dataset.stub); lookAway(); }
+      else if (start.cg){ const cs2 = start.cg.dataset.chainsys; lookAway(); openChain(start.cg.dataset.chaingo).then(ok => { if (ok && cs2 && byId[cs2]){ select(cs2); zoomTo(cs2); } }); }
+      else if (start.stub){ const w = start.stub.dataset.stub, c = isJ(w) && !HUB_LIST.includes(w) ? chainOfSys(w) : null; lookAway();
+        if (c) openChain(c.name).then(ok => { if (ok && byId[w]){ select(w); zoomTo(w); } }); else select(w); }   // a wormhole: its chain opens, as a region of its own
       else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`${start.jb.dataset.whgo ? 'Wormhole chain' : 'Jump bridge'} → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
-      else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); zoomTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
+      else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; if (!s2.r){ select(id); return; } lookAway(); loadRegion(s2.r).then(() => { select(id); zoomTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
       else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null);
         if (start.target && !isHubVirtual(start.target.dataset.id)){ if (start.target.dataset.id !== me.sys) lookAway(); zoomTo(start.target.dataset.id); } }
     }
@@ -3772,6 +3886,7 @@ function setupInput(){
     const v = e.target.value; e.target.value = ''; if (!v) return;
     lookAway();
     if (v.startsWith('r:')){ sel = null; await loadRegion(v.slice(2)); }
+    else if (v.startsWith('c:')){ sel = null; await openChain(v.slice(2)); }
     else await goTo(v.slice(2));
   };
   $('#colorSel').value = colorMode;
@@ -4440,6 +4555,8 @@ function setupWidgets(){
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
   if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
+  const qc = q.get('c'); if (qc && whChains().some(c => c.name === qc)) await openChain(qc);
+  setInterval(checkChainView, 3000);   // a chain on view follows its holes: grows, shrinks, is cut and renamed
   if (DEMO){ demoStep(); pickChar(); demoTrip();
     setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000);
     setTimeout(() => { demoNewWh2 = Date.now(); demoNews('New wormhole from J000900 into <b>Hek</b> (Metropolis)'); readMapper(); render(); }, 32000); }
