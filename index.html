@@ -145,7 +145,7 @@ fetch('https://esi.evetech.net/latest/status/?datasource=tranquility').then(r =>
 /* ---------- Background: in-game footage (a ship in a wormhole nebula), muted, looping ---------- */
 const v = document.getElementById('sky');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-v.src = innerWidth > 1100 && !(navigator.connection && navigator.connection.saveData) ? 'img/hero.mp4' : 'img/hero-small.mp4';
+v.src = innerWidth > 1100 && !(navigator.connection && navigator.connection.saveData) ? 'img/hero.mp4?v=2' : 'img/hero-small.mp4?v=2';
 let paused = reduce;
 const mb = document.getElementById('motion');
 const syncBtn = () => { mb.textContent = paused ? 'Play video' : 'Pause video'; mb.setAttribute('aria-pressed', String(paused)); };
