@@ -322,6 +322,7 @@ body.nf #hint{transform:translateY(-16px)}
 .colwb{width:min(340px,calc(100vw - 40px));max-height:min(560px,calc(100vh - 120px));overflow:auto;display:flex;flex-direction:column;gap:2px}
 .colwb h4{margin:8px 0 3px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .colwb h4:first-child{margin-top:0}
+.wcopy{margin-top:8px;display:flex;justify-content:flex-end}
 .colwb .cr .bl{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--dim);cursor:pointer;white-space:nowrap}
 .colwb .cr .bl input{margin:0}
 .colwb .sw.blk{animation:userblink 1.1s ease-in-out infinite}
@@ -1886,9 +1887,15 @@ function renderWatch(){
       ${p.ship || p.altOf ? `<span class="wship">${esc([p.ship, p.altOf ? 'alt of ' + p.altOf : ''].filter(Boolean).join(' · '))}</span>` : ''}</div>`;
   box.innerHTML = (on.length ? on.map(row).join('') : '<div class="wempty">Nobody has the map open.</div>')
     + (off.length ? `<details${store.get('whmap.reg.watchOff', false) ? ' open' : ''}><summary>Map closed (${off.length})</summary>${off.map(row).join('')}</details>` : '')
-    + (!DEMO && share.state === 'none' ? '<div class="wempty" style="margin-top:6px">This character has no shared map: corpmates appear here once the map owner gives it access.</div>' : '');
+    + (!DEMO && share.state === 'none' ? '<div class="wempty" style="margin-top:6px">This character has no shared map: corpmates appear here once the map owner gives it access.</div>' : '')
+    + (list.length ? `<div class="wcopy"><button type="button" class="small" id="watchCopy" title="One name per line, to add them to an access list in game (bookmark folder, structure…)">⧉ Copy the ${list.length} names</button></div>` : '');
   const d = box.querySelector('details'); if (d) d.addEventListener('toggle', () => store.set('whmap.reg.watchOff', d.open));
   box.querySelectorAll('.wn[data-wsys]:not([disabled])').forEach(b => b.onclick = () => goTo(b.dataset.wsys));
+  const cp = $('#watchCopy'); if (cp) cp.onclick = async () => {
+    const names = [...new Set(list.map(p => String(p.name)))].sort((x, y) => x.localeCompare(y)).join('\n');
+    try { await navigator.clipboard.writeText(names); cp.textContent = '✓ Copied — paste them in game'; }
+    catch { cp.textContent = 'Copy failed'; }
+    setTimeout(() => { cp.textContent = `⧉ Copy the ${list.length} names`; }, 2500); };
 }
 // payment reason: it names the MAP (its owner), so any member can pay for the whole group
 const payMapName = () => share.owner ? (share.ownerName || (share.owner === share.uid ? share.name : '')) : '';
