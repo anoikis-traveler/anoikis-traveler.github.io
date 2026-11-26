@@ -2801,6 +2801,18 @@ function placeHubs(){
    It keeps its spot while that spot stays free, so it does not jump around while the map turns. */
 const hubOff = {}, hubFix = {};
 const stubPos = store.get('whmap.reg.stubPos', {});      // where you put the system at the end of a hole: offset in the region's own space
+function chainExits(here, start){   // known-space systems of OTHER regions reached through holes only (EVE-Scout hubs left out: they have their own card)
+  const reg = R && R.region.id, adjW = {};
+  for (const l of allHoles()){ if (l.src === 'eve-scout' || downOf(l) || l.type === 'gate') continue; const a = String(l.a), b = String(l.b);
+    (adjW[a] = adjW[a] || []).push(b); (adjW[b] = adjW[b] || []).push(a); }
+  const seen = new Set([String(here), String(start)]), out = [], q = [[String(start), 1]];
+  const isOut = x => !isJ(x) && !isHubVirtual(x) && regionOf(x) && regionOf(x) !== reg;
+  if (isOut(String(start))) return [];            // the stub already names it: a direct hole into another region
+  while (q.length && out.length < 4){ const [x, n] = q.shift(); if (n > 8) continue;
+    for (const y of adjW[x] || []){ if (seen.has(y)) continue; seen.add(y);
+      if (isOut(y)) out.push({ id:y, n:n + 1 }); else if (isJ(y) && !HUB_LIST.includes(y)) q.push([y, n + 1]); } }
+  return out;
+}
 function unproj(sx, sy, yw){   // the point of the region's ground (at height yw) under a screen point
   const c = Math.cos(cam.yaw), s2 = Math.sin(cam.yaw), sp = Math.sin(cam.pitch), cp = Math.cos(cam.pitch), S = Math.min(W, H) * 0.44 * cam.zoom;
   const rx = (sx - W / 2 - cam.px) / S, rn = (-(sy - H / 2 - cam.py) / S - yw * cam.hx * cp) / sp;
@@ -3082,8 +3094,12 @@ function draw(){
       el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)} · click: details · drag: move it`;
       const node = mapper.nodes[other] || {};
       const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', 'data-stub':other, 'data-stubk':sk, style:colorMode === 'wh' ? `fill:${hc}` : '' }, gStub);
-      t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${label ? ' · ' + label : ''}`;
+      t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${!isJ(other) && regionOf(other) && R && regionOf(other) !== R.region.id ? ' (' + regionName(regionOf(other)) + ')' : ''}${label ? ' · ' + label : ''}`;
       el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
+      // where this hole (or the chain behind it) comes out in known space, in other regions: one line each, a click opens that region
+      chainExits(here, other).forEach((x, i) => { const lt = el('text', { x:ex + br + 4, y:ey + 18 + i * 14, class:'jbl ext go', 'data-jbgo':x.id, 'data-whgo':'1' }, gStub);
+        lt.textContent = `⟿ ${sysName(x.id)} ${secR(secOfId(x.id)).toFixed(1)} · ${regionName(regionOf(x.id))}${x.n > 1 ? ` (${x.n} holes)` : ''}`;
+        el('title', {}, lt).textContent = `Open ${regionName(regionOf(x.id))} on ${sysName(x.id)}`; });
     }
   }
   // Thera / Turnur hubs
@@ -3523,7 +3539,7 @@ function setupInput(){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
       else if (start.zk){ open(`https://zkillboard.com/kill/${start.zk.dataset.zk}/`, '_blank', 'noopener'); }
       else if (start.stub){ select(start.stub.dataset.stub); lookAway(); }
-      else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
+      else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`${start.jb.dataset.whgo ? 'Wormhole chain' : 'Jump bridge'} → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
       else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); zoomTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
       else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null);
         if (start.target && !isHubVirtual(start.target.dataset.id)){ if (start.target.dataset.id !== me.sys) lookAway(); zoomTo(start.target.dataset.id); } }
