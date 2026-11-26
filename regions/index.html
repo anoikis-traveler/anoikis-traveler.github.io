@@ -619,7 +619,7 @@ body.nf #hint{transform:translateY(-16px)}
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
       <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
       <datalist id="sysList"></datalist>
-      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button></div>
+      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button><button id="btnRF" type="button" class="namesbtn" aria-pressed="true" title="A selected route stands out and the rest of the map fades: switch it on or off">✦ Route focus</button></div>
     </div>
   </section>
 
@@ -1163,6 +1163,7 @@ function drawHoles(){
 const SETTINGS = [
   { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
   { g:'Map', k:'constNames', label:'Names of the constellations', type:'bool', def:0 },
+  { g:'Map', k:'routeFocus', label:'A selected route stands out, the rest of the map almost transparent', type:'bool', def:1 },
   { g:'Map', k:'tunnel', label:'Tunnel animation along the connection when your pilot jumps from one system to the next', type:'bool', def:1 },
   { g:'Map', k:'tunnelSec', label:'Tunnel animation length', unit:'s', def:6, min:5, max:8, step:0.1 },
   { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
@@ -2325,6 +2326,7 @@ function applySettings(k){
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
   if (k === 'kills') pollKills();
   if (k === 'bigName') renderNoFollow();
+  if (k === 'routeFocus'){ const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Route focus: on' : '✦ Route focus: off'; } }
   if (k === 'sysNames' || k === 'constNames'){ render(); const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } }
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
 }
@@ -3158,7 +3160,7 @@ function draw(){
   svg.innerHTML = '';
   // a route is shown: it stands out, the rest of the map fades almost away
   const onRoute = new Set([...(route && route.ids.length > 1 ? route.ids : []), ...(ap && ap.path && ap.path.length > 1 ? ap.path : [])].map(String));
-  svg.classList.toggle('routing', onRoute.size > 1);
+  svg.classList.toggle('routing', !!SET.routeFocus && onRoute.size > 1);
   if (!R) return;
   // shared shading that turns each dot into a small sphere
   const defs = el('defs', {}, svg);
@@ -3744,6 +3746,9 @@ function setupInput(){
   const syncNames = () => { const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } };
   $('#btnNames').onclick = () => { SET.sysNames = SET.sysNames ? 0 : 1; saveSettings(); applySettings('sysNames'); syncNames(); if (!$('#wSet').hidden) renderSettings(); };
   syncNames();
+  const syncRF = () => { const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Route focus: on' : '✦ Route focus: off'; } };
+  $('#btnRF').onclick = () => { SET.routeFocus = SET.routeFocus ? 0 : 1; saveSettings(); applySettings('routeFocus'); syncRF(); if (!$('#wSet').hidden) renderSettings(); };
+  syncRF();
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
