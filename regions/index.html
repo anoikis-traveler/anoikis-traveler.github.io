@@ -113,6 +113,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .share-st.wait,.share-st.none{color:var(--dim)}
 #map.pdim{opacity:.22;filter:saturate(.35)}
 #pilRing{position:absolute;border:2px solid var(--ok);border-radius:50%;box-shadow:0 0 14px rgba(90,220,140,.55);pointer-events:none;z-index:4}
+#tunnel{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+#map.tunneling{opacity:.45;filter:blur(.6px) saturate(.8)}
 #hovName{position:absolute;z-index:6;pointer-events:none;padding:2px 7px;background:rgba(10,14,26,.9);border:1px solid rgba(255,255,255,.28);border-radius:5px;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.5);transform:translateY(-50%)}
 #hovName .hs{margin-left:6px;font-weight:700}#hovName .hr{margin-left:6px;color:#9aa6bd;font-weight:400}
 .namesbtn{font-weight:700;letter-spacing:.02em;border:1px solid rgba(120,200,255,.55)!important;color:#bfe3ff!important;background:rgba(40,90,140,.25)!important}
@@ -603,6 +605,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="noFollow" hidden><button type="button" id="nfTxt" title="Follow your pilot again"></button></div>
   <div id="pilPop" hidden></div>
   <div id="hovName" hidden></div>
+  <svg id="tunnel" aria-hidden="true"></svg>
   <div id="banner"></div>
   <div id="killBar" aria-live="polite"></div>
   <div id="hubCards"></div>
@@ -1160,6 +1163,8 @@ function drawHoles(){
 const SETTINGS = [
   { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
   { g:'Map', k:'constNames', label:'Names of the constellations', type:'bool', def:0 },
+  { g:'Map', k:'tunnel', label:'Tunnel animation along the connection when your pilot jumps from one system to the next', type:'bool', def:1 },
+  { g:'Map', k:'tunnelSec', label:'Tunnel animation length', unit:'s', def:1.6, min:0.5, max:5, step:0.1 },
   { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
   { g:'Map', k:'spinSpeed', label:'Turning speed', unit:'°/s', def:3, min:1, max:30 },
   { g:'Map', k:'spinIdle', label:'Start turning again after you stop touching the map for', unit:'s', def:5, min:1, max:120 },
@@ -2231,7 +2236,7 @@ async function trackRemote(){
   const was = remoteLast; remoteLast = p.sys; const reg = regionOf(p.sys);
   if (was) travelShow(was, p.sys);                                     // the alt you follow changes region or leaves a hole: same big logo
   if (reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(p.sys); }
-  if (byId[p.sys] && !byId[p.sys].ext) followTo(p.sys);
+  if (byId[p.sys] && !byId[p.sys].ext){ if (!(was && byId[was] && tunnelFly(was, p.sys))) followTo(p.sys); }
   renderNoFollow();
 }
 setInterval(trackRemote, 2000);         // names of your alts logged in elsewhere
@@ -2335,11 +2340,11 @@ function renderSettings(){
   for (const x of SETTINGS){
     if (x.g !== g){ if (g === 'Kills (zKillboard)') h += killStatHtml(); g = x.g; h += `<h4>${esc(g)}</h4>`; }
     if (x.type === 'bool'){ h += `<div class="sr"><span>${esc(x.label)}</span><input type="checkbox" data-sb="${x.k}"${SET[x.k] ? ' checked' : ''} aria-label="${esc(x.label)}" style="justify-self:start"><span class="u"></span><button type="button" class="rs small" data-sr="${x.k}" title="Back to the default"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`; continue; }
-    h += `<div class="sr"><span>${esc(x.label)}</span><input type="number" min="${x.min}" max="${x.max}" step="1" value="${SET[x.k]}" data-sk="${x.k}" aria-label="${esc(x.label)}"><span class="u">${x.unit}</span><button type="button" class="rs small" data-sr="${x.k}" title="Back to ${x.def} ${x.unit}"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`;
+    h += `<div class="sr"><span>${esc(x.label)}</span><input type="number" min="${x.min}" max="${x.max}" step="${x.step || 1}" value="${SET[x.k]}" data-sk="${x.k}" aria-label="${esc(x.label)}"><span class="u">${x.unit}</span><button type="button" class="rs small" data-sr="${x.k}" title="Back to ${x.def} ${x.unit}"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`;
   }
   box.innerHTML = h + '<div class="foot"><button type="button" class="small" id="setReset">Back to the defaults</button><span class="dim">Kept in this browser.</span></div>';
   box.querySelectorAll('[data-sk]').forEach(inp => inp.onchange = () => { const x = SETTINGS.find(y => y.k === inp.dataset.sk);
-    let v = Math.round(Number(inp.value)); if (!isFinite(v)) v = x.def; v = Math.max(x.min, Math.min(x.max, v)); inp.value = v;
+    let v = x.step ? Math.round(Number(inp.value) / x.step) * x.step : Math.round(Number(inp.value)); if (x.step) v = Math.round(v * 100) / 100; if (!isFinite(v)) v = x.def; v = Math.max(x.min, Math.min(x.max, v)); inp.value = v;
     SET[x.k] = v; saveSettings(); applySettings(x.k); inp.parentElement.querySelector('.rs').hidden = v === x.def; });
   box.querySelectorAll('[data-sb]').forEach(c => c.onchange = () => { SET[c.dataset.sb] = c.checked ? 1 : 0; saveSettings(); applySettings(c.dataset.sb); renderSettings(); });
   box.querySelectorAll('[data-sr]').forEach(b => b.onclick = () => { const x = SETTINGS.find(y => y.k === b.dataset.sr); SET[x.k] = x.def; saveSettings(); applySettings(x.k); renderSettings(); });
@@ -2658,6 +2663,49 @@ function freeCentre(){
   return best;
 }
 let camAnim = 0;
+/* A jump from one system to the next: the camera rushes along the connection inside a tunnel of rings and speed lines */
+function tunnelFly(a, b, done){
+  a = String(a); b = String(b);
+  const pa = norm[a], pb = norm[b], ov = $('#tunnel');
+  if (!SET.tunnel || !pa || !pb || !ov || !isFinite(pa.x) || !isFinite(pb.x)){ done && done(); return false; }
+  const wh = !(adj[a] || []).includes(b), col = wh ? '#c58bff' : '#7fd4ff', glow = wh ? 'rgba(197,139,255,' : 'rgba(127,212,255,';
+  const T = Math.max(500, (SET.tunnelSec || 1.6) * 1000), z0 = cam.zoom, zEnd = Math.max(z0, Math.min(ZOOM_MAX, 4)), t = freeCentre(), t0 = performance.now(), my = ++camAnim;
+  const lerp = (u, v, k) => u + (v - u) * k, P = k => ({ x:lerp(pa.x, pb.x, k), y:lerp(pa.y, pb.y, k), z:lerp(pa.z, pb.z, k) });
+  const q0 = proj(pa), sx0 = q0.x, sy0 = q0.y;
+  const map = $('#map'); map.classList.add('tunneling');
+  const end = () => { ov.innerHTML = ''; map.classList.remove('tunneling'); render(); done && done(); };
+  const NR = 14, NS = 28, seeds = Array.from({ length:NS }, (_, i) => [i / NS * Math.PI * 2 + Math.random() * 0.2, Math.random()]);
+  const step = now => {
+    if (my !== camAnim){ ov.innerHTML = ''; map.classList.remove('tunneling'); return; }
+    const k = Math.min(1, (now - t0) / T), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;   // ease in-out: slow off, rush, slow in
+    // camera: closer for the trip, a short pull back in the middle, the head of the trip kept in the free centre
+    cam.zoom = lerp(z0, zEnd, Math.min(1, k * 2.5)) * (1 - 0.12 * Math.sin(Math.PI * k));
+    const h = P(e), q = proj(h), cx = lerp(sx0, t.x, Math.min(1, k * 3)), cy = lerp(sy0, t.y, Math.min(1, k * 3));
+    cam.px += cx - q.x; cam.py += cy - q.y; render();
+    const A = proj(pa), B = proj(pb), H = proj(h), dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    const env = Math.sin(Math.PI * k), fade = Math.min(1, k * 6, (1 - k) * 6);
+    let g = `<defs><radialGradient id="tgl"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="${col}" stop-opacity=".7"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs>`;
+    g += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${col}" stroke-width="${2 + 4 * env}" stroke-linecap="round" opacity="${.35 + .5 * fade}" style="filter:drop-shadow(0 0 6px ${col})"/>`;
+    // the rings of the tunnel: they flow from the start to the end and swell around the moving head
+    const ph = (now - t0) / 1000 * 1.6;
+    for (let i = 0; i < NR; i++){
+      const u = ((i / NR) + ph) % 1, x = A.x + dx * u, y = A.y + dy * u, near = Math.exp(-Math.abs(u - e) * L / 140);
+      const R = (14 + 70 * near) * (0.6 + env), op = (0.15 + 0.75 * near) * fade;
+      g += `<ellipse cx="${x}" cy="${y}" rx="${R * 0.28}" ry="${R}" transform="rotate(${ang} ${x} ${y})" fill="none" stroke="${glow}${op.toFixed(3)})" stroke-width="${1 + 2.2 * near}"/>`;
+    }
+    // speed lines round the head, faster in the middle of the trip
+    for (const [a0, r0] of seeds){
+      const life = ((now - t0) / 1000 * (1.2 + 2.5 * env) + r0) % 1, r1 = 30 + life * (120 + 260 * env), r2 = r1 + 18 + 70 * env, ax = Math.cos(a0), ay = Math.sin(a0);
+      g += `<line x1="${H.x + ax * r1}" y1="${H.y + ay * r1}" x2="${H.x + ax * r2}" y2="${H.y + ay * r2}" stroke="${glow}${((1 - life) * .7 * env * fade).toFixed(3)})" stroke-width="1.4" stroke-linecap="round"/>`;
+    }
+    g += `<circle cx="${H.x}" cy="${H.y}" r="${16 + 22 * env}" fill="url(#tgl)"/>`;
+    if (k > .85){ const b2 = (k - .85) / .15; g += `<circle cx="${B.x}" cy="${B.y}" r="${10 + 60 * b2}" fill="none" stroke="${glow}${(1 - b2).toFixed(3)})" stroke-width="3"/>`; }
+    ov.innerHTML = g;
+    if (k < 1) requestAnimationFrame(step); else end();
+  };
+  requestAnimationFrame(step);
+  return true;
+}
 function followTo(id, soft){
   const p = norm[String(id)]; if (!p) return;
   const q = proj(p);
@@ -2677,7 +2725,9 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
     cam.px += wx - q.x; cam.py += wy - q.y; render(); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+let tunPrev = null;
 async function onMove(){
+  const from = tunPrev; tunPrev = me.sys;
   holderOnMove();
   if (followRemote){ computeRoute(); render(); renderPanel(); renderWho(); return; }
   if (me.sys && Date.now() < holdCam){ renderWho(); renderPanel(); return; }
@@ -2686,7 +2736,7 @@ async function onMove(){
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
   const reg = regionOf(me.sys);
   if (follow && reg && (!R || reg !== R.region.id)){ await loadRegion(reg); sel = null; centerOn(me.sys); followTo(me.sys); }
-  else if (follow && byId[me.sys] && !byId[me.sys].ext)followTo(me.sys, true);
+  else if (follow && byId[me.sys] && !byId[me.sys].ext){ if (!(from && from !== me.sys && byId[from] && tunnelFly(from, me.sys))) followTo(me.sys, true); }
   else if (follow && me.sys && isJ(me.sys) && !$('#wChain').hidden){ const i = chainGroups.findIndex(g => g.set.has(me.sys)); if (i >= 0 && i !== (chainPick || 0)){ chainPick = i; chainKey = chainGroups[i].ids[0]; renderChainSel(); renderChain(); } }
   computeRoute(); render(); renderPanel(); renderWho(); computeAp();
 }
