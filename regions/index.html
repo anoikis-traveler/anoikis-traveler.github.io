@@ -2281,6 +2281,7 @@ function whcData(){
 }
 function renderWhc(){
   const box = $('#wWhc'); if (!box || box.hidden) return;
+  if (!DEMO && !vaultChars().some(isOwnerChar)){ box.hidden = true; return; }
   const data = whcData(), regs = {};
   for (const d of data) regs[d.reg] = (regs[d.reg] || 0) + 1;
   const tabs = [['*', 'All', data.length], ...Object.entries(regs).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, r === 'J' ? 'Wormhole space' : regionName(r), n])];
@@ -2301,7 +2302,7 @@ function renderWhc(){
 function setupWhc(){
   const box = $('#wWhc'), btn = $('#btnWhc');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderWhc(); placeWidget(box); box.style.zIndex = ++wz; } };
-  btn.onclick = () => show(box.hidden);
+  btn.onclick = () => { if (box.hidden && !DEMO && !vaultChars().some(isOwnerChar)){ toast('Holes by pilot: site owner only', true); return; } show(box.hidden); };
   $('#whcClose').onclick = () => show(false);
 }
 function setupStats(){
@@ -2730,7 +2731,8 @@ function renderChars(){
   renderWatch();
   // the site owner's own links: shown only when one of the owner's characters is logged in here
   if (!DEMO){ const own = vaultChars().some(isOwnerChar);
-    const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own; if (typeof renderViewMenu === 'function') renderViewMenu(); }
+    const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own;
+    const wb = $('#btnWhc'); if (wb) wb.hidden = !own; if (!own && $('#wWhc') && !$('#wWhc').hidden){ $('#wWhc').hidden = true; if (wb) wb.setAttribute('aria-pressed', 'false'); } if (typeof renderViewMenu === 'function') renderViewMenu(); }
   const box = $('#charsBody'); if (!box) return;
   const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
   box.innerHTML = (list.length ? list.map(c => { const st = chars[c.charId] || {}, on = tok && tok.charId === c.charId;
@@ -4282,9 +4284,9 @@ function initWidget(el){
 function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
-  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wMine', 'My pilots', '#btnMine'], ['wWhc', 'Holes by pilot', '#btnWhc'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wMine', 'My pilots', '#btnMine'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
-  ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
+  ['Site owner', [['wWhc', 'Holes by pilot', '#btnWhc'], ['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
 function openWin(id, on){
   const el = $('#' + id), w = winOf(id); if (!el) return;
