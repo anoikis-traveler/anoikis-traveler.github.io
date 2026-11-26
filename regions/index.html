@@ -176,7 +176,8 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #apBody[hidden]{display:none}
 #apBody.wb{padding:0}
 .aptools{display:flex;gap:6px;align-items:center;padding:6px 10px}
-.aptools select{flex:1;font-size:12px;padding:3px 5px}
+.aptools select{flex:1;min-width:92px;font-size:12px;padding:3px 5px}
+.aptools #btnRF{white-space:nowrap}
 .aptools button{font-size:12px;padding:3px 8px}
 #apList{list-style:none;margin:0;padding:2px 0 6px;overflow:auto;min-height:0;counter-reset:ap -1}
 #apList li{display:grid;grid-template-columns:22px 34px 1fr;align-items:baseline;gap:4px;padding:2px 10px;font-size:13px;cursor:pointer;counter-increment:ap}
@@ -619,7 +620,7 @@ body.nf #hint{transform:translateY(-16px)}
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
       <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
       <datalist id="sysList"></datalist>
-      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button><button id="btnRF" type="button" class="namesbtn" aria-pressed="true" title="A selected route stands out and the rest of the map fades: switch it on or off">✦ Route focus</button></div>
+      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button></div>
     </div>
   </section>
 
@@ -801,6 +802,7 @@ body.nf #hint{transform:translateY(-16px)}
         <select id="apPref" aria-label="Route preference" title="Use the same setting as your in-game autopilot">
           <option value="Shorter">Shortest</option><option value="Safer">Safer (high-sec)</option><option value="LessSecure">Less secure</option></select>
         <button id="apClear" type="button" title="Forget this route (the in-game route is not changed)">Clear</button>
+        <button id="btnRF" type="button" class="namesbtn" aria-pressed="true" title="A selected route stands out and the rest of the map fades: switch it on or off">✦ Focus on</button>
       </div>
       <ol id="apList"></ol>
       <div id="apMsg"></div>
@@ -2326,7 +2328,7 @@ function applySettings(k){
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
   if (k === 'kills') pollKills();
   if (k === 'bigName') renderNoFollow();
-  if (k === 'routeFocus'){ const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Route focus: on' : '✦ Route focus: off'; } }
+  if (k === 'routeFocus'){ const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Focus on' : '✦ Focus off'; } }
   if (k === 'sysNames' || k === 'constNames'){ render(); const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } }
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
 }
@@ -3746,7 +3748,7 @@ function setupInput(){
   const syncNames = () => { const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } };
   $('#btnNames').onclick = () => { SET.sysNames = SET.sysNames ? 0 : 1; saveSettings(); applySettings('sysNames'); syncNames(); if (!$('#wSet').hidden) renderSettings(); };
   syncNames();
-  const syncRF = () => { const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Route focus: on' : '✦ Route focus: off'; } };
+  const syncRF = () => { const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Focus on' : '✦ Focus off'; } };
   $('#btnRF').onclick = () => { SET.routeFocus = SET.routeFocus ? 0 : 1; saveSettings(); applySettings('routeFocus'); syncRF(); if (!$('#wSet').hidden) renderSettings(); };
   syncRF();
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
