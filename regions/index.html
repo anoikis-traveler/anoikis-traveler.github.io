@@ -345,6 +345,24 @@ body.nf #hint{transform:translateY(-16px)}
 .stwb .top .lk{justify-self:start}
 #wStats .wcol + .wcol{margin-left:0}
 #wSigs .wcol + .wcol{margin-left:0}
+#wHold .wcol + .wcol{margin-left:0}
+#wHold{width:540px;max-width:calc(100vw - 16px)}
+.holdwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
+.holdt{width:100%;border-collapse:collapse;font-size:13px}
+.holdt th{text-align:left;font-weight:600;font-size:11.5px;color:var(--dim);padding:2px 5px}
+.holdt td{padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle}
+.holdt input{width:100%;min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:3px 6px;font:13px var(--body)}
+.holdt td.w{font:600 12.5px var(--mono);white-space:nowrap}
+.holdt td.h{display:flex;align-items:center;gap:6px}
+.holdt td.h img{width:22px;height:22px;border-radius:50%;background:#000}
+.holdt .k{font-size:10.5px;color:var(--dim);text-transform:uppercase}
+.holdt .x{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 3px}
+.holdt .x:hover{color:var(--accent)}
+.holdt select.hlvl,#holdLvl{background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:2px 3px;font:12.5px var(--body)}
+.threatframe{position:fixed;inset:0;pointer-events:none;border:var(--tw) solid var(--tc);box-shadow:inset 0 0 calc(var(--tw) * 5) var(--tc),0 0 0 0 transparent;animation:threatpulse var(--ts) ease-in-out infinite}
+@keyframes threatpulse{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.threatframe{animation:none;opacity:.8}}
+.holdwb .warn{color:var(--warn)} .holdwb .bad{color:var(--bad)}
 #wSigs{width:560px;max-width:calc(100vw - 16px)}
 .sigwb{display:flex;flex-direction:column;gap:7px;max-height:min(620px,calc(100vh - 120px));overflow:auto}
 .sigwb textarea{width:100%;min-height:58px;resize:vertical;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:6px;font:12px var(--mono)}
@@ -550,6 +568,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" class="proxy" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" class="proxy" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
+        <button id="btnHold" class="proxy" type="button" aria-pressed="false">WH holders</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
@@ -628,6 +647,17 @@ body.nf #hint{transform:translateY(-16px)}
       <textarea id="sigText" spellcheck="false" placeholder="In EVE: open the probe scanner (Alt+P), click in the list, Ctrl+A then Ctrl+C, and paste here (Ctrl+V)."></textarea>
       <div class="row"><label title="Like in the game: a signature that is not in your paste any more is gone"><input type="checkbox" id="sigDrop" checked> remove the ones not in my paste</label><button type="button" class="small" id="sigClear" title="Remove every signature of this system">Clear</button></div>
       <div id="sigList"></div>
+    </div>
+  </section>
+
+  <section class="widget" id="wHold" data-title="Holders" hidden>
+    <header class="wh"><span class="wt">WH holders</span><span class="wsub dim" id="holdSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="holdClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb holdwb">
+      <div class="dim" style="font-size:12px">Who lives in a wormhole: each time a pilot of yours jumps into it, while it is on your chain, the holder's logo shows in big.</div>
+      <table class="holdt"><thead><tr><th>Wormhole</th><th>Holder (corporation or alliance)</th><th>Threat</th><th></th></tr></thead><tbody id="holdList"></tbody>
+        <tfoot><tr><td><input id="holdSys" list="holdSysList" placeholder="J123456" autocomplete="off"></td><td><input id="holdWho" placeholder="optional" autocomplete="off"></td><td><select id="holdLvl" class="hlvl"></select></td><td><button type="button" class="small primary" id="holdAdd">Add</button></td></tr></tfoot></table>
+      <datalist id="holdSysList"></datalist>
+      <div id="holdMsg" class="dim" style="font-size:12px"></div>
     </div>
   </section>
 
@@ -862,7 +892,7 @@ let holdCam = 0;   // while the new system is shown, a jump of your pilot does n
 async function newSystem(id){
   holdCam = Date.now() + (SET.splashSec + 2) * 1000;
   const r = regionOf(id);
-  if (!r){ toast(`New wormhole: ${sysName(id)} (wormhole space)`); return; }
+  if (!r){ if (holdAll()[String(id)] && SET.splash) holderSplash(id); else toast(`New wormhole: ${sysName(id)} (wormhole space)`); return; }
   if (SET.newZoom){ if (!R || R.region.id !== r) await loadRegion(r);
     if (me.sys !== id) lookAway();
     select(id); zoomTo(id); }
@@ -884,10 +914,11 @@ function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over
   splash(`<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
     <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · new wormhole</div>`);
 }
-function splash(html){
+function splash(html, lvl){
   document.querySelectorAll('.sovsplash').forEach(x => x.remove());
   const d = document.createElement('div'); d.className = 'sovsplash'; d.setAttribute('role', 'status');
   d.innerHTML = html;
+  if (lvl){ const t = THREAT[lvl]; const f = document.createElement('div'); f.className = 'threatframe'; f.style.setProperty('--tc', t.c); f.style.setProperty('--tw', (6 + lvl * 4) + 'px'); f.style.setProperty('--ts', (2.6 - lvl * 0.4) + 's'); d.appendChild(f); }
   document.body.appendChild(d); document.body.classList.add('splashing');
   const end = () => { d.remove(); if (!document.querySelector('.sovsplash')) document.body.classList.remove('splashing'); };
   d.onclick = end; setTimeout(end, SET.splashSec * 1000);
@@ -1013,6 +1044,7 @@ const SETTINGS = [
   { g:'New wormhole', k:'newZoom', label:'Zoom on the system a new wormhole opens to', type:'bool', def:1 },
   { g:'New wormhole', k:'splash', label:'Show the alliance logo (or the region) in big', type:'bool', def:1 },
   { g:'New wormhole', k:'splashSec', label:'Show it for', unit:'s', def:10, min:2, max:60 },
+  { g:'New wormhole', k:'holder', label:'Show the holder\'s logo each time you jump into a wormhole of the WH holders list', type:'bool', def:1 },
   { g:'Kills (zKillboard)', k:'kills', label:'Kill alarms: a blinking red halo on systems with a recent kill', type:'bool', def:1 },
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
@@ -1824,6 +1856,77 @@ function setupSigs(){
     store.set('whmap.reg.sigs.demo', { '31000123':{ t, by:'Demo Scout', list:L } });
   }
 }
+const THREAT = [ { k:0, n:'—', c:'' }, { k:1, n:'Friendly', c:'#5fd68a' }, { k:2, n:'Low', c:'#f2e05a' }, { k:3, n:'Medium', c:'#f2a74b' }, { k:4, n:'High', c:'#ef5a5a' }, { k:5, n:'Extreme', c:'#ff2bd6' } ];
+const lvlOpts = v => THREAT.map(t => `<option value="${t.k}"${+v === t.k ? ' selected' : ''}${t.c ? ` style="color:${t.c}"` : ''}>${t.n}</option>`).join('');
+/* Wormhole holders: who lives in a J system, shown in big each time one of your pilots jumps into it (on your chain) */
+function holdAll(){ return share.owner && !DEMO ? ((share.map && share.map.data && share.map.data.holders) || {}) : store.get(DEMO ? 'whmap.reg.holders.demo' : 'whmap.reg.holders', {}); }
+async function saveHold(id, rec){
+  id = String(id);
+  if (!DEMO && share.owner && share.ws){
+    try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/holders/${id}`, data:rec }); share.map.data = share.map.data || {}; share.map.data.holders = { ...(share.map.data.holders || {}) }; if (rec) share.map.data.holders[id] = rec; else delete share.map.data.holders[id]; }
+    catch(e){ toast(e.status === 403 || /refus|denied|permission/i.test(e.message) ? 'You have read-only access to this map: not saved.' : 'The shared map did not accept it: ' + e.message, true); return false; }
+  } else { const key = DEMO ? 'whmap.reg.holders.demo' : 'whmap.reg.holders', loc = store.get(key, {}); if (rec) loc[id] = rec; else delete loc[id]; store.set(key, loc); }
+  return true;
+}
+async function idsOf(names){ try{ const r = await fetch(`${ESI}/universe/ids/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(names) }); return r.ok ? await r.json() : {}; }catch(e){ return {}; } }
+const holdLogo = h => h ? `https://images.evetech.net/${h.kind === 'alliance' ? 'alliances' : 'corporations'}/${h.id}/logo?size=` : '';
+async function resolveHolder(name){
+  name = String(name || '').trim(); if (!name) return null;
+  const j = await idsOf([name]), f = k => (j[k] || []).find(x => x.name.toLowerCase() === name.toLowerCase());
+  const al = f('alliances'), co = f('corporations'), x = al || co;
+  return x ? { id:x.id, name:x.name, kind:al ? 'alliance' : 'corporation' } : { name, kind:'' };       // an unknown name is kept as text
+}
+async function addHolder(sysTxt, whoTxt, lvl){
+  sysTxt = String(sysTxt || '').trim(); if (!sysTxt){ $('#holdMsg').textContent = 'Write the wormhole name (e.g. J123456).'; return; }
+  let id = sysByName(sysTxt) || sysByName(sysTxt.toUpperCase());
+  if (!id) id = [...new Set([...Object.keys(mapper.nodes || {}), ...allHoles().flatMap(l => [String(l.a), String(l.b)])])].find(x => sysName(x).toLowerCase() === sysTxt.toLowerCase()) || null;   // on your chain
+  if (!id){ const j = await idsOf([sysTxt]); const x = (j.systems || [])[0]; if (x){ id = String(x.id); nameCache[id] = x.name; } }
+  if (!id){ $('#holdMsg').innerHTML = `<span class="bad">Unknown system: ${esc(sysTxt)}</span>`; return; }
+  const holder = await resolveHolder(whoTxt);
+  if (whoTxt && holder && !holder.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(whoTxt)}: no corporation or alliance with this exact name, kept as text (no logo).</span>`; else $('#holdMsg').textContent = '';
+  const prev = holdAll()[id] || {};
+  if (await saveHold(id, { n:sysName(id), holder:holder || prev.holder || null, lvl:+lvl || 0, by:tok ? tok.charName : '', t:Date.now() })){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
+}
+function renderHold(){
+  const box = $('#wHold'); if (!box || box.hidden) return;
+  const all = holdAll(), ids = Object.keys(all).sort((a, b) => (all[a].n || '').localeCompare(all[b].n || ''));
+  $('#holdSub').textContent = ids.length ? String(ids.length) : '';
+  $('#holdList').innerHTML = ids.map(id => { const r = all[id], h = r.holder, on = onChain(id);
+    return `<tr><td class="w" title="${on ? 'On your chain' : 'Not on your chain right now'}">${esc(r.n || sysName(id))} <span class="k">${esc(classOf(id) || '')}</span>${on ? ' <span style="color:var(--ok)">●</span>' : ''}</td>
+      <td class="h">${h && h.id ? `<img src="${holdLogo(h)}64" alt="">` : ''}<input data-hw="${id}" value="${esc(h ? h.name : '')}" placeholder="optional" title="Corporation or alliance, exact name">${h && h.kind ? `<span class="k">${h.kind === 'alliance' ? 'ally' : 'corp'}</span>` : ''}</td>
+      <td><select class="hlvl" data-hl="${id}" title="Threat: the map gets a frame of this colour when you jump in" style="${THREAT[r.lvl || 0].c ? `color:${THREAT[r.lvl || 0].c};border-color:${THREAT[r.lvl || 0].c}` : ''}">${lvlOpts(r.lvl || 0)}</select></td>
+      <td style="white-space:nowrap">${h || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>`; }).join('')
+    || '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>';
+  $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; const h = await resolveHolder(i.value);
+    if (i.value.trim() && h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
+    if (await saveHold(id, { ...r, holder:h, t:Date.now() })) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hl]').forEach(sl => sl.onchange = async () => { const id = sl.dataset.hl; if (await saveHold(id, { ...holdAll()[id], lvl:+sl.value, t:Date.now() })) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hd]').forEach(b => b.onclick = async () => { if (await saveHold(b.dataset.hd, null)) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hp]').forEach(b => b.onclick = () => holderSplash(b.dataset.hp, true));
+  // suggestions: the J systems of your chain
+  $('#holdSysList').innerHTML = [...new Set([...Object.keys(mapper.nodes || {}), ...whLinks().flatMap(l => [String(l.a), String(l.b)])])].filter(x => isJ(x) && !HUB_LIST.includes(x)).map(x => `<option value="${esc(sysName(x))}">`).join('');
+}
+const onChain = id => !!(mapper.nodes && mapper.nodes[String(id)]) || whLinks().some(l => String(l.a) === String(id) || String(l.b) === String(id));
+function holderSplash(id, preview){
+  const r = holdAll()[String(id)], h = r && r.holder; if (!r || (!h && !r.lvl)) return;
+  if (!preview && (!SET.holder || !onChain(id))) return;
+  const t = THREAT[r.lvl || 0];
+  if (!h){ splash(`<div class="sn" style="color:${t.c}">${esc(t.n)} threat</div><div class="ss"><b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}</div>`, r.lvl); return; }
+  splash(`${h.id ? `<img src="${holdLogo(h)}256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(h.name.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
+    <div class="sn">${esc(h.name)}</div><div class="ss">lives in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${h.kind ? ` · ${h.kind}` : ''}${r.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>` : ''}</div>`, r.lvl);
+}
+let holdLast = null;   // the system your pilot was in: only a jump into the hole shows its holder (not opening the page inside)
+function holderOnMove(){ if (!me.sys) return; if (holdLast && me.sys !== holdLast && holdAll()[String(me.sys)]) holderSplash(me.sys); holdLast = me.sys; }
+function setupHold(){
+  const box = $('#wHold'), btn = $('#btnHold');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderHold(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#holdClose').onclick = () => show(false);
+  $('#holdLvl').innerHTML = lvlOpts(0);
+  const add = () => addHolder($('#holdSys').value, $('#holdWho').value, $('#holdLvl').value);
+  $('#holdAdd').onclick = add;
+  ['holdSys', 'holdWho'].forEach(i => $('#' + i).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
+}
 function setupStats(){
   const box = $('#wStats'), btn = $('#btnStats');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderStats(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -2177,6 +2280,7 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
   requestAnimationFrame(step);
 }
 async function onMove(){
+  holderOnMove();
   if (!me.sys || Date.now() < holdCam) return;
   if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
@@ -3546,7 +3650,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -3592,10 +3696,10 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
-  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wSigs', 'Signatures', '#btnSigs'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
   ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
@@ -3623,10 +3727,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -3653,7 +3757,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs();
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold();
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
