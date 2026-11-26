@@ -2266,9 +2266,9 @@ function freeSpot(nearId){
 }
 const linksArr = () => Object.values(map.links).filter(Boolean);
 const linkBetween = (a, b) => linksArr().find(l => (l.a == a && l.b == b) || (l.a == b && l.b == a));
-function addLink(a, b, gate){
+function addLink(a, b, gate, by){
   const id = 'l' + uid();
-  put(`links/${id}`, { id, a, b, type:gate ? 'gate' : 'wh', mass:'fresh', eol:false, size:'?', wh:'', created:Date.now(), passes:[] });
+  put(`links/${id}`, { id, a, b, type:gate ? 'gate' : 'wh', mass:'fresh', eol:false, size:'?', wh:'', created:Date.now(), passes:[], by:by || (tok ? tok.charName : '') });
   return id;
 }
 async function arriveAt(id, info){
@@ -2318,7 +2318,7 @@ async function moveChar(prev, id, info, who){
   await ensureNode(id, map.nodes[prev] ? prev : (map.nodes[me.current] ? me.current : null), info);
   if (prev != null && map.nodes[prev] && prev != id && !linkBetween(prev, id)){
     const gate = info ? !!info.gate : await gateConnected(prev, id);
-    addLink(prev, id, gate);
+    addLink(prev, id, gate, who);
   }
   const from = prev != null && map.nodes[prev] ? map.nodes[prev].name : '–';
   put(`log/${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`, { t:Date.now(), who, from, to:map.nodes[id].name });

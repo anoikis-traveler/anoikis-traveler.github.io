@@ -349,6 +349,18 @@ body.nf #hint{transform:translateY(-16px)}
 .stwb .top .lk{justify-self:start}
 #wStats .wcol + .wcol{margin-left:0}
 #wSigs .wcol + .wcol{margin-left:0}
+#wWhc .wcol + .wcol{margin-left:0}
+#wWhc{width:420px;max-width:calc(100vw - 16px)}
+.whcwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
+.whctabs{display:flex;flex-wrap:wrap;gap:4px}
+.whctabs button{font-size:12px;padding:2px 8px;border-radius:12px}
+.whctabs button[aria-selected=true]{border-color:var(--accent);color:var(--accent);background:rgba(242,167,75,.1)}
+.whct{width:100%;border-collapse:collapse;font-size:13px}
+.whct td{padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.whct td.n{font:600 13px var(--mono);text-align:right;width:40px}
+.whct .bar{height:6px;border-radius:3px;background:var(--accent);opacity:.75}
+.whct tr.p{cursor:pointer} .whct tr.p:hover td{background:#121a2c}
+.whct tr.sub td{font-size:12px;color:var(--dim);padding:2px 6px 2px 18px;border-bottom:0}
 #wMine .wcol + .wcol{margin-left:0}
 #wMine{width:330px}
 .minewb{display:flex;flex-direction:column;gap:6px;max-height:min(560px,calc(100vh - 120px));overflow:auto}
@@ -604,6 +616,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnHold" class="proxy" type="button" aria-pressed="false">WH holders</button>
         <button id="btnHubr" class="proxy" type="button" aria-pressed="false">Hub routes</button>
         <button id="btnMine" class="proxy" type="button" aria-pressed="false">My pilots</button>
+        <button id="btnWhc" class="proxy" type="button" aria-pressed="false">Holes by pilot</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
@@ -713,6 +726,14 @@ body.nf #hint{transform:translateY(-16px)}
       <div id="mineList"></div>
       <div class="row"><input id="mineAdd" list="mineAddList" placeholder="Add one of your alts from the map…" autocomplete="off"><button type="button" class="small" id="mineAddBtn">Add</button></div>
       <datalist id="mineAddList"></datalist>
+    </div>
+  </section>
+
+  <section class="widget" id="wWhc" data-title="Holes by pilot" hidden>
+    <header class="wh"><span class="wt">Holes by pilot</span><span class="wsub dim" id="whcSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="whcClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb whcwb">
+      <div class="whctabs" id="whcTabs" role="tablist"></div>
+      <div id="whcBody"></div>
     </div>
   </section>
 
@@ -1166,7 +1187,8 @@ function demoMapper(){
   const K = n => sysByName(n);
   const nodes = { '31000123':{ id:31000123, name:'J000123', cls:'C3' }, '31000900':{ id:31000900, name:'J000900', cls:'C5' }, '31000901':{ id:31000901, name:'J000901', cls:'C2' } };
   for (const n of ['KDG-TA', '4M-QXK', '5M2-KP']){ const id = K(n); if (id) nodes[id] = { id:Number(id), name:n, cls:'NS' }; }
-  const now = Date.now(), L = (id, a, b, o) => ({ id, a:Number(a), b:Number(b), type:'wh', mass:'fresh', eol:false, size:'L', created:now - 3600e3, ...o });
+  const BY = { d1:'Demo Scout', d2:'Demo Scout', d3:'Corpmate', d4:'Logi', d5:'Corpmate', d6:'Demo Pilot', d7:'Demo Pilot', d8:'Demo Scout' };
+  const now = Date.now(), L = (id, a, b, o) => ({ id, a:Number(a), b:Number(b), type:'wh', mass:'fresh', eol:false, size:'L', created:now - 3600e3, by:BY[id] || '', ...o });
   return { nodes, exit:K('KDG-TA') ? { id:Number(K('KDG-TA')), name:'KDG-TA' } : null, enter:{ id:31000900, name:'J000900' }, pilots:{ c1:{ name:'Corpmate', sys:K('4M-QXK'), ship:'Tengu', online:true, t:now }, c2:{ name:'Hauler', sys:K('KDG-TA'), ship:'Epithal', online:false, t:now - 60000 },
              c3:{ name:'Old Scout', sys:K('4M-QXK'), ship:'Buzzard', online:false, t:now - 12 * 60000 },
              c4:{ name:'Logi', sys:K('4M-QXK'), ship:'Scimitar', online:true, t:now } },
@@ -2196,6 +2218,46 @@ function setupMine(){
   const add = () => { const v = $('#mineAdd').value.trim(); if (!v) return; if (!mineOther.some(n => n.toLowerCase() === v.toLowerCase())) mineOther.push(v); store.set('whmap.reg.mineOther', mineOther); $('#mineAdd').value = ''; renderMine(); };
   $('#mineAddBtn').onclick = add; $('#mineAdd').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
 }
+/* Holes by pilot: who opened (first went through) each wormhole on the map, region by region */
+let whcTab = store.get('whmap.reg.whcTab', '*'), whcOpen = null;
+function whcData(){
+  const log = Object.values((share.map && share.map.data && share.map.data.log) || {}).filter(Boolean);
+  const holes = allHoles().filter(l => l.src !== 'eve-scout' && l.type !== 'gate');
+  return holes.map(l => {
+    let who = l.by || '';
+    if (!who){ // the mapper's travel log: the first pilot who went between the two systems
+      const na = sysName(l.a), nb = sysName(l.b);
+      const hit = log.filter(e => (e.from === na && e.to === nb) || (e.from === nb && e.to === na)).sort((x, y) => Math.abs((x.t || 0) - (l.created || 0)) - Math.abs((y.t || 0) - (l.created || 0)))[0];
+      who = hit ? hit.who : ''; }
+    const k = [l.a, l.b].map(String).find(x => !isJ(x) && regionOf(x)), reg = k ? regionOf(k) : 'J';
+    return { l, who:who || 'unknown', reg };
+  });
+}
+function renderWhc(){
+  const box = $('#wWhc'); if (!box || box.hidden) return;
+  const data = whcData(), regs = {};
+  for (const d of data) regs[d.reg] = (regs[d.reg] || 0) + 1;
+  const tabs = [['*', 'All', data.length], ...Object.entries(regs).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, r === 'J' ? 'Wormhole space' : regionName(r), n])];
+  if (!tabs.some(t => t[0] === whcTab)) whcTab = '*';
+  $('#whcSub').textContent = data.length ? String(data.length) : '';
+  $('#whcTabs').innerHTML = tabs.map(([k, n, c]) => `<button type="button" role="tab" aria-selected="${whcTab === k}" data-wtab="${esc(String(k))}">${esc(n)} <span class="dim">${c}</span></button>`).join('');
+  const rows = data.filter(d => whcTab === '*' || String(d.reg) === String(whcTab)), by = {};
+  for (const d of rows) (by[d.who] = by[d.who] || []).push(d);
+  const list = Object.entries(by).sort((a, b) => b[1].length - a[1].length), max = list.length ? list[0][1].length : 1;
+  $('#whcBody').innerHTML = !rows.length ? '<div class="dim" style="font-size:12.5px">No wormhole on the map here.</div>'
+    : `<table class="whct">${list.map(([w, ds]) => `<tr class="p" data-wwho="${esc(w)}"><td>${esc(w)}</td><td style="width:45%"><div class="bar" style="width:${Math.round(ds.length / max * 100)}%"></div></td><td class="n">${ds.length}</td></tr>`
+      + (whcOpen === w ? ds.sort((a, b) => (b.l.created || 0) - (a.l.created || 0)).map(d => `<tr class="sub"><td colspan="3"><a href="#" data-wgo="${d.l.a}">${esc(sysName(d.l.a))}</a> ⟿ <a href="#" data-wgo="${d.l.b}">${esc(sysName(d.l.b))}</a>${d.l.wh ? ' · ' + esc(d.l.wh) : ''}${d.l.created ? ' · ' + agoTxt(d.l.created) : ''}</td></tr>`).join('') : '')).join('')}</table>
+      <div class="dim" style="font-size:11.5px;margin-top:4px">The holes now on the map. The pilot is the one who went through first (auto-mapping or the mapper's travel log).</div>`;
+  $('#whcTabs').querySelectorAll('[data-wtab]').forEach(b => b.onclick = () => { whcTab = b.dataset.wtab; store.set('whmap.reg.whcTab', whcTab); renderWhc(); });
+  $('#whcBody').querySelectorAll('[data-wwho]').forEach(r => r.onclick = () => { whcOpen = whcOpen === r.dataset.wwho ? null : r.dataset.wwho; renderWhc(); });
+  $('#whcBody').querySelectorAll('[data-wgo]').forEach(a => a.onclick = e => { e.preventDefault(); goTo(a.dataset.wgo); });
+}
+function setupWhc(){
+  const box = $('#wWhc'), btn = $('#btnWhc');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderWhc(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#whcClose').onclick = () => show(false);
+}
 function setupStats(){
   const box = $('#wStats'), btn = $('#btnStats');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderStats(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -3136,6 +3198,7 @@ function renderPanel(){
   if (typeof renderSigs === 'function') try{ renderSigs(); }catch(e){}
   if (typeof renderHubr === 'function') try{ renderHubr(); }catch(e){}
   if (typeof renderMine === 'function') try{ renderMine(); }catch(e){}
+  if (typeof renderWhc === 'function') try{ renderWhc(); }catch(e){}
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
   $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
@@ -3978,7 +4041,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 }, wHubs:{ x:Math.max(12, W0 / 2 - 260), y:130 }, wMine:{ x:Math.max(12, W0 - 360), y:150 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 }, wHubs:{ x:Math.max(12, W0 / 2 - 260), y:130 }, wMine:{ x:Math.max(12, W0 - 360), y:150 }, wWhc:{ x:Math.max(12, W0 / 2 - 210), y:150 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -4024,10 +4087,10 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
-  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wMine', 'My pilots', '#btnMine'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wMine', 'My pilots', '#btnMine'], ['wWhc', 'Holes by pilot', '#btnWhc'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
   ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
@@ -4055,10 +4118,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -4085,7 +4148,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); loadStandings(); setInterval(loadStandings, 30 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
