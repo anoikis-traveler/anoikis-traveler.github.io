@@ -1886,6 +1886,16 @@ function followTo(id, soft){
     cam.px = x0 + dx * e; cam.py = y0 + dy * e; render(); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+const ZOOM_MAX = 12;
+function zoomTo(id){   // a clicked system: glide to the closest zoom, the system in the free middle of the map
+  const p = norm[String(id)]; if (!p) return;
+  const z0 = cam.zoom, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;
+  const step = now => { if (my !== camAnim) return; const k = Math.min(1, (now - t0) / 550), e = 1 - Math.pow(1 - k, 3);
+    cam.zoom = z0 + (ZOOM_MAX - z0) * e;
+    const q = proj(p), wx = q0.x + (t.x - q0.x) * e, wy = q0.y + (t.y - q0.y) * e;
+    cam.px += wx - q.x; cam.py += wy - q.y; render(); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 async function onMove(){
   if (!me.sys) return;
   if (peek){ peek = false; renderNoFollow(); }
@@ -2540,7 +2550,7 @@ async function goTo(id){
   id = String(id);
   if (isHubVirtual(id) && hubNodes.some(x => x.h === id)){ select(id); return; }
   if (!byId[id] || byId[id].ext){ const r = regionOf(id); if (!r){ toast(`${sysName(id)} is in wormhole space: no region map`); return; } await loadRegion(r); }
-  select(id); centerOn(id); render();
+  select(id); zoomTo(id);
 }
 
 /* ---------- Autopilot route widget ----------
@@ -2673,7 +2683,7 @@ function keepPivot(fn){
 }
 function zoomAround(f, sx, sy){            // sx, sy: screen point relative to the view centre
   const id = pivotId(); if (id){ const q = proj(norm[id]); sx = q.x - W / 2; sy = q.y - H / 2; }
-  const z2 = Math.max(0.3, Math.min(12, cam.zoom * f)), k = z2 / cam.zoom;
+  const z2 = Math.max(0.3, Math.min(ZOOM_MAX, cam.zoom * f)), k = z2 / cam.zoom;
   cam.px = sx - (sx - cam.px) * k; cam.py = sy - (sy - cam.py) * k; cam.zoom = z2; render();
 }
 /* ---------- (input) ---------- */
@@ -2706,8 +2716,9 @@ function setupInput(){
       if (start.right){ if (start.target && !isHubVirtual(start.target.dataset.id)){ select(start.target.dataset.id); sysMenu(e, start.target.dataset.id); } }
       else if (start.zk){ open(`https://zkillboard.com/kill/${start.zk.dataset.zk}/`, '_blank', 'noopener'); }
       else if (start.jb){ const id = start.jb.dataset.jbgo, other = !(byId[id] && !byId[id].ext); lookAway(); goTo(id); toast(`Jump bridge → ${sysName(id)}${other ? ' · ' + regionName(regionOf(id)) : ''}`); }
-      else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); followTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
-      else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null); }
+      else if (start.target && byId[start.target.dataset.id] && byId[start.target.dataset.id].ext){ const id = start.target.dataset.id, s2 = byId[id]; lookAway(); loadRegion(s2.r).then(() => { select(id); zoomTo(id); }); toast(`${s2.n} · ${regionName(s2.r)}`); }
+      else { if (start.chest) openAssets(start.chest.dataset.assets); select(start.target ? start.target.dataset.id : null);
+        if (start.target && !isHubVirtual(start.target.dataset.id)){ if (start.target.dataset.id !== me.sys) lookAway(); zoomTo(start.target.dataset.id); } }
     }
     if (ptrs.size === 0) start = null;
   };
