@@ -3727,14 +3727,18 @@ function renderPanel(){
   P.querySelectorAll('[data-openassets]').forEach(b => b.addEventListener('click', () => openAssets(b.dataset.openassets)));
 }
 /* Destination / waypoint in the EVE client (needs the mapper's login with the waypoint option) */
-async function sendWaypoint(id, add, charId){   // charId: send it to another of your characters (else the active one)
+async function sendWaypoint(id, add, charId){   // charId: send it to another of your characters (else the selected pilot)
   id = String(id);
+  if (!charId && followRemote){   // you follow one of your pilots on another computer: the destination goes to it, never to the character of this page
+    const c = vaultChars().find(x => String(x.charName).toLowerCase() === String(followRemote).toLowerCase());
+    if (!c){ toast(`${followRemote} is logged in on another computer only: log it in here too (Characters window) to send it destinations`, true); return; }
+    charId = c.charId; }
   const t = charId && (!tok || Number(charId) !== tok.charId) ? (DEMO ? vaultChars().find(c => c.charId === Number(charId)) : store.get(CK.tok + charId, null)) : tok, other = t && tok && t.charId !== tok.charId;
   if (DEMO){ toast(`Demo: ${add ? 'waypoint added' : 'destination set'}${t ? ' for ' + t.charName : ''}: ${sysName(id)}`); if (!other) apSetFrom(id, add); return; }
   if (!t){ toast('Log in with EVE first (Characters window)', true); return; }
   if (!scopesOf(t).includes(WP_SCOPE)){ toast(`${t.charName} was logged in without "Set destination": log in again with that option ticked`, true); return; }
   try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:id });
-    await esiFor(t, `/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(`${other ? t.charName + ': ' : ''}${add ? `Waypoint added: ${sysName(id)}` : `Destination set: ${sysName(id)}`}`);
+    await esiFor(t, `/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(`${t.charName}: ${add ? `waypoint added: ${sysName(id)}` : `destination set: ${sysName(id)}`}`);
     if (!other) apSetFrom(id, add); }
   catch(e){ toast('EVE refused the waypoint (' + e.message + '). Is the character online?', true); }
 }
