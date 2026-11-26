@@ -2677,7 +2677,7 @@ function tunnelFly(a, b, done){
   const T = Math.max(5, Math.min(8, SET.tunnelSec || 6)) * 1000, t0 = performance.now(), my = ++camAnim, tc = freeCentre();
   // the flat view at the end: zoom max on the arrival, the connection pointing up the screen
   let yawEnd = Math.atan2(D.x, D.z); while (yawEnd - cam.yaw > Math.PI) yawEnd -= 2 * Math.PI; while (yawEnd - cam.yaw < -Math.PI) yawEnd += 2 * Math.PI;
-  const st = { yaw:cam.yaw, pitch:cam.pitch, zoom:cam.zoom }, q0 = proj(pa), en = { yaw:yawEnd, pitch:Math.max(cam.pitch, 50 * Math.PI / 180), zoom:Math.max(cam.zoom, ZOOM_MAX * 0.7) };
+  const st = { yaw:cam.yaw, pitch:cam.pitch, zoom:cam.zoom }, q0 = proj(pa), en = { yaw:yawEnd, pitch:Math.max(cam.pitch, 50 * Math.PI / 180), zoom:ZOOM_MAX * 0.5 };   // landing a little further out: the arrival and its neighbours in view
   const map = $('#map'); map.classList.add('flying');
   const lerp = (u, v, k) => u + (v - u) * k, sm = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
   // the perspective camera, a little above and behind the point it has reached, looking along the connection
