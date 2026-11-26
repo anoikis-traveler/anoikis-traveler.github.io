@@ -1310,7 +1310,16 @@ function logout(id){
   if (tok && tok.charId === id){ sess.set('whmap.tabChar', ''); pickChar(); shareClose(); shareState('off'); if (tok) shareConnect(); else readMapper(); }
   renderChars(); renderWho(); render();
 }
+// clicking one of YOUR characters anywhere: it becomes the selected pilot (followed, routes, destinations, assets, name at the bottom), shown at full zoom
+function pickPilot(id){
+  if (typeof followRemote !== 'undefined' && followRemote){ followRemote = null; sess.set('whmap.followRemote', ''); }
+  if (!tok || tok.charId !== Number(id)) switchChar(Number(id));
+  setFollow(true); peek = false;
+  const sys = me.sys; if (sys){ const reg = regionOf(sys); (reg && (!R || reg !== R.region.id) ? loadRegion(reg) : Promise.resolve()).then(() => { if (byId[sys] && !byId[sys].ext){ select(sys); zoomTo(sys); } }); }
+  else toast(`${tok ? tok.charName : 'This character'}: position not known yet`, true);
+}
 function switchChar(id){
+  if (typeof hubrSrc !== 'undefined') hubrSrc = null;                 // hub routes start from the selected pilot
   if (typeof followRemote !== 'undefined' && followRemote){ followRemote = null; sess.set('whmap.followRemote', ''); }
   sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
   pickChar(); if (!DEMO && tok && share.charId !== tok.charId){ shareClose(); shareConnect(); } readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
@@ -2073,7 +2082,7 @@ function setupHold(){
 }
 /* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
 const HUBS_T = [ [30000142, 'Jita'], [30002187, 'Amarr'], [30002659, 'Dodixie'], [30002510, 'Rens'], [30002053, 'Hek'] ];
-let hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0, hubrSrc = null;   // hubrSrc: a character id, or 'sel' (the selected system); null = the active character
+var hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0, hubrSrc = null;   // hubrSrc: a character id, or 'sel' (the selected system); null = the active character
 function hubrPilots(){   // your own characters and where they are
   return vaultChars().map(c => ({ id:c.charId, name:c.charName, sys:DEMO ? demoPos[c.charId] : chars[c.charId] && chars[c.charId].sys ? chars[c.charId].sys : (store.get(CK.me + c.charId, null) || {}).current })).filter(p => p.sys && /^\d+$/.test(String(p.sys)));
 }
@@ -2168,7 +2177,7 @@ function renderMine(){
   $('#mineSub').textContent = String(here.length + others.length);
   $('#mineList').innerHTML = '<h5>This computer</h5>' + (here.map(c => row(c.charId, c.charName, loc(c), onl(c), !followRemote && tok && tok.charId === c.charId, `data-mine="${c.charId}"`) + `<span class="dim" style="font-size:11px">${tok && tok.charId === c.charId ? (follow && !followRemote ? 'followed' : 'active') : ''}</span></div>`).join('') || '<div class="dim" style="font-size:12px">No character logged in here.</div>')
     + (others.length ? '<h5>Other computers</h5>' + others.map(x => row(ids[x.n.toLowerCase()] || 1, x.n, x.p && x.p.sys, x.p && x.p.ingame, followRemote === x.n, `data-mineo="${esc(x.n)}"`) + (followRemote === x.n ? `<span class="dim" style="font-size:11px">${follow ? 'followed' : ''}</span>` : '') + (x.auto ? '<span class="dim" style="font-size:10.5px" title="Logged in in the same browser as one of your characters, on another computer">same player</span>' : `<button type="button" class="x" data-minex="${esc(x.n)}" title="Not one of mine">✕</button>`) + '</div>').join('') : '');
-  $('#mineList').querySelectorAll('[data-mine]').forEach(r => r.onclick = () => { followRemote = null; sess.set('whmap.followRemote', ''); switchChar(Number(r.dataset.mine)); setFollow(true); renderMine(); });
+  $('#mineList').querySelectorAll('[data-mine]').forEach(r => r.onclick = () => { pickPilot(Number(r.dataset.mine)); renderMine(); });
   $('#mineList').querySelectorAll('[data-mineo]').forEach(r => r.onclick = e => { if (e.target.closest('[data-minex]')) return; const x = others.find(o => o.n === r.dataset.mineo);
     if (!x || !x.p || !x.p.sys){ toast(`${r.dataset.mineo}: position not shared on the map right now`, true); return; } setRemote(x.n); });
   $('#mineList').querySelectorAll('[data-minex]').forEach(b => b.onclick = () => { mineOther = mineOther.filter(n => n !== b.dataset.minex); store.set('whmap.reg.mineOther', mineOther); renderMine(); });
@@ -2575,7 +2584,7 @@ function renderWatch(){
   $('#watchSub').textContent = list.length ? `${on.length}/${list.length}` : '';
   const row = p => `<div class="wrow${p.live ? '' : ' off'}">
       <span class="wd${p.live ? ' on' : ''}" title="${p.live ? 'Map open' : 'Map closed' + (p.age ? ' (last news ' + Math.round(p.age / 60000) + ' min ago)' : '')}"></span>
-      <span><button type="button" class="wn" data-wsys="${p.sys || ''}"${p.sys ? '' : ' disabled'} title="${p.sys ? 'Show ' + esc(sysName(p.sys)) + ' on the map' : 'Position unknown'}">${esc(p.name)}${p.self ? ' <span class="dim">(you)</span>' : ''}</button>${p.ingame ? '<span class="evb" title="Connected in EVE">EVE</span>' : ''}</span>
+      <span><button type="button" class="wn" data-wsys="${p.sys || ''}"${p.self ? ` data-wchar="${esc(p.name)}"` : ''}${p.sys || p.self ? '' : ' disabled'} title="${p.self ? 'Select this pilot: map, routes, destination and assets follow it' : p.sys ? 'Show ' + esc(sysName(p.sys)) + ' on the map' : 'Position unknown'}">${esc(p.name)}${p.self ? ' <span class="dim">(you)</span>' : ''}</button>${p.ingame ? '<span class="evb" title="Connected in EVE">EVE</span>' : ''}</span>
       <span class="wwhere">${p.sys ? esc(sysName(p.sys)) : '—'}</span>
       ${p.ship || p.altOf ? `<span class="wship">${esc([p.ship, p.altOf ? 'alt of ' + p.altOf : ''].filter(Boolean).join(' · '))}</span>` : ''}</div>`;
   box.innerHTML = (on.length ? on.map(row).join('') : '<div class="wempty">Nobody has the map open.</div>')
@@ -2583,7 +2592,7 @@ function renderWatch(){
     + (!DEMO && share.state === 'none' ? '<div class="wempty" style="margin-top:6px">This character has no shared map: corpmates appear here once the map owner gives it access.</div>' : '')
     + (list.length ? `<div class="wcopy"><button type="button" class="small" id="watchCopy" title="One name per line, to add them to an access list in game (bookmark folder, structure…)">⧉ Copy the ${list.length} names</button></div>` : '');
   const d = box.querySelector('details'); if (d) d.addEventListener('toggle', () => store.set('whmap.reg.watchOff', d.open));
-  box.querySelectorAll('.wn[data-wsys]:not([disabled])').forEach(b => b.onclick = () => goTo(b.dataset.wsys));
+  box.querySelectorAll('.wn[data-wsys]:not([disabled])').forEach(b => b.onclick = () => { const c = b.dataset.wchar && vaultChars().find(x => x.charName === b.dataset.wchar); if (c) pickPilot(c.charId); else goTo(b.dataset.wsys); });
   const cp = $('#watchCopy'); if (cp) cp.onclick = async () => {
     const names = [...new Set(list.map(p => String(p.name)))].sort((x, y) => x.localeCompare(y)).join('\n');
     try { await navigator.clipboard.writeText(names); cp.textContent = '✓ Copied — paste them in game'; }
@@ -2621,7 +2630,7 @@ function renderChars(){
         <span class="payto">with this reason:</span> <code id="payCode">${esc(payV())}</code><button type="button" class="small" id="bPayId">Copy</button>
         <span id="payPrice">${(store.get('whmap.reg.payTier', 10) - 5) / 5 * 50} M ISK / week</span> · <span class="payto">pays for the whole map, whoever sends it</span>${share.sub && share.sub.paidMax ? ` · <span class="paid">subscription: up to ${share.sub.paidMax} characters, valid until ${new Date(share.sub.paidUntil).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>` : share.sub && share.sub.max ? ` · <span class="payto">now: up to ${share.sub.max} characters</span>` : ''} · <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a>`
         : `<span class="payto">${share.state === 'wait' ? 'Connecting to your shared map…' : 'No shared map for this character: nothing to pay.'}</span> <a href="../guide/#pricing" target="_blank" rel="noopener">pricing</a>`}</div>` : ''}</div>`;
-  box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; switchChar(Number(r.dataset.char)); }));
+  box.querySelectorAll('[data-char]').forEach(r => r.addEventListener('click', e => { if (e.target.closest('[data-logout]')) return; pickPilot(Number(r.dataset.char)); }));
   box.querySelectorAll('[data-logout]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); logout(Number(b.dataset.logout)); }));
   const bl = $('#bLogin'); if (bl) bl.onclick = login;
   const aw = $('#askWp'); if (aw) aw.onchange = () => store.set('whmap.reg.askwp', aw.checked);
