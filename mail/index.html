@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EVE Mail · Anoikis Traveler</title>
+<meta name="description" content="Read and send your EVE Online mail from the browser, for all your characters.">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070a12;--panel:#0e1424;--panel2:#0b1120;--line:#24314c;--text:#e2e8f3;--dim:#8b98b0;--accent:#f2a74b;--ok:#5fd68a;--warn:#f2c94b;--bad:#ef5a5a;--sel:#1a2a48;
+  --display:"Saira Condensed",sans-serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--body);display:flex;flex-direction:column}
+a{color:#8fc3ff}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel2);flex-wrap:wrap}
+header h1{font:700 22px var(--display);letter-spacing:.08em;text-transform:uppercase;margin:0} header h1 a{color:inherit;text-decoration:none} header h1 b{color:var(--accent)}
+#chars{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.ch{display:flex;align-items:center;gap:7px;background:#141c30;border:1px solid var(--line);border-radius:20px;padding:2px 10px 2px 2px;cursor:pointer;color:var(--text);font:500 13px var(--body)}
+.ch img{width:26px;height:26px;border-radius:50%}
+.ch.on{border-color:var(--accent);background:#2a1f10}
+.ch .u{background:var(--accent);color:#1a1004;border-radius:9px;padding:0 6px;font:700 11px var(--mono)}
+button{font:600 13px var(--body);background:#141c30;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:5px 11px;cursor:pointer}
+button:hover{border-color:#3a4d75}
+button.primary{background:var(--accent);color:#1a1004;border-color:var(--accent)}
+button.danger{border-color:#6b2a2a;color:#ffb3b3}
+button:disabled{opacity:.45;cursor:default}
+.dim{color:var(--dim)} .bad{color:var(--bad)} .ok{color:var(--ok)}
+#app{flex:1;display:grid;grid-template-columns:210px minmax(300px,1fr) minmax(340px,1.25fr);min-height:0}
+#app[hidden]{display:none}
+.pane{border-right:1px solid var(--line);min-height:0;overflow:auto}
+#folders{padding:10px 8px;background:var(--panel2)}
+#folders h3{font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:12px 6px 4px}
+.fo{display:flex;justify-content:space-between;width:100%;text-align:left;background:none;border:0;border-radius:4px;padding:5px 8px;font-weight:500}
+.fo:hover{background:#121a2c} .fo.on{background:var(--sel);color:#fff}
+.fo .n{font:600 11.5px var(--mono);color:var(--accent)}
+.fo .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+#compose{width:100%;margin-bottom:6px}
+#listPane{display:flex;flex-direction:column}
+#listBar{display:flex;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:1}
+#listBar input{flex:1;min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 8px;font:13px var(--body)}
+#list{flex:1}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 12px;border-bottom:1px solid #182238;cursor:pointer}
+.row:hover{background:#111a2d} .row.on{background:var(--sel)}
+.row .who{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t{font:12px var(--mono);color:var(--dim);white-space:nowrap}
+.row .s{grid-column:1/3;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.row.unread .who,.row.unread .s{color:#fff;font-weight:600}
+.row.unread{box-shadow:inset 3px 0 var(--accent)}
+.more{display:block;margin:10px auto}
+#read{padding:0;background:var(--panel)}
+#read .empty{padding:40px;text-align:center;color:var(--dim)}
+.mh{padding:14px 18px;border-bottom:1px solid var(--line)}
+.mh h2{margin:0 0 6px;font:600 18px var(--body)}
+.mh .meta{font-size:13px;color:var(--dim)} .mh .meta b{color:var(--text);font-weight:500}
+.mh .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.mb{padding:16px 18px;white-space:normal;overflow-wrap:anywhere;font-size:14px}
+.labs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.labs label{font-size:12px;display:flex;gap:4px;align-items:center;background:#0a0f1c;border:1px solid var(--line);border-radius:12px;padding:1px 8px;cursor:pointer}
+#login{max-width:620px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+#login h2{font:700 20px var(--display);letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px}
+code{font-family:var(--mono);color:#e8c25a}
+/* compose window */
+#cw{position:fixed;right:22px;bottom:22px;width:min(620px,calc(100vw - 30px));background:var(--panel);border:1px solid #3a4d75;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.6);display:flex;flex-direction:column;z-index:20}
+#cw[hidden]{display:none}
+#cw .bar{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font:700 14px var(--display);letter-spacing:.1em;text-transform:uppercase}
+#cw .bar span{flex:1}
+#cw .f{display:grid;grid-template-columns:62px 1fr;gap:6px 8px;padding:10px 12px;align-items:center}
+#cw input,#cw textarea,#cw select{width:100%;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:5px;padding:6px 8px;font:14px var(--body)}
+#cw textarea{grid-column:1/3;min-height:230px;resize:vertical;font:13.5px/1.5 var(--body)}
+#cw .ft{display:flex;gap:8px;align-items:center;padding:0 12px 12px}
+#cw .ft .dim{flex:1;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;font-size:12px;margin-top:4px}
+.chips span{background:#13203a;border:1px solid var(--line);border-radius:10px;padding:0 7px}
+.chips .bad{border-color:#6b2a2a}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#16213a;border:1px solid var(--line);border-radius:6px;padding:8px 14px;z-index:30}
+#toast[hidden]{display:none}
+@media (max-width:900px){ #app{grid-template-columns:1fr} #folders{max-height:30vh} #read{border-top:1px solid var(--line)} .pane{border-right:0} }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../">Anoikis <b>Traveler</b></a> · mail</h1>
+  <div id="chars"></div>
+</header>
+
+<div id="login" hidden>
+  <h2>Your EVE mail, outside the game</h2>
+  <p>Read, answer and send EVE mail for each of your characters, like in the game. Log in with EVE: the login stays in this browser only.</p>
+  <p><button type="button" class="primary" id="bLogin">Log in with EVE</button></p>
+  <p id="msg" class="dim"></p>
+</div>
+
+<div id="app" hidden>
+  <nav class="pane" id="folders" aria-label="Folders"></nav>
+  <section class="pane" id="listPane">
+    <div id="listBar"><input id="q" type="search" placeholder="Search in this folder (sender, subject)" aria-label="Search"><button type="button" id="bRefresh" title="Check for new mail">⟳</button></div>
+    <div id="list"></div>
+  </section>
+  <article class="pane" id="read"><div class="empty">Choose a mail to read it.</div></article>
+</div>
+
+<div id="cw" hidden role="dialog" aria-label="New mail">
+  <div class="bar"><span id="cwTitle">New mail</span><button type="button" id="cwClose" title="Close (the draft is kept)">✕</button></div>
+  <div class="f">
+    <label for="cwFrom" class="dim">From</label><select id="cwFrom"></select>
+    <label for="cwTo" class="dim">To</label><div><input id="cwTo" list="known" placeholder="Character, corporation, alliance or mailing list, separated by commas" autocomplete="off"><div class="chips" id="cwChips"></div></div>
+    <label for="cwSub" class="dim">Subject</label><input id="cwSub" maxlength="1000">
+    <textarea id="cwBody" maxlength="9000" aria-label="Message"></textarea>
+  </div>
+  <div class="ft"><span class="dim" id="cwInfo"></span><button type="button" id="cwDiscard">Discard</button><button type="button" class="primary" id="cwSend">Send</button></div>
+</div>
+<datalist id="known"></datalist>
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const SSO = 'https://login.eveonline.com/v2/oauth', ESI = 'https://esi.evetech.net/latest';
+const ROOT = location.origin + location.pathname.replace(/mail\/(index\.html)?$/, '');
+const SCOPES = 'esi-mail.read_mail.v1 esi-mail.send_mail.v1 esi-mail.organize_mail.v1';
+const DEMO = new URLSearchParams(location.search).has('demo');
+const store = { get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } }, set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+const b64url = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const jwt = t => { try{ return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }catch(e){ return {}; } };
+const when = t => { const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' }) : d.toLocaleDateString(undefined, { day:'2-digit', month:'2-digit', year:d.getFullYear() === now.getFullYear() ? undefined : '2-digit' }); };
+const full = t => new Date(t).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' (EVE ' + new Date(t).toISOString().slice(0, 16).replace('T', ' ') + ')';
+function toast(t, bad){ const e = $('#toast'); e.textContent = t; e.className = bad ? 'bad' : ''; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => e.hidden = true, 4000); }
+
+/* ---------- characters and tokens (kept in this browser only) ---------- */
+let chars = store.get('at.mail.chars', {}), cur = store.get('at.mail.cur', null), site = {};
+const saveChars = () => { store.set('at.mail.chars', chars); store.set('at.mail.cur', cur); };
+async function login(){
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = 'ml' + b64url(crypto.getRandomValues(new Uint8Array(12)));        // "ml": the site root sends the answer back here
+  sessionStorage.setItem('at.mail.pkce', JSON.stringify({ verifier, state }));
+  location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:ROOT, client_id:site.clientId, scope:SCOPES, code_challenge:challenge, code_challenge_method:'S256', state });
+}
+async function tokenRequest(params){
+  const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams(params) });
+  if (!r.ok) throw new Error('EVE refused the login (' + r.status + ')');
+  const j = await r.json(), c = jwt(j.access_token);
+  return { id:Number(String(c.sub || '').split(':').pop()), name:c.name || '', access:j.access_token, refresh:j.refresh_token, exp:(c.exp || 0) * 1000 };
+}
+async function token(id){
+  const c = chars[id]; if (!c) throw new Error('Character not logged in');
+  if (c.exp - 60000 > Date.now()) return c.access;
+  try{ const t = await tokenRequest({ grant_type:'refresh_token', refresh_token:c.refresh, client_id:site.clientId }); Object.assign(c, t); saveChars(); return c.access; }
+  catch(e){ c.expired = true; saveChars(); renderChars(); throw new Error(`${c.name}: the EVE login has expired, log in again with this character.`); }
+}
+async function api(path, opt = {}, id = cur){
+  const r = await fetch(ESI + path, { ...opt, headers:{ ...(opt.body ? { 'Content-Type':'application/json' } : {}), Authorization:'Bearer ' + await token(id) } });
+  if (!r.ok){ let m = ''; try{ m = (await r.json()).error || ''; }catch(e){} const err = new Error(m || 'EVE answered ' + r.status); err.status = r.status; throw err; }
+  return r.status === 204 ? null : r.json();
+}
+
+/* ---------- names of characters, corporations, alliances ---------- */
+let names = store.get('at.mail.names', {});
+async function resolve(ids){
+  ids = [...new Set(ids.map(Number))].filter(i => i && !names[i] && !lists.some(l => l.mailing_list_id === i));
+  const run = async part => {
+    if (!part.length) return;
+    try{ const r = await fetch(ESI + '/universe/names/', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(part) });
+      if (r.ok){ for (const x of await r.json()) names[x.id] = { n:x.name, c:x.category }; return; }
+      if (part.length === 1){ names[part[0]] = { n:'Mailing list', c:'mailing_list' }; return; } }catch(e){ return; }
+    const h = part.length >> 1; await run(part.slice(0, h)); await run(part.slice(h));       // one unknown id fails the whole call: split
+  };
+  for (let i = 0; i < ids.length; i += 900) await run(ids.slice(i, i + 900));
+  store.set('at.mail.names', names); updKnown();
+}
+const nameOf = id => { const l = lists.find(x => x.mailing_list_id === id); return l ? l.name : names[id] ? names[id].n : '#' + id; };
+function updKnown(){ $('#known').innerHTML = [...new Set([...Object.values(names).filter(x => x.c !== 'mailing_list').map(x => x.n), ...lists.map(l => l.name)])].sort().map(n => `<option value="${esc(n)}">`).join(''); }
+
+/* ---------- the EVE mail body: a small set of tags, turned into safe HTML ---------- */
+const CHAR_TYPES = new Set([1373,1374,1375,1376,1377,1378,1379,1380,1381,1382,1383,1384,1385,1386,34574]);
+function linkOf(href){
+  href = href.trim();
+  if (/^https?:\/\//i.test(href)) return href;
+  let m = href.match(/^showinfo:(\d+)(?:\/\/(\d+))?/i);
+  if (m){ const t = +m[1], id = m[2];
+    if (id && CHAR_TYPES.has(t)) return `https://evewho.com/character/${id}`;
+    if (id && t === 2) return `https://evewho.com/corporation/${id}`;
+    if (id && t === 16159) return `https://evewho.com/alliance/${id}`;
+    if (id && t === 5) return `https://zkillboard.com/system/${id}/`;
+    return `https://everef.net/types/${t}`; }
+  m = href.match(/^killReport:(\d+)/i); if (m) return `https://zkillboard.com/kill/${m[1]}/`;
+  return null;
+}
+function argb(c){ const m = String(c || '').match(/^#?([0-9a-f]{8}|[0-9a-f]{6})$/i); if (!m) return ''; let h = m[1]; if (h.length === 8) h = h.slice(2); return '#' + h; }
+function cleanBody(html){
+  const doc = new DOMParser().parseFromString('<div>' + String(html || '').replace(/\n/g, '<br>') + '</div>', 'text/html');
+  const walk = n => {
+    if (n.nodeType === 3) return esc(n.nodeValue);
+    if (n.nodeType !== 1) return '';
+    const tag = n.tagName.toLowerCase(); if (['script', 'style', 'iframe', 'object', 'template'].includes(tag)) return '';
+    const inner = [...n.childNodes].map(walk).join('');
+    if (tag === 'br') return '<br>';
+    if (['b', 'i', 'u', 'strong', 'em', 'p'].includes(tag)) return `<${tag}>${inner}</${tag}>`;
+    if (tag === 'font'){ const c = argb(n.getAttribute('color')); return c && !/^#(f{6}|bfbfbf|ffffff)$/i.test(c) ? `<span style="color:${c}">${inner}</span>` : inner; }
+    if (tag === 'a'){ const u = linkOf(n.getAttribute('href') || ''); if (!u) return inner; return `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${inner}</a>`; }
+    return inner;
+  };
+  return walk(doc.body.firstChild);
+}
+function plainBody(html){ const d = document.createElement('div'); d.innerHTML = cleanBody(html).replace(/<br>/g, '\n'); return d.textContent; }
+const toEve = t => esc(t).replace(/\r?\n/g, '<br>');
+
+/* ---------- folders, list, reading ---------- */
+let labels = [], lists = [], unreadAll = 0, folder = store.get('at.mail.folder', { k:'label', id:1 }), heads = [], openId = null, more = true, busy = false;
+const DEF = { 1:'Inbox', 2:'Sent', 4:'Corporation', 8:'Alliance' };
+async function loadFolders(){
+  const r = await api(`/characters/${cur}/mail/labels/`); labels = r.labels || []; unreadAll = r.total_unread_count || 0;
+  try{ lists = await api(`/characters/${cur}/mail/lists/`); }catch(e){ lists = []; }
+  chars[cur].unread = unreadAll; saveChars(); renderChars(); renderFolders(); updKnown();
+  document.title = (unreadAll ? `(${unreadAll}) ` : '') + 'EVE Mail · Anoikis Traveler';
+}
+function renderFolders(){
+  const fo = (k, id, n, u, col) => `<button type="button" class="fo${folder.k === k && folder.id === id ? ' on' : ''}" data-k="${k}" data-id="${id}"><span>${col ? `<i class="sw" style="background:${esc(col)}"></i>` : ''}${esc(n)}</span>${u ? `<span class="n">${u}</span>` : ''}</button>`;
+  const std = labels.filter(l => DEF[l.label_id]).sort((a, b) => a.label_id - b.label_id), own = labels.filter(l => !DEF[l.label_id]);
+  $('#folders').innerHTML = `<button type="button" class="primary" id="compose">✉ New mail</button>`
+    + std.map(l => fo('label', l.label_id, DEF[l.label_id], l.label_id === 2 ? 0 : l.unread_count)).join('')
+    + fo('all', 0, 'All mail', 0)
+    + '<h3>Labels</h3>' + own.map(l => fo('label', l.label_id, l.name, l.unread_count, l.color)).join('') + `<button type="button" class="fo dim" id="newLabel">+ New label</button>`
+    + (lists.length ? '<h3>Mailing lists</h3>' + lists.map(l => fo('list', l.mailing_list_id, l.name, 0)).join('') : '');
+  $('#compose').onclick = () => compose();
+  $('#newLabel').onclick = newLabel;
+  $('#folders').querySelectorAll('.fo[data-k]').forEach(b => b.onclick = () => { folder = { k:b.dataset.k, id:+b.dataset.id }; store.set('at.mail.folder', folder); renderFolders(); loadList(true); });
+}
+async function newLabel(){
+  const n = prompt('Name of the new label'); if (!n) return;
+  try{ await api(`/characters/${cur}/mail/labels/`, { method:'POST', body:JSON.stringify({ name:n.slice(0, 40), color:'#ffffff' }) }); await loadFolders(); }catch(e){ toast(e.message, true); }
+}
+async function loadList(reset){
+  if (busy) return; busy = true;
+  try{
+    if (reset){ heads = []; more = true; $('#list').innerHTML = '<div class="dim" style="padding:14px">Loading…</div>'; }
+    let last = heads.length ? heads[heads.length - 1].mail_id : null, got = [], tries = 0;
+    do{   // a mailing list has no label: read pages of all mail and keep its own
+      const p = new URLSearchParams(); if (folder.k === 'label') p.set('labels', folder.id); if (last) p.set('last_mail_id', last);
+      const page = await api(`/characters/${cur}/mail/?${p}`);
+      if (!page.length){ more = false; break; }
+      last = page[page.length - 1].mail_id;
+      got = got.concat(folder.k === 'list' ? page.filter(m => (m.recipients || []).some(r => r.recipient_id === folder.id)) : page);
+      if (page.length < 50) more = false;
+    } while (folder.k === 'list' && got.length < 20 && more && ++tries < 6);
+    heads = heads.concat(got);
+    await resolve(heads.flatMap(m => [m.from, ...(m.recipients || []).map(r => r.recipient_id)]));
+    renderList();
+  }catch(e){ $('#list').innerHTML = `<div class="bad" style="padding:14px">${esc(e.message)}</div>`; }
+  busy = false;
+}
+function renderList(){
+  const q = $('#q').value.trim().toLowerCase(), sent = folder.k === 'label' && folder.id === 2;
+  const rows = heads.filter(m => !q || (m.subject || '').toLowerCase().includes(q) || nameOf(m.from).toLowerCase().includes(q) || (m.recipients || []).some(r => nameOf(r.recipient_id).toLowerCase().includes(q)));
+  $('#list').innerHTML = (rows.length ? rows.map(m => `<div class="row${m.is_read ? '' : ' unread'}${m.mail_id === openId ? ' on' : ''}" data-m="${m.mail_id}" tabindex="0">
+      <span class="who">${esc(sent || m.from === cur ? 'To: ' + (m.recipients || []).map(r => nameOf(r.recipient_id)).join(', ') : nameOf(m.from))}</span><span class="t">${when(m.timestamp)}</span>
+      <span class="s">${esc(m.subject || '(no subject)')}</span></div>`).join('') : '<div class="dim" style="padding:14px">No mail here.</div>')
+    + (more ? '<button type="button" class="more" id="more">Older mail</button>' : '');
+  $('#list').querySelectorAll('.row').forEach(r => { r.onclick = () => openMail(+r.dataset.m); r.onkeydown = e => { if (e.key === 'Enter') openMail(+r.dataset.m); }; });
+  const mb = $('#more'); if (mb) mb.onclick = () => loadList(false);
+}
+let mailCache = {};
+async function openMail(id){
+  openId = id; renderList();
+  $('#read').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const m = mailCache[cur + ':' + id] || (mailCache[cur + ':' + id] = await api(`/characters/${cur}/mail/${id}/`)); m.mail_id = id;
+    await resolve([m.from, ...(m.recipients || []).map(r => r.recipient_id)]);
+    const h = heads.find(x => x.mail_id === id);
+    if (!m.read){ m.read = true; if (h) h.is_read = true; api(`/characters/${cur}/mail/${id}/`, { method:'PUT', body:JSON.stringify({ read:true }) }).then(loadFolders).catch(() => {}); renderList(); }
+    renderMail(m);
+  }catch(e){ $('#read').innerHTML = `<div class="empty bad">${esc(e.message)}</div>`; }
+}
+function renderMail(m){
+  const own = labels.filter(l => l.label_id !== 2);
+  $('#read').innerHTML = `<div class="mh"><h2>${esc(m.subject || '(no subject)')}</h2>
+      <div class="meta">From <b>${esc(nameOf(m.from))}</b> · ${esc(full(m.timestamp))}</div>
+      <div class="meta">To ${(m.recipients || []).map(r => `<b>${esc(nameOf(r.recipient_id))}</b>`).join(', ')}</div>
+      <div class="acts"><button type="button" data-a="reply">↩ Reply</button><button type="button" data-a="all">↩↩ Reply all</button><button type="button" data-a="fw">↪ Forward</button>
+        <button type="button" data-a="unread">Mark unread</button><button type="button" class="danger" data-a="del">Delete</button></div>
+      <div class="labs">${own.map(l => `<label><input type="checkbox" data-l="${l.label_id}"${(m.labels || []).includes(l.label_id) ? ' checked' : ''}>${esc(DEF[l.label_id] || l.name)}</label>`).join('')}</div></div>
+    <div class="mb">${cleanBody(m.body)}</div>`;
+  $('#read').querySelectorAll('[data-a]').forEach(b => b.onclick = () => act(b.dataset.a, m, b));
+  $('#read').querySelectorAll('[data-l]').forEach(c => c.onchange = async () => {
+    const ls = [...$('#read').querySelectorAll('[data-l]:checked')].map(x => +x.dataset.l);
+    try{ await api(`/characters/${cur}/mail/${m.mail_id}/`, { method:'PUT', body:JSON.stringify({ labels:ls }) }); m.labels = ls; toast('Labels saved'); loadFolders(); }catch(e){ toast(e.message, true); c.checked = !c.checked; } });
+}
+async function act(a, m, btn){
+  const quote = () => `\n\n--------------------------------\n${m.subject || ''}\nFrom: ${nameOf(m.from)}\nSent: ${new Date(m.timestamp).toISOString().slice(0, 16).replace('T', ' ')}\nTo: ${(m.recipients || []).map(r => nameOf(r.recipient_id)).join(', ')}\n\n${plainBody(m.body)}`;
+  const re = s => /^re:/i.test(s || '') ? s : 'Re: ' + (s || '');
+  if (a === 'reply') compose({ to:[nameOf(m.from)], sub:re(m.subject), body:quote() });
+  else if (a === 'all') compose({ to:[...new Set([m.from, ...(m.recipients || []).map(r => r.recipient_id)].filter(i => i !== cur).map(nameOf))], sub:re(m.subject), body:quote() });
+  else if (a === 'fw') compose({ to:[], sub:'Fw: ' + (m.subject || ''), body:quote() });
+  else if (a === 'unread'){ try{ await api(`/characters/${cur}/mail/${m.mail_id}/`, { method:'PUT', body:JSON.stringify({ read:false }) }); const h = heads.find(x => x.mail_id === m.mail_id); if (h) h.is_read = false; delete mailCache[cur + ':' + m.mail_id]; openId = null; renderList(); $('#read').innerHTML = '<div class="empty">Marked as unread.</div>'; loadFolders(); }catch(e){ toast(e.message, true); } }
+  else if (a === 'del'){
+    if (btn.dataset.sure !== '1'){ btn.dataset.sure = '1'; btn.textContent = 'Delete for good?'; setTimeout(() => { btn.dataset.sure = ''; btn.textContent = 'Delete'; }, 4000); return; }
+    try{ await api(`/characters/${cur}/mail/${m.mail_id}/`, { method:'DELETE' }); heads = heads.filter(x => x.mail_id !== m.mail_id); openId = null; renderList(); $('#read').innerHTML = '<div class="empty">Mail deleted.</div>'; loadFolders(); }catch(e){ toast(e.message, true); }
+  }
+}
+
+/* ---------- writing ---------- */
+let approved = 0;
+function compose(pre){
+  const d = store.get('at.mail.draft', null);
+  const v = pre || d || { to:[], sub:'', body:'' };
+  $('#cwFrom').innerHTML = Object.values(chars).filter(c => !c.expired).map(c => `<option value="${c.id}"${c.id === (v.from || cur) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  $('#cwTo').value = (v.to || []).join(', '); $('#cwSub').value = v.sub || ''; $('#cwBody').value = v.body || '';
+  $('#cwTitle').textContent = pre && /^Re:/i.test(pre.sub) ? 'Reply' : pre && /^Fw:/i.test(pre.sub) ? 'Forward' : 'New mail';
+  approved = 0; $('#cwInfo').textContent = ''; $('#cwChips').innerHTML = ''; $('#cw').hidden = false;
+  (v.to && v.to.length ? $('#cwBody') : $('#cwTo')).focus(); if (pre) $('#cwBody').setSelectionRange(0, 0);
+  saveDraft();
+}
+function saveDraft(){ store.set('at.mail.draft', { from:+$('#cwFrom').value, to:$('#cwTo').value.split(/[,;\n]/).map(s => s.trim()).filter(Boolean), sub:$('#cwSub').value, body:$('#cwBody').value }); $('#cwInfo').textContent = `${$('#cwBody').value.length} / 9000`; }
+async function recipients(text){
+  const want = [...new Set(text.split(/[,;\n]/).map(s => s.trim()).filter(Boolean))], out = [], miss = [];
+  const ask = [];
+  for (const w of want){ const l = lists.find(x => x.name.toLowerCase() === w.toLowerCase()); if (l) out.push({ n:l.name, r:{ recipient_id:l.mailing_list_id, recipient_type:'mailing_list' } }); else ask.push(w); }
+  if (ask.length){
+    const r = await fetch(ESI + '/universe/ids/', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(ask) });
+    const j = r.ok ? await r.json() : {};
+    for (const w of ask){
+      const f = k => (j[k] || []).find(x => x.name.toLowerCase() === w.toLowerCase());
+      const c = f('characters'), co = f('corporations'), al = f('alliances'), x = c || co || al;
+      if (!x){ miss.push(w); continue; }
+      names[x.id] = { n:x.name, c:c ? 'character' : co ? 'corporation' : 'alliance' };
+      out.push({ n:x.name, r:{ recipient_id:x.id, recipient_type:c ? 'character' : co ? 'corporation' : 'alliance' } });
+    }
+    store.set('at.mail.names', names);
+  }
+  return { out, miss };
+}
+async function checkTo(){
+  const t = $('#cwTo').value; if (!t.trim()){ $('#cwChips').innerHTML = ''; return null; }
+  const r = await recipients(t);
+  $('#cwChips').innerHTML = r.out.map(x => `<span title="${x.r.recipient_type.replace('_', ' ')}">${esc(x.n)} · ${x.r.recipient_type === 'mailing_list' ? 'list' : x.r.recipient_type.slice(0, 4)}</span>`).join('') + r.miss.map(n => `<span class="bad">✕ ${esc(n)} unknown</span>`).join('');
+  return r;
+}
+async function send(){
+  const b = $('#cwSend'); b.disabled = true; b.textContent = 'Sending…';
+  try{
+    const from = +$('#cwFrom').value, r = await checkTo();
+    if (!r || !r.out.length) throw new Error('Add at least one recipient.');
+    if (r.miss.length) throw new Error('Unknown names: ' + r.miss.join(', ') + ' (write the exact name).');
+    if (!$('#cwSub').value.trim()) throw new Error('Write a subject.');
+    await api(`/characters/${from}/mail/`, { method:'POST', body:JSON.stringify({ recipients:r.out.map(x => x.r), subject:$('#cwSub').value.slice(0, 1000), body:toEve($('#cwBody').value), approved_cost:approved }) }, from);
+    localStorage.removeItem('at.mail.draft'); $('#cw').hidden = true; toast('Mail sent.');
+    if (from === cur && folder.k === 'label' && folder.id === 2) loadList(true);
+  }catch(e){
+    if (/cost|CSPA/i.test(e.message) || e.status === 520){
+      const v = prompt(`EVE asks a CSPA charge to mail this pilot (they only take mail from contacts for a fee).\n${e.message}\n\nMost ISK you agree to pay:`, '');
+      if (v && +v > 0){ approved = Math.round(+v); b.disabled = false; b.textContent = 'Send'; return send(); }
+    }
+    toast(e.message, true);
+  }
+  b.disabled = false; b.textContent = 'Send';
+}
+
+/* ---------- characters bar ---------- */
+function renderChars(){
+  const list = Object.values(chars);
+  $('#chars').innerHTML = list.map(c => `<button type="button" class="ch${c.id === cur ? ' on' : ''}" data-c="${c.id}" title="${c.expired ? 'Login expired: click to log in again' : 'Show the mail of ' + esc(c.name)}"><img alt="" src="https://images.evetech.net/characters/${c.id}/portrait?size=64">${esc(c.name)}${c.expired ? ' ⚠' : c.unread ? `<span class="u">${c.unread}</span>` : ''}</button>`).join('')
+    + `<button type="button" id="addChar" title="Log in one more character">+ Character</button>` + (cur ? `<button type="button" id="outChar" title="Forget this character in this browser">Log out</button>` : '');
+  $('#chars').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = chars[b.dataset.c]; if (c.expired) return login(); cur = c.id; saveChars(); start(); });
+  $('#addChar').onclick = login;
+  const o = $('#outChar'); if (o) o.onclick = () => { if (o.dataset.sure !== '1'){ o.dataset.sure = '1'; o.textContent = 'Log out ' + chars[cur].name + '?'; return; } delete chars[cur]; cur = Object.keys(chars)[0] ? +Object.keys(chars)[0] : null; saveChars(); cur ? start() : showLogin(); };
+}
+function showLogin(msg){ renderChars(); $('#app').hidden = true; $('#login').hidden = false; if (msg) $('#msg').innerHTML = msg; }
+async function start(){
+  $('#login').hidden = true; $('#app').hidden = false; openId = null; $('#read').innerHTML = '<div class="empty">Choose a mail to read it.</div>';
+  renderChars();
+  try{ await loadFolders(); await loadList(true); }catch(e){ $('#list').innerHTML = `<div class="bad" style="padding:14px">${esc(e.message)}</div>`; }
+}
+async function poll(){   // unread counts of every character, and new mail in the open folder
+  for (const c of Object.values(chars)){ if (c.expired) continue;
+    try{ const r = await api(`/characters/${c.id}/mail/labels/`, {}, c.id); const was = c.unread || 0; c.unread = r.total_unread_count || 0;
+      if (c.unread > was && document.hidden && 'Notification' in window && Notification.permission === 'granted') new Notification(`${c.name}: new EVE mail`, { body:`${c.unread} unread`, icon:`https://images.evetech.net/characters/${c.id}/portrait?size=64` });
+      if (c.id === cur && c.unread !== was){ labels = r.labels || labels; unreadAll = c.unread; renderFolders(); if (!$('#q').value) loadList(true); document.title = (unreadAll ? `(${unreadAll}) ` : '') + 'EVE Mail · Anoikis Traveler'; }
+    }catch(e){} }
+  saveChars(); renderChars();
+}
+
+(async function init(){
+  site = await (await fetch('../site.json', { cache:'no-store' })).json();
+  $('#bLogin').onclick = login;
+  $('#bRefresh').onclick = () => { loadFolders().catch(e => toast(e.message, true)); loadList(true); };
+  $('#q').oninput = renderList;
+  $('#cwClose').onclick = () => { saveDraft(); $('#cw').hidden = true; };
+  $('#cwDiscard').onclick = () => { localStorage.removeItem('at.mail.draft'); $('#cw').hidden = true; };
+  $('#cwSend').onclick = send;
+  ['cwFrom', 'cwTo', 'cwSub', 'cwBody'].forEach(i => $('#' + i).addEventListener('input', saveDraft));
+  $('#cwTo').addEventListener('change', () => checkTo().catch(() => {}));
+  $('#cwBody').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); });
+  const q = new URLSearchParams(location.search);
+  if (q.has('error')){
+    window.history.replaceState(null, '', location.pathname);
+    return showLogin(`<span class="bad">EVE refused the login: ${esc(q.get('error_description') || q.get('error'))}.</span>` + (/scope/i.test(q.get('error') + q.get('error_description')) ? '<br>The site\'s EVE application must allow the scopes <code>esi-mail.read_mail.v1</code>, <code>esi-mail.send_mail.v1</code> and <code>esi-mail.organize_mail.v1</code> (developers.eveonline.com).' : ''));
+  }
+  if (q.has('code')){
+    window.history.replaceState(null, '', location.pathname);
+    const saved = JSON.parse(sessionStorage.getItem('at.mail.pkce') || 'null');
+    if (!saved || saved.state !== q.get('state')) return showLogin('<span class="bad">Login interrupted, try again.</span>');
+    try{ const t = await tokenRequest({ grant_type:'authorization_code', code:q.get('code'), client_id:site.clientId, code_verifier:saved.verifier }); chars[t.id] = t; cur = t.id; saveChars(); }
+    catch(e){ return showLogin(`<span class="bad">${esc(e.message)}</span>`); }
+  }
+  if (cur && !chars[cur]) cur = Object.keys(chars)[0] ? +Object.keys(chars)[0] : null;
+  if (!cur) return showLogin('Your tokens never leave this browser: the site has no server copy of your mail.');
+  start();
+  setInterval(poll, 60000);
+  if ('Notification' in window && Notification.permission === 'default') document.addEventListener('click', () => Notification.requestPermission(), { once:true });
+})();
+</script>
+</body>
+</html>

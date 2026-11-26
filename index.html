@@ -10,6 +10,7 @@
   if (/^rg/.test(q.get('state') || '')) location.replace('regions/' + location.search);              // login started from the map
   else if (/^py/.test(q.get('state') || '')) location.replace('pay/' + location.search);            // the payee linking the wallet
   else if (/^ad/.test(q.get('state') || '')) location.replace('admin/' + location.search);          // the site owner's map list
+  else if (/^ml/.test(q.get('state') || '')) location.replace('mail/' + location.search);           // EVE mail
   else if (q.has('demo') && [...q.keys()].length === 1) location.replace('regions/?demo');          // the demo is the map's
   else if (location.search || /^#(config|a)=/.test(location.hash)) location.replace('map/' + location.search + location.hash);
 })();
@@ -54,7 +55,7 @@ h1 b{color:var(--accent);display:block}
 .btn:hover{border-color:var(--dim)}
 .btn.primary{background:var(--accent);color:#1a1205;border-color:var(--accent)}
 .btn.primary:hover{filter:brightness(1.08)}
-.tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+.tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:10px}
 .tool{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 16px 14px;backdrop-filter:blur(8px);transition:border-color .2s,transform .2s,background .2s}
 .tool:hover{border-color:rgba(242,167,75,.55);transform:translateY(-2px);background:rgba(20,28,48,.82)}
 .tool .ic{width:34px;height:34px;display:block;margin-bottom:10px}
@@ -124,6 +125,9 @@ h1 b{color:var(--accent);display:block}
       <a class="tool" href="appraisal/">
         <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><path d="M6 27h22" stroke="#8fb0ff" stroke-width="1.5"/><path d="M9 23v-6M15 23V11M21 23v-9M27 23V7" stroke="#f2a74b" stroke-width="3" stroke-linecap="round"/></svg>
         <h2>Appraisal</h2><p>Paste any item list and get its real value in Jita, Amarr, Dodixie, Rens or Hek.</p><span class="go">Open →</span></a>
+      <a class="tool" href="mail/">
+        <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><rect x="5" y="9" width="24" height="17" rx="2" fill="none" stroke="#8fb0ff" stroke-width="1.5"/><path d="M6 11l11 8 11-8" fill="none" stroke="#f2a74b" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <h2>Mail</h2><p>Read and send your EVE mail outside the game, for all your characters, with labels and mailing lists.</p><span class="go">Open →</span></a>
     </nav>
     <div class="foot">
       <span>Free up to 5 characters, no ads. Beyond that, 50 M ISK a week per block of 5 characters. Not affiliated with CCP Games. EVE Online © CCP hf.</span>
