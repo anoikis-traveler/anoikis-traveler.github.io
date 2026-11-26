@@ -431,7 +431,7 @@ body.nf #hint{transform:translateY(-16px)}
 .sigt td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sigt td.nm .bm{font-size:11.5px;color:#e8c25a;margin-left:7px}
 .sigt td.nm .bm.dim{color:var(--dim)}
-.sigform{display:grid;grid-template-columns:74px 1.2fr 1fr .8fr;gap:3px}
+.sigform{display:grid;grid-template-columns:62px 1.1fr .9fr .6fr;grid-auto-flow:column;grid-auto-columns:62px;gap:3px}
 .sigform input,.sigform select{min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:1px 4px;font:12px var(--body);height:22px}
 .sigt .x.ok{color:var(--ok)}
 .sigf{border:0;cursor:pointer;width:auto!important;margin:1px 0}
@@ -1006,12 +1006,23 @@ function splash(html, lvl){
 /* Same rule as the mapper: past its estimated lifetime a wormhole blinks for 1 h, then it no longer counts.
    Lifetime by type from the mapper's wormhole data (same browser storage), 48 h if the type is unknown; 4 h after EOL. */
 const whTypes = () => { const d = store.get('whmap.data2', null); return (d && d.types) || {}; };
+/* Show info of a wormhole, noted on its signature: the hole is expected to close at the end of that time, and is taken off the map 1 hour later */
+const LIFE = { gt24:['> 1 day', 'has not yet begun its natural cycle of decay', 24], lt24:['< 1 day', 'is beginning to decay', 24], lt4:['< 4 h', 'is reaching the end of its natural lifetime', 4], lt1:['< 1 h', 'is on the verge of dissipating', 1] };
+function sigClose(l){   // when the hole of this link should close, from a signature's Show info
+  const all = typeof sigsAll === 'function' ? sigsAll() : {};
+  for (const sysId in all){ const L = (all[sysId] || {}).list || {}; for (const k in L){ const v = L[k];
+    if (v && v.link && String(v.link) === String(l.id) && v.life && v.lifeAt){ const h = LIFE[v.life] ? LIFE[v.life][2] : Number(v.life); if (h > 0) return v.lifeAt + h * 3600e3; } } }
+  return null;
+}
+const closeTxt = t => { const d = new Date(t), now = new Date(); return (d.toDateString() === now.toDateString() ? '' : d.toLocaleDateString(undefined, { day:'2-digit', month:'2-digit' }) + ' ') + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' }); };
 function whPhase(l){
   const now = Date.now();
   if (l.type === 'gate') return 'ok';
   if (l.src === 'eve-scout') return l.expires && l.expires <= now ? 'dead' : 'ok';
   const t = l.wh && whTypes()[String(l.wh).toUpperCase()], out = [];
   if (l.eol && l.eolAt) out.push(l.eolAt + 4 * 3600e3);
+  const sc = sigClose(l);
+  if (sc) return now < sc ? 'ok' : now < sc + 3600e3 ? 'dying' : 'dead';           // Show info given: it closes 1 hour after the expected end
   if (l.created) out.push(l.created + (t && t.life ? t.life : 48) * 3600e3);
   if (!out.length) return 'ok';
   const d = Math.min(...out);
@@ -1906,6 +1917,7 @@ async function pasteSigs(txt){
   }
 }
 let sigEdit = null, sigFilter = new Set(store.get('whmap.reg.sigFilter', []));   // types shown; empty = all   // the signature being edited
+const sigLinksOf = id => allHoles().filter(l => l.src !== 'eve-scout' && l.type !== 'gate' && (String(l.a) === String(id) || String(l.b) === String(id)));
 const SIG_TYPES = ['Wormhole', 'Data Site', 'Relic Site', 'Gas Site', 'Combat Site', 'Ore Site'];
 const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h' : Math.floor(m / 1440) + ' d'; };
 const agoTxt = t => ago(t) === 'now' ? 'just now' : ago(t) + ' ago';
@@ -1933,10 +1945,12 @@ function renderSigs(force){
             <select data-f="type" title="Type"><option value="">?</option>${SIG_TYPES.map(t => `<option value="${t}"${sigCat(t) === c ? ' selected' : ''}>${t.replace(' Site', '')}</option>`).join('')}</select>
             <input data-f="name" value="${esc(v.name || '')}" placeholder="Name / K162 → C5" title="Site name, or wormhole type">
             <input data-f="bm" value="${esc(v.bm || '')}" placeholder="🔖 bookmark" title="Name of your bookmark in game">
-            <input data-f="note" value="${esc(v.note || '')}" placeholder="note" title="Anything for your group"></div></td>
+            <input data-f="note" value="${esc(v.note || '')}" placeholder="note" title="Anything for your group">
+            ${c && c[0] === 'wh' || !v.type ? `<select data-f="life" title="Show info of the wormhole: how long it has left. The hole is expected to close then, and leaves the map 1 hour later"><option value="">⌛ ?</option>${Object.entries(LIFE).map(([k2, x]) => `<option value="${k2}"${v.life === k2 ? ' selected' : ''} title="${esc(x[1])}">${x[0]}</option>`).join('')}${[2, 8, 12, 16].map(h => `<option value="${h}"${String(v.life) === String(h) ? ' selected' : ''}>${h} h</option>`).join('')}</select>
+            <select data-f="link" title="Which connection of the map this signature is"><option value="">↔ ?</option>${sigLinksOf(id).map(l => `<option value="${esc(l.id)}"${String(v.link || '') === String(l.id) || (!v.link && sigLinksOf(id).length === 1) ? ' selected' : ''}>→ ${esc(sysName(String(l.a) === String(id) ? l.b : l.a))}</option>`).join('')}</select>` : ''}</div></td>
             <td style="white-space:nowrap"><button type="button" class="x ok" data-save="${esc(k)}" title="Save (Enter)">✓</button><button type="button" class="x" data-cancel="1" title="Cancel (Esc)">↶</button></td></tr>`;
         return `<tr class="${Date.now() - v.t < 10 * 60000 ? 'new' : ''}" data-editsig="${esc(k)}" title="Click to edit"><td class="id">${esc(k)}</td><td>${c ? `<span class="sigc" style="background:${c[2]}">${c[1]}</span>` : '<span class="sigc" style="background:#59627a;color:#fff">?</span>'}</td>
-          <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
+          <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}${v.life && v.lifeAt ? (() => { const h = LIFE[v.life] ? LIFE[v.life][2] : Number(v.life), t = v.lifeAt + h * 3600e3; return `<span class="bm" style="color:${Date.now() > t ? 'var(--bad)' : 'var(--eol)'}" title="Show info ${LIFE[v.life] ? LIFE[v.life][0] : h + ' h'} at ${closeTxt(v.lifeAt)}${v.link ? '' : ' · link it to a connection to time the hole'}">⌛ ~${closeTxt(t)}</span>`; })() : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
           <td style="white-space:nowrap"><button type="button" class="x" data-editsig="${esc(k)}" title="Edit ${esc(k)}">✎</button><button type="button" class="x" data-delsig="${esc(k)}" title="Remove ${esc(k)}">✕</button></td></tr>`; }).join('')}</table>`;
   $('#sigList').querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { const k = b.dataset.sf;
     if (k === '*') sigFilter.clear(); else if (sigFilter.has(k)) sigFilter.delete(k); else sigFilter.add(k);
@@ -1946,8 +1960,10 @@ function renderSigs(force){
   const save = $('#sigList [data-save]');
   if (save){
     const doSave = async () => { const rec = sigsOf(id); if (!rec) return; const k = save.dataset.save, f = n => $('#sigList [data-f="' + n + '"]').value.trim();
-      const list2 = { ...rec.list, [k]:{ ...rec.list[k], type:f('type'), name:f('name'), bm:f('bm'), note:f('note'), edited:true, u:Date.now() } };
-      if (await saveSigs(id, { ...rec, list:list2 })){ sigEdit = null; renderSigs(true); renderPanel(); } };
+      const g = n => { const e = $('#sigList [data-f="' + n + '"]'); return e ? e.value : undefined; }, old = rec.list[k], life = g('life'), link = g('link');
+      const list2 = { ...rec.list, [k]:{ ...old, type:f('type'), name:f('name'), bm:f('bm'), note:f('note'), edited:true, u:Date.now(),
+        ...(life !== undefined ? { life:life || '', lifeAt:life ? (life === old.life && old.lifeAt ? old.lifeAt : Date.now()) : 0, link:link || '' } : {}) } };
+      if (await saveSigs(id, { ...rec, list:list2 })){ sigEdit = null; renderSigs(true); renderPanel(); render(); if (!$('#wChain').hidden) renderChain(); } };
     save.onclick = doSave;
     $('#sigList').querySelectorAll('.sigform input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') doSave(); if (e.key === 'Escape'){ sigEdit = null; renderSigs(true); } });
   }
@@ -3024,7 +3040,8 @@ function draw(){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
     if ((isHubVirtual(a) || isHubVirtual(b)) && !(pa && pb)) continue;
     const cls = 'whl ' + (downOf(l) ? 'down ' : '') + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
-    const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : ''].filter(Boolean).join(' ');
+    const sc = sigClose(l);
+    const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : sc ? '⌛ ~' + closeTxt(sc) : ''].filter(Boolean).join(' ');
     if (pa && pb){
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - Math.hypot(pb.x - pa.x, pb.y - pa.y) * 0.25;
       const hcol = isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b), coloured = !/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b));
@@ -3702,7 +3719,7 @@ function renderChain(){
     const r = L(a, b), cls = 'ce ' + (l.type === 'gate' ? 'gate' : (l.mass || 'fresh')) + (whPhase(l) === 'dying' ? ' dying' : '');
     const path = el('path', { d:r.d, class:cls, style:`stroke:${col}` }, gE);
     el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${[l.wh, l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', l.mass].filter(Boolean).join(' · ')}`;
-    const txt = l.type === 'gate' ? 'gate' : [l.wh || 'WH', l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : ''].filter(Boolean).join(' ');
+    const txt = l.type === 'gate' ? 'gate' : [l.wh || 'WH', l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', sigClose(l) ? '⌛ ~' + closeTxt(sigClose(l)) : ''].filter(Boolean).join(' ');
     pill(r.mx, r.my, txt, col);
   }
   for (const br of g.bridges){ if (!pos[br.a] || !pos[br.b]) continue; const r = L(br.a, br.b); el('path', { d:r.d, class:'ce k' + (br.home ? ' hm' : '') }, gE); pill(r.mx, r.my, `${br.home ? '⌂ ' : ''}${br.d} jump${br.d === 1 ? '' : 's'}`, br.home ? '#e8c25a' : '#8b98b0'); }
