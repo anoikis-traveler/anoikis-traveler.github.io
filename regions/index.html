@@ -205,7 +205,12 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .widget .wcol:hover{border-color:var(--line)}
 .widget .wb{padding:10px 11px;overflow:auto;min-height:0}
 .widget.folded .wb,.widget.folded #apHead{display:none}
-.widget.folded .wh{border-bottom:none}
+.widget.folded .wh{border-bottom:none;cursor:pointer}
+/* folded windows: all the same size, in a column at the bottom left of the map */
+.widget.folded{width:230px!important;min-width:0!important;height:auto!important;transition:top .2s,left .2s}
+.widget.folded .wnav,.widget.folded .wh > :not(.wt):not(.wsub):not(.wcol){display:none}
+.widget.folded .wt{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.widget.folded .wh{padding:5px 6px 5px 10px}
 .brand{font-family:var(--display);font-size:1.2rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text);text-decoration:none}
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
@@ -462,7 +467,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
 
   <section class="widget" id="wTool" data-title="Anoikis Traveler">
-    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a href="../mail/">Mail</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb tool">
       <select id="regSel" aria-label="Region"></select>
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
@@ -3215,9 +3220,15 @@ function defaultPos(id, el){
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
            wAssets:{ x:Math.max(12, W0 - 760), y:90 } }[id] || { x:40, y:40 };
 }
+function dockFolded(){   // folded windows line up from the bottom left, oldest at the bottom, then a new column
+  const L = [...document.querySelectorAll('.widget.folded')].filter(w => !w.hidden).sort((a, b) => ((wstate[a.id] || {}).ft || 0) - ((wstate[b.id] || {}).ft || 0));
+  let x = 8, y = innerHeight - 8;
+  for (const w of L){ const h = w.offsetHeight || 32; if (y - h < 70 && y !== innerHeight - 8){ x += 236; y = innerHeight - 8; } y -= h; w.style.left = x + 'px'; w.style.top = y + 'px'; y -= 4; }
+}
 function placeWidget(el){
   const st = wstate[el.id] || {}, d = defaultPos(el.id, el);
   el.classList.toggle('folded', !!st.folded);
+  if (st.folded){ dockFolded(); return; }
   const x = st.x != null ? st.x : d.x, y = st.y != null ? st.y : d.y;
   el.style.left = Math.max(4, Math.min(innerWidth - Math.min(el.offsetWidth, innerWidth - 8) - 4, x)) + 'px';
   el.style.top = Math.max(4, Math.min(innerHeight - 36, y)) + 'px';
@@ -3227,7 +3238,7 @@ function initWidget(el){
   let st = null;
   el.addEventListener('pointerdown', () => { el.style.zIndex = ++wz; });
   head.addEventListener('pointerdown', e => {
-    if (e.target.closest('button,a,select,input')) return;
+    if (e.target.closest('button,a,select,input') || el.classList.contains('folded')) return;   // a folded window stays in the column
     st = { x:e.clientX, y:e.clientY, l:el.offsetLeft, t:el.offsetTop }; head.setPointerCapture(e.pointerId); el.classList.add('dragging');
   });
   head.addEventListener('pointermove', e => {
@@ -3237,14 +3248,22 @@ function initWidget(el){
   });
   const end = () => { if (!st) return; st = null; el.classList.remove('dragging'); wstate[el.id] = { ...(wstate[el.id] || {}), x:el.offsetLeft, y:el.offsetTop }; store.set('whmap.reg.widgets', wstate); };
   head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
-  head.addEventListener('dblclick', e => { if (!e.target.closest('button,a,select,input')) fold.click(); });
-  fold.addEventListener('click', () => { const f = !el.classList.contains('folded'); el.classList.toggle('folded', f); fold.textContent = f ? '+' : '–'; wstate[el.id] = { ...(wstate[el.id] || {}), folded:f }; store.set('whmap.reg.widgets', wstate); });
+  head.addEventListener('dblclick', e => { if (!e.target.closest('button,a,select,input') && !el.classList.contains('folded')) fold.click(); });
+  head.addEventListener('click', e => { if (el.classList.contains('folded') && !e.target.closest('button,a,select,input')) fold.click(); });   // a click on a folded bar opens it
+  fold.addEventListener('click', () => {
+    const f = !el.classList.contains('folded');
+    // folding keeps where the window was open, unfolding puts it back there
+    wstate[el.id] = f ? { ...(wstate[el.id] || {}), x:el.offsetLeft, y:el.offsetTop, folded:true, ft:Date.now() } : { ...(wstate[el.id] || {}), folded:false };
+    store.set('whmap.reg.widgets', wstate); fold.textContent = f ? '+' : '–';
+    el.classList.toggle('folded', f); placeWidget(el); dockFolded(); if (!f) el.style.zIndex = ++wz; });
   if ((wstate[el.id] || {}).folded) fold.textContent = '+';
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
 function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 function setupWidgets(){
+  new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
+  addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
   ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => initWidget($('#' + id)));
   addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => placeWidget($('#' + id))));
