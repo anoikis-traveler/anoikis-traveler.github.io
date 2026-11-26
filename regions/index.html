@@ -750,11 +750,14 @@ const WH_DEF = { ...WH_COL };
 const LINE_COLS = [ ['gate', 'Gate', '#3c4a66'], ['gatec', 'Gate between constellations', '#55688f'], ['gater', 'Gate to another region', '#f2a74b'], ['jb', 'Jump bridge', '#cfd8e6'],
   ['wh', 'Wormhole (when not coloured by destination)', '#8fb0d8'], ['reduced', 'Wormhole: mass reduced', '#f2c94b'], ['critical', 'Wormhole: mass critical', '#ef5a5a'], ['eol', 'Wormhole: end of life', '#c07cff'],
   ['route', 'Route on the map', '#5fd68a'], ['ap', 'Autopilot route', '#4fd2ff'],
-  ['inc', '☣ Incursion (ring and label)', '#ff5c8a'], ['kill', '☠ Recent kill (blinking halo)', '#ff4d4d'], ['gold', '⌂ HOME, ENTER, EXIT (gold marks)', '#e8c25a'] ];
+  ['inc', '☣ Incursion (ring and label)', '#ff5c8a'], ['kill', '☠ Recent kill (blinking halo)', '#ff4d4d'], ['gold', '⌂ HOME, ENTER, EXIT (gold marks)', '#e8c25a'],
+  ['thr1', 'Friendly (positive standing)', '#5fd68a'], ['thr2', 'Low (neutral)', '#f2e05a'], ['thr3', 'Medium (negative)', '#f2a74b'], ['thr4', 'High (−5 or less)', '#ef5a5a'], ['thr5', 'Extreme (−10)', '#ff2bd6'] ];
+const thrCol = k => (userCols.line || {})['thr' + k] || (LINE_COLS.find(x => x[0] === 'thr' + k) || [])[2] || '';
 let userCols = store.get('whmap.reg.colors', { wh:{}, line:{} });
 const BLINK_SEL = { gate:'.gate:not(.xc):not(.xr):not(.route):not(.ap)', gatec:'.gate.xc', gater:'.gate.xr', jb:'.jb', route:'.route', ap:'.ap',
   wh:'.whl:not([data-dc])', reduced:'.whl.reduced', critical:'.whl.critical', eol:'.whl.eol',
-  inc:'.inc,.incg', kill:'.killhalo,.killbox,.killtxt', gold:'.goldring,.goldglow,.gtag,.goldbox' };
+  inc:'.inc,.incg', kill:'.killhalo,.killbox,.killtxt', gold:'.goldring,.goldglow,.gtag,.goldbox',
+  thr1:'.sovring.thr1', thr2:'.sovring.thr2', thr3:'.sovring.thr3', thr4:'.sovring.thr4', thr5:'.sovring.thr5' };
 const BLINK_DEF = { kill:true };            // the kill halo blinks unless you turn it off
 const blinkOn = k => { const b = userCols.blink || {}; return k in b ? !!b[k] : !!BLINK_DEF[k]; };
 function applyCols(){
@@ -1495,8 +1498,9 @@ function renderCols(){
     + '<h4>Gates, bridges and routes</h4>' + LINE_COLS.filter(([k]) => ['gate', 'gatec', 'gater', 'jb', 'route', 'ap'].includes(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d, dashOf(k))).join('')
     + '<h4>Wormhole state (Chain window, other colour modes)</h4>' + LINE_COLS.filter(([k]) => ['wh', 'reduced', 'critical', 'eol'].includes(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d, dashOf(k))).join('')
     + '<h4>Marks on systems</h4>' + LINE_COLS.filter(([k]) => ['inc', 'kill', 'gold'].includes(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d)).join('')
+    + '<h4>Standings / threat (dots, frames, WH holders)</h4>' + LINE_COLS.filter(([k]) => /^thr/.test(k)).map(([k, l, d]) => row('line', k, l, (userCols.line || {})[k] || d, d)).join('')
     + '<div class="foot"><button type="button" class="small" id="colsReset">Reset all colours and blinking</button></div>';
-  const redraw = () => { applyCols(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain(); renderAllChains(); };
+  const redraw = () => { applyCols(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain(); renderAllChains(); if (typeof renderHold === 'function') renderHold(); };
   $('#colsBody').querySelectorAll('input[type=color]').forEach(inp => inp.oninput = () => {
     const g = inp.dataset.g, k = inp.dataset.k; userCols[g] = userCols[g] || {}; userCols[g][k] = inp.value; store.set('whmap.reg.colors', userCols);
     const sw = inp.parentElement.querySelector('.sw'); if (sw) sw.style.borderTopColor = inp.value;
@@ -1915,7 +1919,7 @@ function standOf(id, kind){
   return 0;   // neutral
 }
 const lvlOfStanding = st => st == null ? 0 : st > 0 ? 1 : st <= -10 ? 5 : st <= -5 ? 4 : st < 0 ? 3 : 2;   // blue · neutral = low · red: medium, high, extreme
-const THREAT = [ { k:0, n:'—', c:'' }, { k:1, n:'Friendly', c:'#5fd68a' }, { k:2, n:'Low', c:'#f2e05a' }, { k:3, n:'Medium', c:'#f2a74b' }, { k:4, n:'High', c:'#ef5a5a' }, { k:5, n:'Extreme', c:'#ff2bd6' } ];
+const THREAT = [ { k:0, n:'—', c:'' }, ...['Friendly', 'Low', 'Medium', 'High', 'Extreme'].map((n, i) => ({ k:i + 1, n, get c(){ return thrCol(i + 1); } })) ];   // colours from the Colours window
 function holdLvl(r){   // set by hand, or from your standings
   if (!r) return { lvl:0, auto:false };
   if (r.lvlSet || !(r.holder && r.holder.id) || !standReady()) return { lvl:r.lvl || 0, auto:false };
@@ -2819,7 +2823,7 @@ function draw(){
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
     if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : STATS[statMode].dec ? (v < 10 ? v.toFixed(1) : Math.round(v)) : v; } }
     const ally = !s.ext && sovLogos && !statMode ? sovOf(id) : null;
-    if (ally){ const lr = r * 0.96, tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:p.x + r * 0.95, cy:p.y - r * 0.95, r:Math.max(2.6, r * 0.32), fill:THREAT[tl].c, stroke:'#05070d', 'stroke-width':1, class:'sovring', 'pointer-events':'none' }, g);   /* a small dot of the threat colour, up right of the ball */ el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
+    if (ally){ const lr = r * 0.96, tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:p.x + r * 0.95, cy:p.y - r * 0.95, r:Math.max(2.6, r * 0.32), fill:THREAT[tl].c, stroke:'#05070d', 'stroke-width':1, class:'sovring thr' + tl, 'pointer-events':'none' }, g);   /* a small dot of the threat colour, up right of the ball */ el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none', opacity:ally ? .7 : 1 }, g);
     el('title', {}, g).textContent = (s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`) + (sovOf(id) ? ` · ${sovNames[sovOf(id)] || 'alliance'}` : '');
     const as = assetsAt(id);
