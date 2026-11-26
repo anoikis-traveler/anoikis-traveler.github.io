@@ -215,6 +215,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
 .view .proxy{display:none!important}
+.kst{font-size:11.5px;margin:2px 0 4px}
 body > *{transition:opacity .6s}
 body.splashing > :not(.sovsplash),body.splashing .widget,body.splashing .hubcard{opacity:.13}
 .sovsplash{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;pointer-events:auto}
@@ -965,6 +966,7 @@ const SETTINGS = [
   { g:'New wormhole', k:'newZoom', label:'Zoom on the system a new wormhole opens to', type:'bool', def:1 },
   { g:'New wormhole', k:'splash', label:'Show the alliance logo (or the region) in big', type:'bool', def:1 },
   { g:'New wormhole', k:'splashSec', label:'Show it for', unit:'s', def:10, min:2, max:60 },
+  { g:'Kills (zKillboard)', k:'kills', label:'Kill alarms: a blinking red halo on systems with a recent kill', type:'bool', def:1 },
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
@@ -1505,7 +1507,7 @@ const kmInfo = new Map(), shipNames = {};
 const killLimit = id => (isJ(id) ? KILL_J_MIN : KILL_K_MIN) * 60000;
 function killsAt(id){ const ks = killMap[String(id)] || [], now = Date.now(); return ks.filter(k => now - k.time < killLimit(id)); }
 async function zkList(url){
-  try{ const r = await fetch(url); if (r.status === 429){ await new Promise(res => setTimeout(res, 4000)); return []; } if (!r.ok) return []; const j = await r.json(); return Array.isArray(j) ? j : []; }catch(e){ return []; }
+  try{ const r = await fetch(url); if (r.status === 429){ killStat.err = 'zKillboard asks to slow down (429)'; await new Promise(res => setTimeout(res, 4000)); return []; } if (!r.ok){ killStat.err = 'zKillboard answered ' + r.status; return []; } const j = await r.json(); killStat.ok++; return Array.isArray(j) ? j : []; }catch(e){ killStat.err = 'zKillboard unreachable from this browser (blocked or offline)'; return []; }
 }
 async function kmDetail(k){
   if (kmInfo.has(k.killmail_id)) return kmInfo.get(k.killmail_id);
@@ -1515,8 +1517,11 @@ async function kmDetail(k){
     const d = { id:k.killmail_id, sys:String(j.solar_system_id), time:Date.parse(j.killmail_time), ship:ship || '', value:(k.zkb && k.zkb.totalValue) || 0 };
     kmInfo.set(k.killmail_id, d); return d; }catch(e){ return null; }
 }
+let killStat = { t:0, n:0, ok:0, err:'' };
 async function pollKills(){
+  if (!SET.kills){ if (Object.keys(killMap).length){ killMap = {}; render(); } return; }
   if (killBusy || DEMO) return; killBusy = true;
+  killStat = { t:Date.now(), n:0, ok:0, err:'' };
   try{
     const lists = [];
     if (R && R.region && R.region.id) lists.push(...(await zkList(`https://zkillboard.com/api/kills/regionID/${R.region.id}/pastSeconds/3600/`)));
@@ -1530,9 +1535,9 @@ async function pollKills(){
       (out[d.sys] = out[d.sys] || []).some(x => x.id === d.id) || out[d.sys].push(d);
     }
     for (const id in out) out[id].sort((a, b) => b.time - a.time);
-    killMap = out;
+    killMap = out; killStat.n = Object.values(out).reduce((m, a) => m + a.length, 0);
   } finally { killBusy = false; }
-  render(); renderKillBar(); if (!$('#wChain').hidden) renderChain();
+  render(); renderKillBar(); if (!$('#wChain').hidden) renderChain(); renderSettings();
 }
 function demoKills(){
   if (!DEMO || !R) return; const now = Date.now(), K = n => sysByName(n);
@@ -1640,13 +1645,21 @@ function applySettings(k){
   LIVE_MS = SET.live * 60000; SHOW_MS = SET.show * 60000; KILL_K_MIN = SET.killK; KILL_J_MIN = SET.killJ;
   if (k === 'chainX'){ chainX = SET.chainX; store.set('whmap.reg.chainX', chainX); const x = $('#chainX'); if (x) x.value = chainX; buildChains(); }
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
+  if (k === 'kills') pollKills();
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
+}
+function killStatHtml(){
+  if (DEMO) return '<div class="kst dim">Demo: simulated kills.</div>';
+  if (!SET.kills) return '<div class="kst dim">Kill alarms are off.</div>';
+  if (!killStat.t) return '<div class="kst dim">Waiting for the first check…</div>';
+  const ago = Math.round((Date.now() - killStat.t) / 1000), shown = Object.keys(killMap).filter(id => killsAt(id).length).length;
+  return `<div class="kst ${killStat.err && !killStat.ok ? 'bad' : 'dim'}">Last check ${ago < 90 ? ago + ' s' : Math.round(ago / 60) + ' min'} ago: ${killStat.n} kill${killStat.n === 1 ? '' : 's'} in the last hour, ${shown} system${shown === 1 ? '' : 's'} with a halo now.${killStat.err ? ' ⚠ ' + esc(killStat.err) : ''}</div>`;
 }
 function renderSettings(){
   const box = $('#setBody'); if (!box || $('#wSet').hidden) return;
   let g = '', h = '';
   for (const x of SETTINGS){
-    if (x.g !== g){ g = x.g; h += `<h4>${esc(g)}</h4>`; }
+    if (x.g !== g){ if (g === 'Kills (zKillboard)') h += killStatHtml(); g = x.g; h += `<h4>${esc(g)}</h4>`; }
     if (x.type === 'bool'){ h += `<div class="sr"><span>${esc(x.label)}</span><input type="checkbox" data-sb="${x.k}"${SET[x.k] ? ' checked' : ''} aria-label="${esc(x.label)}" style="justify-self:start"><span class="u"></span><button type="button" class="rs small" data-sr="${x.k}" title="Back to the default"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`; continue; }
     h += `<div class="sr"><span>${esc(x.label)}</span><input type="number" min="${x.min}" max="${x.max}" step="1" value="${SET[x.k]}" data-sk="${x.k}" aria-label="${esc(x.label)}"><span class="u">${x.unit}</span><button type="button" class="rs small" data-sr="${x.k}" title="Back to ${x.def} ${x.unit}"${SET[x.k] === x.def ? ' hidden' : ''}>↺</button></div>`;
   }
