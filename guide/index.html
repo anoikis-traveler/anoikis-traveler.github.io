@@ -4,124 +4,178 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Anoikis Traveler · Guide · EVE Online multitool</title>
-<meta name="description" content="Anoikis Traveler: a private, shared wormhole mapper for EVE Online, free up to 5 characters. Live chain tracking, Thera and Turnur routes, 3D view.">
-<meta name="theme-color" content="#070a12">
+<meta name="description" content="Anoikis Traveler: a private, shared wormhole mapper for EVE Online, free up to 5 characters. Live chain tracking, wormhole chains as regions, Thera and Turnur routes, 3D view.">
+<meta name="theme-color" content="#05070d">
 <style>
-:root{--bg:#070a12;--panel:#0e1424;--panel2:#141c30;--line:#24314c;--text:#e2e8f3;--dim:#8b98b0;--accent:#f2a74b;--ok:#5fd68a;--c2:#4f8de8;--eol:#c07cff;
-  --display:"Saira Condensed","Arial Narrow",sans-serif;--body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+:root{--bg:#05070d;--bg2:#0a0f1c;--panel:rgba(16,22,38,.72);--panel-solid:#101626;--panel2:#161f35;--line:rgba(140,170,230,.14);--line2:rgba(140,170,230,.28);--text:#e6ecf7;--dim:#95a3bd;--accent:#f2a74b;--accent2:#ffcf8a;--ok:#5fd68a;--blue:#5b9bff;--violet:#b48cff;--eol:#c07cff;
+  --display:"Saira Condensed","Arial Narrow",sans-serif;--body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;--r:16px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--body)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(1200px 700px at 85% 10%,rgba(91,155,255,.08),transparent 60%),radial-gradient(900px 600px at 5% 60%,rgba(180,140,255,.06),transparent 60%),radial-gradient(800px 500px at 60% 100%,rgba(242,167,75,.05),transparent 60%),var(--bg)}
 a{color:var(--accent)}
-.wrap{max-width:1120px;margin:0 auto;padding:0 22px}
-/* top bar */
-header.top{position:sticky;top:0;z-index:10;background:rgba(7,10,18,.88);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-header.top .wrap{display:flex;align-items:center;gap:18px;height:60px}
-.brand{font:700 22px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--text);text-decoration:none;white-space:nowrap}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+/* top bar: transparent over the video, glass once you scroll */
+header.top{position:fixed;inset:0 0 auto 0;z-index:30;transition:background .3s,border-color .3s,backdrop-filter .3s;border-bottom:1px solid transparent}
+header.top.solid{background:rgba(5,7,13,.72);backdrop-filter:blur(14px) saturate(1.3);border-color:var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:20px;height:64px}
+.brand{font:700 22px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--text);text-decoration:none;white-space:nowrap}
 .brand b{color:var(--accent)}
-nav.links{display:flex;gap:16px;margin-left:auto;font-size:14px}
-nav.links a{color:var(--dim);text-decoration:none}nav.links a:hover{color:var(--text)}
-.soon{margin-top:22px;border:1px dashed var(--accent);border-radius:10px;padding:16px 20px;background:var(--panel)}.soon h3{margin:0 0 6px;color:var(--accent)}.soon p{margin:0 0 8px;color:var(--dim)}.soon ul{margin:0;padding-left:20px}.soon li{margin:4px 0}
-.langs{margin:-6px 0 18px;font-size:14px;color:var(--dim)}
-.lang{display:flex;gap:2px;border:1px solid var(--line);border-radius:7px;padding:2px}
-.lang button{font:600 12px var(--mono);background:none;border:0;color:var(--dim);padding:5px 8px;border-radius:5px;cursor:pointer}
+nav.links{display:flex;gap:4px;margin-left:auto;font-size:13.5px}
+nav.links a{color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:8px;transition:color .2s,background .2s}
+nav.links a:hover,nav.links a.on{color:var(--text);background:rgba(255,255,255,.06)}
+.lang{display:flex;gap:2px;border:1px solid var(--line2);border-radius:9px;padding:2px;background:rgba(5,7,13,.4)}
+.lang button{font:600 12px var(--mono);background:none;border:0;color:var(--dim);padding:5px 8px;border-radius:6px;cursor:pointer}
 .lang button[aria-pressed="true"]{background:var(--accent);color:#1b1206}
-/* hero */
-.hero{padding:70px 0 40px;background:radial-gradient(ellipse at 70% 0%,rgba(79,141,232,.18),transparent 60%),radial-gradient(ellipse at 10% 30%,rgba(242,167,75,.10),transparent 55%)}
-.hero h1{font:700 clamp(40px,7vw,72px)/1 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:0 0 14px}
-.hero h1 b{color:var(--accent)}
-.hero .tag{font-size:clamp(18px,2.3vw,22px);color:var(--text);max-width:720px;margin:0 0 10px}
-.hero .sub{color:var(--dim);max-width:720px;margin:0 0 26px}
+/* hero: the video fills the screen */
+.hero{position:relative;min-height:100vh;min-height:100svh;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
+.hero video,.hero .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+.hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(5,7,13,.55) 0%,rgba(5,7,13,.15) 30%,rgba(5,7,13,.35) 60%,var(--bg) 100%),radial-gradient(ellipse at 20% 80%,rgba(5,7,13,.8),transparent 60%)}
+.hero .wrap{width:100%;padding-bottom:12vh}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent2);background:rgba(242,167,75,.1);border:1px solid rgba(242,167,75,.35);border-radius:20px;padding:5px 12px;margin-bottom:18px;backdrop-filter:blur(6px)}
+.eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.hero h1{font:700 clamp(52px,10vw,124px)/.9 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0 0 18px;text-shadow:0 6px 40px rgba(0,0,0,.6)}
+.hero h1 b{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .tag{font-size:clamp(19px,2.4vw,26px);line-height:1.35;max-width:780px;margin:0 0 12px;text-shadow:0 2px 20px rgba(0,0,0,.7)}
+.hero .sub{color:#c3cde0;max-width:720px;margin:0 0 30px;text-shadow:0 2px 16px rgba(0,0,0,.8)}
 .btns{display:flex;gap:12px;flex-wrap:wrap}
-.btn{display:inline-block;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px;border:1px solid var(--line);color:var(--text);background:var(--panel2)}
-.btn.don{border-color:#2e6b4a;background:linear-gradient(135deg,#1d4a33,#173826);color:#bff2d3}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1206}
-.btn:hover{filter:brightness(1.12)}
-.shot{margin:40px 0 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55)}
-.shot img{display:block;width:100%;height:auto}
+.btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:12px;border:1px solid var(--line2);color:var(--text);background:rgba(22,31,53,.6);backdrop-filter:blur(8px);transition:transform .2s,box-shadow .2s,filter .2s}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.12)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#e08a2c);border-color:transparent;color:#1b1206;box-shadow:0 10px 30px rgba(242,167,75,.3)}
+.btn.don{border-color:#2e6b4a;background:linear-gradient(135deg,rgba(29,74,51,.8),rgba(23,56,38,.8));color:#bff2d3}
+.vidctl{position:absolute;right:28px;bottom:28px;font:600 12px var(--body);color:var(--dim);background:rgba(5,7,13,.5);border:1px solid var(--line2);border-radius:20px;padding:7px 14px;cursor:pointer;backdrop-filter:blur(6px)}
+.vidctl:hover{color:var(--text)}
+.cue{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);font:600 11px var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--dim);text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:6px}
+.cue span{width:1px;height:34px;background:linear-gradient(var(--accent),transparent);animation:cue 2s infinite}
+@keyframes cue{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+/* layout: a table of contents on the side */
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;align-items:start}
+.layout > main{min-width:0}
+.toc{position:sticky;top:88px;padding:18px 0;font-size:13.5px}
+.toc h4{font:600 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 12px}
+.toc a{display:flex;align-items:center;gap:10px;color:var(--dim);text-decoration:none;padding:6px 0 6px 14px;border-left:2px solid var(--line);transition:all .2s}
+.toc a:hover{color:var(--text)}
+.toc a.on{color:var(--text);border-left-color:var(--accent);font-weight:600}
+.toc a em{font:600 10.5px var(--mono);font-style:normal;color:var(--accent);opacity:.7}
+@media(max-width:1060px){.layout{grid-template-columns:minmax(0,1fr)}.toc,.layout > div:empty{display:none}}
 /* sections */
-section{padding:64px 0;border-top:1px solid var(--line)}
-h2{font:700 34px var(--display);letter-spacing:.05em;text-transform:uppercase;margin:0 0 8px}
-.lead{color:var(--dim);margin:0 0 30px;max-width:760px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
-.card.new{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;position:relative}.card .nb{position:absolute;top:12px;right:12px;background:var(--accent);color:#1b1206;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
-.card .ic{font-size:24px;line-height:1}
-.card h3{margin:10px 0 6px;font-size:17px}
+section{padding:90px 0 20px;scroll-margin-top:70px}
+.sh{display:flex;align-items:baseline;gap:14px;margin:0 0 6px}
+.sh .no{font:600 13px var(--mono);color:var(--accent);letter-spacing:.1em}
+h2{font:700 clamp(32px,4vw,46px)/1.05 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:0}
+.lead{color:var(--dim);margin:10px 0 34px;max-width:760px;font-size:17px}
+.subh{margin:44px 0 16px;font:700 22px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--accent2)}
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:16px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px;backdrop-filter:blur(10px);transition:transform .25s,border-color .25s,box-shadow .25s;overflow:hidden}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(242,167,75,.5),transparent 40%,transparent 60%,rgba(91,155,255,.5));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .25s;pointer-events:none}
+.card:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.card:hover::before{opacity:1}
+.card .ic{width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:12px;background:linear-gradient(135deg,rgba(242,167,75,.16),rgba(91,155,255,.12));border:1px solid var(--line2)}
+.card h3{margin:14px 0 6px;font-size:17px;line-height:1.3}
 .card p{margin:0;color:var(--dim);font-size:14.5px}
+.card b{color:var(--text)}
+.card.new{border-color:rgba(242,167,75,.45);background:linear-gradient(160deg,rgba(242,167,75,.09),var(--panel) 45%)}
+.card .nb{position:absolute;top:16px;right:16px;background:var(--accent);color:#1b1206;font:700 10.5px var(--mono);padding:3px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.08em}
+.grid.big{grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr))}
 /* gallery */
-.gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:22px}
-@media(max-width:520px){.gal{grid-template-columns:1fr}}
-figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.gal{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+@media(max-width:760px){.gal{grid-template-columns:1fr}}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;transition:transform .25s,box-shadow .25s}
+figure:hover{transform:translateY(-3px);box-shadow:0 20px 50px rgba(0,0,0,.45)}
+figure.wide{grid-column:1 / -1}
 figure img{display:block;width:100%;height:auto;cursor:zoom-in}
-figcaption{padding:12px 14px;color:var(--dim);font-size:14px}
+figcaption{padding:14px 18px;color:var(--dim);font-size:14px}
 figcaption b{color:var(--text)}
-/* tutorial */
-.steps{counter-reset:s;display:grid;gap:14px}
-.step{counter-increment:s;display:grid;grid-template-columns:52px 1fr;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
-.step::before{content:counter(s);display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--panel2);border:1px solid var(--accent);color:var(--accent);font:700 20px var(--display)}
-.step h3{margin:2px 0 6px;font-size:18px}
-.step p,.step li{color:var(--dim);margin:0 0 6px;font-size:15px}
+/* tutorial: a timeline */
+.steps{counter-reset:s;position:relative;display:grid;gap:12px;padding-left:4px}
+.steps::before{content:"";position:absolute;left:25px;top:18px;bottom:18px;width:2px;background:linear-gradient(var(--accent),rgba(91,155,255,.5),transparent)}
+.step{counter-increment:s;position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:20px;padding:16px 20px 16px 0}
+.step::before{content:counter(s);position:relative;z-index:1;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--bg2);border:2px solid var(--accent);color:var(--accent);font:700 19px var(--display);box-shadow:0 0 0 6px var(--bg),0 0 20px rgba(242,167,75,.25)}
+.step > div{overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;backdrop-filter:blur(8px)}
+.step h3{margin:0 0 6px;font-size:17.5px}
+.step p,.step li,.step > div > div{color:var(--dim);margin:0 0 6px;font-size:15px}
 .step ul{margin:4px 0 0;padding-left:20px}
 .step b,.step strong{color:var(--text)}
-kbd{font:600 12.5px var(--mono);background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--text)}
-.k{font:600 13px var(--mono);border-radius:4px;padding:1px 6px;border:1px solid var(--line);color:var(--text);white-space:nowrap}
+.step.new > div{border-color:rgba(242,167,75,.45)}
+kbd{font:600 12.5px var(--mono);background:var(--panel2);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--text)}
+.k{font:600 13px var(--mono);border-radius:4px;padding:1px 6px;border:1px solid var(--line2);color:var(--text);white-space:nowrap}
 .k.gold{color:#f5c542;border-color:#7a6220}.k.ok{color:var(--ok);border-color:#24533a}
 .legend{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;margin:8px 0 2px;font-size:14px;color:var(--dim)}
 .legend i{display:block;width:34px;height:0;border-top:3px solid #8fb2e8}
 .legend i.mass{border-top-style:dashed;border-color:#f2c94b}.legend i.crit{border-top-style:dotted;border-color:#ef5a5a}.legend i.eol{border-color:var(--eol)}.legend i.gate{border-top:2px dotted #6b7890}
-/* request + support */
-.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media(max-width:820px){.two{grid-template-columns:1fr}}
-.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px}
+/* boxes */
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media(max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.two > *{min-width:0}
+.copy code{overflow-wrap:anywhere}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:26px;backdrop-filter:blur(10px)}
 .box h3{margin:0 0 10px;font-size:20px}
 .box ol{margin:0;padding-left:22px;color:var(--dim)}.box ol li{margin:0 0 8px}.box ol b{color:var(--text)}
 .box p{color:var(--dim)}
-.box.why{margin-top:20px;border-color:#5a4420;background:linear-gradient(135deg,#1a150c,#121722)}.box.why p{margin:0 0 8px}.box.why b{color:var(--text)}
-.box.isk{border-color:#24533a;background:linear-gradient(135deg,#0f1d16,#121722)}
-.box.raf{border-color:#2a3d66;background:linear-gradient(135deg,#0f1628,#121722)}
+.box.why{margin-top:26px;border-color:rgba(242,167,75,.35);background:linear-gradient(135deg,rgba(242,167,75,.08),var(--panel))}.box.why p{margin:0 0 8px}.box.why b{color:var(--text)}
+.box.isk{border-color:rgba(95,214,138,.35);background:linear-gradient(135deg,rgba(95,214,138,.08),var(--panel))}
+.box.raf{border-color:rgba(91,155,255,.35);background:linear-gradient(135deg,rgba(91,155,255,.08),var(--panel))}
 .copy{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
-.copy code{font:600 17px var(--mono);color:var(--ok);background:#0b1a12;border:1px solid #24533a;border-radius:6px;padding:6px 10px}
-button.small{font:inherit;font-size:14px;padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
+.copy code{font:600 17px var(--mono);color:var(--ok);background:#0b1a12;border:1px solid #24533a;border-radius:8px;padding:6px 10px}
+button.small{font:inherit;font-size:14px;padding:7px 12px;border-radius:9px;border:1px solid var(--line2);background:var(--panel2);color:var(--text);cursor:pointer}
 .mini{font-size:13px;color:var(--dim)}
-/* faq */
-details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:0 0 10px}
-summary{cursor:pointer;font-weight:600}
-details p{color:var(--dim);margin:10px 0 0}
-footer{border-top:1px solid var(--line);padding:30px 0 44px;color:var(--dim);font-size:13px}
-/* lightbox */
-#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:50;cursor:zoom-out;padding:20px}
-#lb.on{display:grid}#lb img{max-width:100%;max-height:100%;border-radius:8px}
-#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--ok);color:var(--ok);padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
-#toast.on{opacity:1}
-@media(max-width:760px){nav.links{display:none}.lang{margin-left:auto}}
-@media(max-width:430px){.brand{font-size:17px}header.top .wrap{gap:10px;padding:0 12px}.lang button{padding:5px 6px}}
-section,.hero{scroll-margin-top:64px}
-table.sett{width:100%;border-collapse:collapse;font-size:14.5px;margin:6px 0 10px}
-table.sett th,table.sett td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.1);vertical-align:top}
-table.sett th{font-weight:600;opacity:.8} table.sett td:first-child{opacity:.75;white-space:nowrap} table.sett td:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
-table.sett code{font-size:12.5px;white-space:normal}
-table.prices{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:15px}
-table.prices th,table.prices td{text-align:left;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.1)}
+.cta{margin-top:26px}
+/* tables */
+.tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px}
+table.sett{width:100%;min-width:680px;border-collapse:collapse;font-size:14.5px}
+table.sett th,table.sett td{text-align:left;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+table.sett tr:last-child td{border-bottom:0}
+table.sett th{font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)} table.sett td:first-child{color:var(--accent2);white-space:nowrap;font-size:13px} table.sett td:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+table.sett td:nth-child(3){color:var(--dim)}
+table.sett code{font-size:12.5px;white-space:normal;color:var(--text)}
+table.prices{width:100%;display:block;overflow-x:auto;border-collapse:collapse;margin:6px 0 10px;font-size:15px}
+table.prices th,table.prices td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
 table.prices th{font-weight:600;opacity:.8}
 table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-figure.wide{grid-column:1 / -1}
-.subh{margin:26px 0 12px;font-family:var(--display, inherit);letter-spacing:.06em;text-transform:uppercase}
-.atc{white-space:nowrap}
-.atc .atcopy{margin-left:6px;padding:1px 8px;font-size:11.5px;vertical-align:1px}
+.atc{white-space:nowrap}.atc .atcopy{margin-left:6px;padding:1px 8px;font-size:11.5px;vertical-align:1px}
+/* faq */
+details{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:0 0 10px;transition:border-color .2s}
+details[open]{border-color:var(--line2)}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--accent);font:600 20px/1 var(--mono);transition:transform .2s}
+details[open] summary::after{transform:rotate(45deg)}
+details p{color:var(--dim);margin:10px 0 0}
+/* a band of the video between two parts */
+.band{position:relative;height:46vh;min-height:300px;margin:80px 0 0;overflow:hidden;display:grid;place-items:center;text-align:center;isolation:isolate}
+.band video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;filter:saturate(1.1)}
+.band::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(var(--bg),rgba(5,7,13,.35) 30%,rgba(5,7,13,.35) 70%,var(--bg))}
+.band h2{font-size:clamp(34px,5vw,64px);text-shadow:0 4px 30px rgba(0,0,0,.7)}
+.band p{color:#c3cde0;margin:8px 0 22px;text-shadow:0 2px 14px rgba(0,0,0,.8)}
+footer{border-top:1px solid var(--line);padding:34px 0 48px;margin-top:90px;color:var(--dim);font-size:13px}
+/* appear on scroll */
+.rv{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.rv.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.eyebrow i,.cue span{animation:none}html{scroll-behavior:auto}}
+/* lightbox, toast */
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;place-items:center;z-index:50;cursor:zoom-out;padding:24px;backdrop-filter:blur(6px)}
+#lb.on{display:grid}#lb img{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--ok);color:var(--ok);padding:10px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+#toast.on{opacity:1}
+@media(max-width:900px){nav.links{display:none}.lang{margin-left:auto}}
+@media(max-width:600px){.step{gap:12px;padding-right:0}.steps::before{left:21px}.step::before{width:36px;height:36px;font-size:16px}.step{grid-template-columns:36px minmax(0,1fr)}}
+@media(max-width:430px){.brand{font-size:17px}header.top .wrap{gap:10px;padding:0 14px}.lang button{padding:5px 6px}.wrap{padding:0 16px}.vidctl{display:none}}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap">
+<header class="top" id="top"><div class="wrap">
   <a class="brand" href="#">Anoikis <b>Traveler</b></a>
   <nav class="links">
+    <a href="#new" data-i18n="nav_new"></a>
     <a href="#map3d" data-i18n="nav_map"></a>
     <a href="#tutorial" data-i18n="nav_tutorial"></a>
     <a href="#fitting" data-i18n="nav_fit"></a>
     <a href="#mail" data-i18n="nav_mail"></a>
     <a href="#appraisal" data-i18n="nav_appr"></a>
     <a href="#pricing" data-i18n="nav_pricing"></a>
-    <a href="#settings" data-i18n="nav_set"></a>
     <a href="#faq" data-i18n="nav_faq"></a>
     <a href="#support" data-i18n="nav_support"></a>
   </nav>
@@ -130,159 +184,234 @@ figure.wide{grid-column:1 / -1}
   </div>
 </div></header>
 
-<div class="hero"><div class="wrap">
-  <h1>Anoikis <b>Traveler</b></h1>
-  <p class="tag" data-i18n="hero_tag"></p>
-  <p class="sub" data-i18n="hero_sub"></p>
-  <div class="btns">
-    <a class="btn primary" href="../regions/?demo" data-i18n="btn_demo"></a>
-    <a class="btn" href="../regions/" data-i18n="btn_open"></a>
-    <a class="btn" href="../appraisal/" data-i18n="btn_appr"></a>
-    <a class="btn don" href="#support" data-i18n="btn_support"></a>
+<div class="hero">
+  <img class="poster" src="../img/hero-poster.jpg" alt="" aria-hidden="true">
+  <video id="sky" muted loop playsinline autoplay preload="auto" poster="../img/hero-poster.jpg" aria-hidden="true"></video>
+  <div class="wrap">
+    <div class="eyebrow"><i></i>EVE Online · ESI · 2026</div>
+    <h1>Anoikis <b>Traveler</b></h1>
+    <p class="tag" data-i18n="hero_tag"></p>
+    <p class="sub" data-i18n="hero_sub"></p>
+    <div class="btns">
+      <a class="btn primary" href="../regions/?demo" data-i18n="btn_demo"></a>
+      <a class="btn" href="../regions/" data-i18n="btn_open"></a>
+      <a class="btn" href="../appraisal/" data-i18n="btn_appr"></a>
+      <a class="btn don" href="#support" data-i18n="btn_support"></a>
+    </div>
   </div>
-  <div class="shot"><img src="img/map-overview.jpg" width="1600" height="900" data-i18n-alt="alt_overview" alt=""></div>
-</div></div>
+  <button type="button" class="vidctl" id="vidCtl" data-i18n="vid_pause"></button>
+  <a class="cue" href="#new"><b data-i18n="scroll_cue"></b><span></span></a>
+</div>
 
-<section id="map3d"><div class="wrap">
-  <h2 data-i18n="m_title"></h2>
-  <p class="lead" data-i18n="m_lead"></p>
+<div class="wrap layout">
+<aside class="toc" aria-label="Contents"><h4 data-i18n="toc_t"></h4>
+  <a href="#new"><em>01</em><span data-i18n="nav_new"></span></a>
+  <a href="#map3d"><em>02</em><span data-i18n="nav_map"></span></a>
+  <a href="#screens"><em>03</em><span data-i18n="shots_title"></span></a>
+  <a href="#tutorial"><em>04</em><span data-i18n="nav_tutorial"></span></a>
+  <a href="#fitting"><em>05</em><span data-i18n="nav_fit"></span></a>
+  <a href="#mail"><em>06</em><span data-i18n="nav_mail"></span></a>
+  <a href="#appraisal"><em>07</em><span data-i18n="nav_appr"></span></a>
+  <a href="#settings"><em>08</em><span data-i18n="nav_set"></span></a>
+  <a href="#faq"><em>09</em><span data-i18n="nav_faq"></span></a>
+  <a href="#pricing"><em>10</em><span data-i18n="nav_pricing"></span></a>
+  <a href="#support"><em>11</em><span data-i18n="nav_support"></span></a>
+</aside>
+<main>
+
+<section id="new">
+  <div class="sh rv"><span class="no">01</span><h2 data-i18n="new_title"></h2></div>
+  <p class="lead rv" data-i18n="new_lead"></p>
+  <div class="grid big">
+    <div class="card new rv"><span class="nb">new</span><div class="ic">◈</div><h3 data-i18n="n1_t"></h3><p data-i18n="n1_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">✂</div><h3 data-i18n="n2_t"></h3><p data-i18n="n2_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">🌀</div><h3 data-i18n="n3_t"></h3><p data-i18n="n3_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">📈</div><h3 data-i18n="n4_t"></h3><p data-i18n="n4_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">🏷</div><h3 data-i18n="n5_t"></h3><p data-i18n="n5_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">✦</div><h3 data-i18n="n6_t"></h3><p data-i18n="n6_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">↘</div><h3 data-i18n="n7_t"></h3><p data-i18n="n7_p"></p></div>
+    <div class="card new rv"><span class="nb">new</span><div class="ic">🅰</div><h3 data-i18n="n8_t"></h3><p data-i18n="n8_p"></p></div>
+  </div>
+</section>
+
+<section id="map3d">
+  <div class="sh rv"><span class="no">02</span><h2 data-i18n="m_title"></h2></div>
+  <p class="lead rv" data-i18n="m_lead"></p>
   <div class="grid">
-    <div class="card"><div class="ic">🌌</div><h3 data-i18n="m1_t"></h3><p data-i18n="m1_p"></p></div>
-    <div class="card"><div class="ic">🧑‍🚀</div><h3 data-i18n="m2_t"></h3><p data-i18n="m2_p"></p></div>
-    <div class="card"><div class="ic">🌀</div><h3 data-i18n="m3_t"></h3><p data-i18n="m3_p"></p></div>
-    <div class="card"><div class="ic">🛣️</div><h3 data-i18n="m5_t"></h3><p data-i18n="m5_p"></p></div>
-    <div class="card"><div class="ic">📦</div><h3 data-i18n="m6_t"></h3><p data-i18n="m6_p"></p></div>
-    <div class="card"><div class="ic">🪟</div><h3 data-i18n="m7_t"></h3><p data-i18n="m7_p"></p></div>
-    <div class="card"><div class="ic">👥</div><h3 data-i18n="m8_t"></h3><p data-i18n="m8_p"></p></div>
-    <div class="card"><div class="ic">⌂</div><h3 data-i18n="m9_t"></h3><p data-i18n="m9_p"></p></div>
-    <div class="card"><div class="ic">🔗</div><h3 data-i18n="m10_t"></h3><p data-i18n="m10_p"></p></div>
-    <div class="card"><div class="ic">🌉</div><h3 data-i18n="m11_t"></h3><p data-i18n="m11_p"></p></div>
-    <div class="card"><div class="ic">🎨</div><h3 data-i18n="m12_t"></h3><p data-i18n="m12_p"></p></div>
-    <div class="card"><div class="ic">☣</div><h3 data-i18n="m13_t"></h3><p data-i18n="m13_p"></p></div>
-    <div class="card"><div class="ic">☠</div><h3 data-i18n="m14_t"></h3><p data-i18n="m14_p"></p></div>
-    <div class="card"><div class="ic">📊</div><h3 data-i18n="m15_t"></h3><p data-i18n="m15_p"></p></div>
-    <div class="card"><div class="ic">⏱️</div><h3 data-i18n="m16_t"></h3><p data-i18n="m16_p"></p></div>
-    <div class="card"><div class="ic">🏳️</div><h3 data-i18n="m17_t"></h3><p data-i18n="m17_p"></p></div>
-    <div class="card"><div class="ic">✨</div><h3 data-i18n="m18_t"></h3><p data-i18n="m18_p"></p></div>
-    <div class="card"><div class="ic">🔄</div><h3 data-i18n="m19_t"></h3><p data-i18n="m19_p"></p></div>
-    <div class="card"><div class="ic">📡</div><h3 data-i18n="m20_t"></h3><p data-i18n="m20_p"></p></div>
-    <div class="card"><div class="ic">🏴</div><h3 data-i18n="m21_t"></h3><p data-i18n="m21_p"></p></div>
-  </div>
-</div></section>
 
-<section id="screens"><div class="wrap">
-  <h2 data-i18n="shots_title"></h2>
-  <p class="lead" data-i18n="shots_lead"></p>
+    <div class="card rv"><div class="ic">🌌</div><h3 data-i18n="m1_t"></h3><p data-i18n="m1_p"></p></div>
+    <div class="card rv"><div class="ic">🧑‍🚀</div><h3 data-i18n="m2_t"></h3><p data-i18n="m2_p"></p></div>
+    <div class="card rv"><div class="ic">🌀</div><h3 data-i18n="m3_t"></h3><p data-i18n="m3_p"></p></div>
+    <div class="card rv"><div class="ic">🛣️</div><h3 data-i18n="m5_t"></h3><p data-i18n="m5_p"></p></div>
+    <div class="card rv"><div class="ic">📦</div><h3 data-i18n="m6_t"></h3><p data-i18n="m6_p"></p></div>
+    <div class="card rv"><div class="ic">🪟</div><h3 data-i18n="m7_t"></h3><p data-i18n="m7_p"></p></div>
+    <div class="card rv"><div class="ic">👥</div><h3 data-i18n="m8_t"></h3><p data-i18n="m8_p"></p></div>
+    <div class="card rv"><div class="ic">⌂</div><h3 data-i18n="m9_t"></h3><p data-i18n="m9_p"></p></div>
+    <div class="card rv"><div class="ic">🔗</div><h3 data-i18n="m10_t"></h3><p data-i18n="m10_p"></p></div>
+    <div class="card rv"><div class="ic">🌉</div><h3 data-i18n="m11_t"></h3><p data-i18n="m11_p"></p></div>
+    <div class="card rv"><div class="ic">🎨</div><h3 data-i18n="m12_t"></h3><p data-i18n="m12_p"></p></div>
+    <div class="card rv"><div class="ic">☣</div><h3 data-i18n="m13_t"></h3><p data-i18n="m13_p"></p></div>
+    <div class="card rv"><div class="ic">☠</div><h3 data-i18n="m14_t"></h3><p data-i18n="m14_p"></p></div>
+    <div class="card rv"><div class="ic">📊</div><h3 data-i18n="m15_t"></h3><p data-i18n="m15_p"></p></div>
+    <div class="card rv"><div class="ic">⏱️</div><h3 data-i18n="m16_t"></h3><p data-i18n="m16_p"></p></div>
+    <div class="card rv"><div class="ic">🏳️</div><h3 data-i18n="m17_t"></h3><p data-i18n="m17_p"></p></div>
+    <div class="card rv"><div class="ic">✨</div><h3 data-i18n="m18_t"></h3><p data-i18n="m18_p"></p></div>
+    <div class="card rv"><div class="ic">🔄</div><h3 data-i18n="m19_t"></h3><p data-i18n="m19_p"></p></div>
+    <div class="card rv"><div class="ic">📡</div><h3 data-i18n="m20_t"></h3><p data-i18n="m20_p"></p></div>
+    <div class="card rv"><div class="ic">🏴</div><h3 data-i18n="m21_t"></h3><p data-i18n="m21_p"></p></div>
+  
+  </div>
+</section>
+
+<section id="screens">
+  <div class="sh rv"><span class="no">03</span><h2 data-i18n="shots_title"></h2></div>
+  <p class="lead rv" data-i18n="shots_lead"></p>
   <div class="gal">
-    <figure class="wide"><img src="img/map-features.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c0_alt" alt=""><figcaption data-i18n="c0_html"></figcaption></figure>
-    <figure><img src="img/map-system.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c1_alt" alt=""><figcaption data-i18n="c1_html"></figcaption></figure>
-    <figure><img src="img/map-thera.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c2_alt" alt=""><figcaption data-i18n="c2_html"></figcaption></figure>
-    <figure><img src="img/map-overview.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c3_alt" alt=""><figcaption data-i18n="c3_html"></figcaption></figure>
-    <figure><img src="img/appraisal.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c4_alt" alt=""><figcaption data-i18n="c4_html"></figcaption></figure>
+    <figure class="wide rv"><img src="img/map-features.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c0_alt" alt=""><figcaption data-i18n="c0_html"></figcaption></figure>
+    <figure class="rv"><img src="img/map-chain.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c5_alt" alt=""><figcaption data-i18n="c5_html"></figcaption></figure>
+    <figure class="rv"><img src="img/map-jump.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c7_alt" alt=""><figcaption data-i18n="c7_html"></figcaption></figure>
+    <figure class="wide rv"><img src="img/map-active.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c6_alt" alt=""><figcaption data-i18n="c6_html"></figcaption></figure>
+    <figure class="rv"><img src="img/map-system.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c1_alt" alt=""><figcaption data-i18n="c1_html"></figcaption></figure>
+    <figure class="rv"><img src="img/map-thera.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c2_alt" alt=""><figcaption data-i18n="c2_html"></figcaption></figure>
+    <figure class="rv"><img src="img/map-overview.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c3_alt" alt=""><figcaption data-i18n="c3_html"></figcaption></figure>
+    <figure class="rv"><img src="img/appraisal.jpg" width="1600" height="900" loading="lazy" data-i18n-alt="c4_alt" alt=""><figcaption data-i18n="c4_html"></figcaption></figure>
   </div>
-</div></section>
+</section>
 
-<section id="tutorial"><div class="wrap">
-  <h2 data-i18n="tut_title"></h2>
-  <p class="lead" data-i18n="tut_lead"></p>
+<section id="tutorial">
+  <div class="sh rv"><span class="no">04</span><h2 data-i18n="tut_title"></h2></div>
+  <p class="lead rv" data-i18n="tut_lead"></p>
   <div class="steps">
-    <div class="step"><div><h3 data-i18n="t1_t"></h3><div data-i18n="t1_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t2_t"></h3><div data-i18n="t2_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t3_t"></h3><div data-i18n="t3_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t4_t"></h3><div data-i18n="t4_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t5_t"></h3><div data-i18n="t5_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t6_t"></h3><div data-i18n="t6_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t7_t"></h3><div data-i18n="t7_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t8_t"></h3><div data-i18n="t8_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t9_t"></h3><div data-i18n="t9_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t10_t"></h3><div data-i18n="t10_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t11_t"></h3><div data-i18n="t11_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t12_t"></h3><div data-i18n="t12_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t13_t"></h3><div data-i18n="t13_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t14_t"></h3><div data-i18n="t14_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t15_t"></h3><div data-i18n="t15_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="t16_t"></h3><div data-i18n="t16_p"></div></div></div>
-  </div>
-</div></section>
 
-<section id="fitting"><div class="wrap">
-  <h2 data-i18n="fit_title"></h2>
-  <p class="lead" data-i18n="fit_lead"></p>
+    <div class="step rv"><div><h3 data-i18n="t1_t"></h3><div data-i18n="t1_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t2_t"></h3><div data-i18n="t2_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t3_t"></h3><div data-i18n="t3_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t4_t"></h3><div data-i18n="t4_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t5_t"></h3><div data-i18n="t5_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t6_t"></h3><div data-i18n="t6_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t7_t"></h3><div data-i18n="t7_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t8_t"></h3><div data-i18n="t8_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t9_t"></h3><div data-i18n="t9_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t10_t"></h3><div data-i18n="t10_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t11_t"></h3><div data-i18n="t11_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t12_t"></h3><div data-i18n="t12_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t13_t"></h3><div data-i18n="t13_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t14_t"></h3><div data-i18n="t14_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t15_t"></h3><div data-i18n="t15_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="t16_t"></h3><div data-i18n="t16_p"></div></div></div>
+      <div class="step new rv"><div><h3 data-i18n="t17_t"></h3><div data-i18n="t17_p"></div></div></div>
+    <div class="step new rv"><div><h3 data-i18n="t18_t"></h3><div data-i18n="t18_p"></div></div></div>
+
+  </div>
+</section>
+
+<section id="fitting">
+  <div class="sh rv"><span class="no">05</span><h2 data-i18n="fit_title"></h2></div>
+  <p class="lead rv" data-i18n="fit_lead"></p>
   <div class="grid">
-    <div class="card"><div class="ic">🚀</div><h3 data-i18n="fc1_t"></h3><p data-i18n="fc1_p"></p></div>
-    <div class="card"><div class="ic">📋</div><h3 data-i18n="fc2_t"></h3><p data-i18n="fc2_p"></p></div>
-    <div class="card"><div class="ic">💾</div><h3 data-i18n="fc3_t"></h3><p data-i18n="fc3_p"></p></div>
-    <div class="card"><div class="ic">🎓</div><h3 data-i18n="fc4_t"></h3><p data-i18n="fc4_p"></p></div>
-    <div class="card"><div class="ic">📊</div><h3 data-i18n="fc5_t"></h3><p data-i18n="fc5_p"></p></div>
-    <div class="card"><div class="ic">🌀</div><h3 data-i18n="fc6_t"></h3><p data-i18n="fc6_p"></p></div>
-    <div class="card"><div class="ic">⚙️</div><h3 data-i18n="fc7_t"></h3><p data-i18n="fc7_p"></p></div>
-    <div class="card"><div class="ic">📚</div><h3 data-i18n="fc8_t"></h3><p data-i18n="fc8_p"></p></div>
-  </div>
-  <h3 class="subh" data-i18n="fst_title"></h3>
-  <div class="steps">
-    <div class="step"><div><h3 data-i18n="fs1_t"></h3><div data-i18n="fs1_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="fs2_t"></h3><div data-i18n="fs2_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="fs3_t"></h3><div data-i18n="fs3_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="fs4_t"></h3><div data-i18n="fs4_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="fs5_t"></h3><div data-i18n="fs5_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="fs6_t"></h3><div data-i18n="fs6_p"></div></div></div>
-  </div>
-  <p><a class="btn primary" href="../fitting/" data-i18n="fit_btn"></a></p>
-</div></section>
 
-<section id="mail"><div class="wrap">
-  <h2 data-i18n="ml_title"></h2>
-  <p class="lead" data-i18n="ml_lead"></p>
+    <div class="card rv"><div class="ic">🚀</div><h3 data-i18n="fc1_t"></h3><p data-i18n="fc1_p"></p></div>
+    <div class="card rv"><div class="ic">📋</div><h3 data-i18n="fc2_t"></h3><p data-i18n="fc2_p"></p></div>
+    <div class="card rv"><div class="ic">💾</div><h3 data-i18n="fc3_t"></h3><p data-i18n="fc3_p"></p></div>
+    <div class="card rv"><div class="ic">🎓</div><h3 data-i18n="fc4_t"></h3><p data-i18n="fc4_p"></p></div>
+    <div class="card rv"><div class="ic">📊</div><h3 data-i18n="fc5_t"></h3><p data-i18n="fc5_p"></p></div>
+    <div class="card rv"><div class="ic">🌀</div><h3 data-i18n="fc6_t"></h3><p data-i18n="fc6_p"></p></div>
+    <div class="card rv"><div class="ic">⚙️</div><h3 data-i18n="fc7_t"></h3><p data-i18n="fc7_p"></p></div>
+    <div class="card rv"><div class="ic">📚</div><h3 data-i18n="fc8_t"></h3><p data-i18n="fc8_p"></p></div>
+  
+  </div>
+  <h3 class="subh rv" data-i18n="fst_title"></h3>
+  <div class="steps">
+
+    <div class="step rv"><div><h3 data-i18n="fs1_t"></h3><div data-i18n="fs1_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="fs2_t"></h3><div data-i18n="fs2_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="fs3_t"></h3><div data-i18n="fs3_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="fs4_t"></h3><div data-i18n="fs4_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="fs5_t"></h3><div data-i18n="fs5_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="fs6_t"></h3><div data-i18n="fs6_p"></div></div></div>
+  
+  </div>
+  <p class="cta"><a class="btn primary" href="../fitting/" data-i18n="fit_btn"></a></p>
+</section>
+
+<section id="mail">
+  <div class="sh rv"><span class="no">06</span><h2 data-i18n="ml_title"></h2></div>
+  <p class="lead rv" data-i18n="ml_lead"></p>
   <div class="grid">
-    <div class="card"><div class="ic">👥</div><h3 data-i18n="ml1_t"></h3><p data-i18n="ml1_p"></p></div>
-    <div class="card"><div class="ic">📂</div><h3 data-i18n="ml2_t"></h3><p data-i18n="ml2_p"></p></div>
-    <div class="card"><div class="ic">✉️</div><h3 data-i18n="ml3_t"></h3><p data-i18n="ml3_p"></p></div>
-    <div class="card"><div class="ic">🏷️</div><h3 data-i18n="ml4_t"></h3><p data-i18n="ml4_p"></p></div>
-    <div class="card"><div class="ic">🔔</div><h3 data-i18n="ml5_t"></h3><p data-i18n="ml5_p"></p></div>
-    <div class="card"><div class="ic">🔒</div><h3 data-i18n="ml6_t"></h3><p data-i18n="ml6_p"></p></div>
-  </div>
-  <h3 class="subh" data-i18n="mst_title"></h3>
-  <div class="steps">
-    <div class="step"><div><h3 data-i18n="ms1_t"></h3><div data-i18n="ms1_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="ms2_t"></h3><div data-i18n="ms2_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="ms3_t"></h3><div data-i18n="ms3_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="ms4_t"></h3><div data-i18n="ms4_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="ms5_t"></h3><div data-i18n="ms5_p"></div></div></div>
-  </div>
-  <p><a class="btn primary" href="../mail/" data-i18n="ml_btn"></a></p>
-</div></section>
 
-<section id="appraisal"><div class="wrap">
-  <h2 data-i18n="ap_title"></h2>
-  <p class="lead" data-i18n="ap_lead"></p>
+    <div class="card rv"><div class="ic">👥</div><h3 data-i18n="ml1_t"></h3><p data-i18n="ml1_p"></p></div>
+    <div class="card rv"><div class="ic">📂</div><h3 data-i18n="ml2_t"></h3><p data-i18n="ml2_p"></p></div>
+    <div class="card rv"><div class="ic">✉️</div><h3 data-i18n="ml3_t"></h3><p data-i18n="ml3_p"></p></div>
+    <div class="card rv"><div class="ic">🏷️</div><h3 data-i18n="ml4_t"></h3><p data-i18n="ml4_p"></p></div>
+    <div class="card rv"><div class="ic">🔔</div><h3 data-i18n="ml5_t"></h3><p data-i18n="ml5_p"></p></div>
+    <div class="card rv"><div class="ic">🔒</div><h3 data-i18n="ml6_t"></h3><p data-i18n="ml6_p"></p></div>
+  
+  </div>
+  <h3 class="subh rv" data-i18n="mst_title"></h3>
+  <div class="steps">
+
+    <div class="step rv"><div><h3 data-i18n="ms1_t"></h3><div data-i18n="ms1_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="ms2_t"></h3><div data-i18n="ms2_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="ms3_t"></h3><div data-i18n="ms3_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="ms4_t"></h3><div data-i18n="ms4_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="ms5_t"></h3><div data-i18n="ms5_p"></div></div></div>
+  
+  </div>
+  <p class="cta"><a class="btn primary" href="../mail/" data-i18n="ml_btn"></a></p>
+</section>
+
+<section id="appraisal">
+  <div class="sh rv"><span class="no">07</span><h2 data-i18n="ap_title"></h2></div>
+  <p class="lead rv" data-i18n="ap_lead"></p>
   <div class="grid">
-    <div class="card"><div class="ic">📋</div><h3 data-i18n="ap1_t"></h3><p data-i18n="ap1_p"></p></div>
-    <div class="card"><div class="ic">📈</div><h3 data-i18n="ap2_t"></h3><p data-i18n="ap2_p"></p></div>
-    <div class="card"><div class="ic">⚖️</div><h3 data-i18n="ap3_t"></h3><p data-i18n="ap3_p"></p></div>
-    <div class="card"><div class="ic">🏭</div><h3 data-i18n="ap4_t"></h3><p data-i18n="ap4_p"></p></div>
-    <div class="card"><div class="ic">♻️</div><h3 data-i18n="ap5_t"></h3><p data-i18n="ap5_p"></p></div>
-    <div class="card"><div class="ic">🚚</div><h3 data-i18n="ap6_t"></h3><p data-i18n="ap6_p"></p></div>
-    <div class="card"><div class="ic">🔗</div><h3 data-i18n="ap7_t"></h3><p data-i18n="ap7_p"></p></div>
-    <div class="card"><div class="ic">📦</div><h3 data-i18n="ap8_t"></h3><p data-i18n="ap8_p"></p></div>
-  </div>
-  <h3 class="subh" data-i18n="ast_title"></h3>
-  <div class="steps">
-    <div class="step"><div><h3 data-i18n="as1_t"></h3><div data-i18n="as1_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as2_t"></h3><div data-i18n="as2_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as3_t"></h3><div data-i18n="as3_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as4_t"></h3><div data-i18n="as4_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as5_t"></h3><div data-i18n="as5_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as6_t"></h3><div data-i18n="as6_p"></div></div></div>
-    <div class="step"><div><h3 data-i18n="as7_t"></h3><div data-i18n="as7_p"></div></div></div>
-  </div>
-  <p><a class="btn primary" href="../appraisal/" data-i18n="ap_btn"></a></p>
-  <div class="box why"><h3>❤️ <span data-i18n="why_t"></span></h3><div data-i18n="why_p"></div></div>
-</div></section>
 
-<section id="settings"><div class="wrap">
-  <h2 data-i18n="st_title"></h2>
-  <p class="lead" data-i18n="st_lead"></p>
-  <div style="overflow-x:auto"><table class="sett"><thead><tr><th data-i18n="st_h1"></th><th data-i18n="st_h2"></th><th data-i18n="st_h3"></th><th data-i18n="st_h4"></th></tr></thead><tbody>
+    <div class="card rv"><div class="ic">📋</div><h3 data-i18n="ap1_t"></h3><p data-i18n="ap1_p"></p></div>
+    <div class="card rv"><div class="ic">📈</div><h3 data-i18n="ap2_t"></h3><p data-i18n="ap2_p"></p></div>
+    <div class="card rv"><div class="ic">⚖️</div><h3 data-i18n="ap3_t"></h3><p data-i18n="ap3_p"></p></div>
+    <div class="card rv"><div class="ic">🏭</div><h3 data-i18n="ap4_t"></h3><p data-i18n="ap4_p"></p></div>
+    <div class="card rv"><div class="ic">♻️</div><h3 data-i18n="ap5_t"></h3><p data-i18n="ap5_p"></p></div>
+    <div class="card rv"><div class="ic">🚚</div><h3 data-i18n="ap6_t"></h3><p data-i18n="ap6_p"></p></div>
+    <div class="card rv"><div class="ic">🔗</div><h3 data-i18n="ap7_t"></h3><p data-i18n="ap7_p"></p></div>
+    <div class="card rv"><div class="ic">📦</div><h3 data-i18n="ap8_t"></h3><p data-i18n="ap8_p"></p></div>
+  
+  </div>
+  <h3 class="subh rv" data-i18n="ast_title"></h3>
+  <div class="steps">
+
+    <div class="step rv"><div><h3 data-i18n="as1_t"></h3><div data-i18n="as1_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as2_t"></h3><div data-i18n="as2_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as3_t"></h3><div data-i18n="as3_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as4_t"></h3><div data-i18n="as4_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as5_t"></h3><div data-i18n="as5_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as6_t"></h3><div data-i18n="as6_p"></div></div></div>
+    <div class="step rv"><div><h3 data-i18n="as7_t"></h3><div data-i18n="as7_p"></div></div></div>
+  
+  </div>
+  <p class="cta"><a class="btn primary" href="../appraisal/" data-i18n="ap_btn"></a></p>
+  <div class="box why rv"><h3>❤️ <span data-i18n="why_t"></span></h3><div data-i18n="why_p"></div></div>
+</section>
+</main>
+</div>
+
+<div class="band">
+  <video id="sky2" muted loop playsinline preload="none" poster="../img/hero-poster.jpg" aria-hidden="true"></video>
+  <div class="wrap rv"><h2>Anoikis <b style="color:var(--accent)">Traveler</b></h2><p data-i18n="hero_tag"></p>
+    <div class="btns" style="justify-content:center"><a class="btn primary" href="../regions/?demo" data-i18n="btn_demo"></a><a class="btn" href="../regions/" data-i18n="btn_open"></a></div></div>
+</div>
+
+<div class="wrap layout">
+<div></div>
+<main>
+<section id="settings">
+  <div class="sh rv"><span class="no">08</span><h2 data-i18n="st_title"></h2></div>
+  <p class="lead rv" data-i18n="st_lead"></p>
+  <div class="tbl rv"><table class="sett"><thead><tr><th data-i18n="st_h1"></th><th data-i18n="st_h2"></th><th data-i18n="st_h3"></th><th data-i18n="st_h4"></th></tr></thead><tbody>
+        <tr><td data-i18n="sg_map"></td><td><code>System names</code> (🏷)</td><td data-i18n="sd_sysNames"></td><td>—</td></tr>
+        <tr><td data-i18n="sg_map"></td><td><code>Names of the constellations</code></td><td data-i18n="sd_constNames"></td><td>—</td></tr>
+        <tr><td data-i18n="sg_map"></td><td><code>A selected route stands out…</code> (✦ Focus)</td><td data-i18n="sd_routeFocus"></td><td>✓</td></tr>
+        <tr><td data-i18n="sg_map"></td><td><code>Tunnel animation along the connection…</code></td><td data-i18n="sd_tunnel"></td><td>✓</td></tr>
+        <tr><td data-i18n="sg_map"></td><td><code>Tunnel animation length</code></td><td data-i18n="sd_tunnelSec"></td><td>6 s</td></tr>
+
         <tr><td data-i18n="sg_map"></td><td><code>The map turns slowly around the selected system</code></td><td data-i18n="sd_spin"></td><td>✓</td></tr>
         <tr><td data-i18n="sg_map"></td><td><code>Turning speed</code></td><td data-i18n="sd_spinSpeed"></td><td>3 °/s</td></tr>
         <tr><td data-i18n="sg_map"></td><td><code>Start turning again after…</code></td><td data-i18n="sd_spinIdle"></td><td>5 s</td></tr>
@@ -302,12 +431,17 @@ figure.wide{grid-column:1 / -1}
         <tr><td data-i18n="sg_ref"></td><td><code>Incursions every</code></td><td data-i18n="sd_inc"></td><td>10 min</td></tr>
         <tr><td data-i18n="sg_ref"></td><td><code>Your assets every</code></td><td data-i18n="sd_assets"></td><td>60 min</td></tr>
         <tr><td data-i18n="sg_ref"></td><td><code>Statistics (kills, jumps…) every</code></td><td data-i18n="sd_stats"></td><td>10 min</td></tr>
-  </tbody></table></div>
-  <p class="dim" data-i18n="st_foot"></p>
-</div></section>
+          <tr><td data-i18n="sg_act"></td><td><code>ESS: share of the bounties…</code></td><td data-i18n="sd_essShare"></td><td>25 %</td></tr>
+        <tr><td data-i18n="sg_act"></td><td><code>ESS: mean bounty of one NPC kill…</code></td><td data-i18n="sd_essBounty"></td><td>450 k ISK</td></tr>
 
-<section id="faq"><div class="wrap">
-  <h2 data-i18n="faq_title"></h2>
+  </tbody></table></div>
+  <p class="mini" data-i18n="st_foot"></p>
+</section>
+
+<section id="faq">
+  <div class="sh rv"><span class="no">09</span><h2 data-i18n="faq_title"></h2></div>
+  <div class="rv">
+
   <details><summary data-i18n="q1"></summary><p data-i18n="a1"></p></details>
   <details><summary data-i18n="q2"></summary><p data-i18n="a2"></p></details>
   <details><summary data-i18n="q3"></summary><p data-i18n="a3"></p></details>
@@ -316,13 +450,17 @@ figure.wide{grid-column:1 / -1}
   <details><summary data-i18n="q6"></summary><p data-i18n="a6"></p></details>
   <details><summary data-i18n="q7"></summary><p data-i18n="a7"></p></details>
   <details><summary data-i18n="q8"></summary><p data-i18n="a8"></p></details>
-</div></section>
+  <details><summary data-i18n="q9"></summary><p data-i18n="a9"></p></details>
+  <details><summary data-i18n="q10"></summary><p data-i18n="a10"></p></details>
+  </div>
+</section>
 
-<section id="pricing"><div class="wrap">
-  <h2 data-i18n="pr_title"></h2>
-  <p class="lead" data-i18n="pr_lead"></p>
+<section id="pricing">
+  <div class="sh rv"><span class="no">10</span><h2 data-i18n="pr_title"></h2></div>
+  <p class="lead rv" data-i18n="pr_lead"></p>
   <div class="two">
-    <div class="box"><h3 data-i18n="pr_tab_t"></h3>
+
+    <div class="box rv"><h3 data-i18n="pr_tab_t"></h3>
       <table class="prices"><thead><tr><th data-i18n="pr_chars"></th><th data-i18n="pr_price"></th><th data-i18n="pr_reason"></th></tr></thead><tbody>
         <tr><td>1 – 5</td><td data-i18n="pr_free"></td><td>—</td></tr>
         <tr><td>6 – 10</td><td>50 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-10</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
@@ -331,24 +469,29 @@ figure.wide{grid-column:1 / -1}
         <tr><td>21 – 25</td><td>200 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-25</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
       </tbody></table>
       <p class="mini" data-i18n="pr_more"></p></div>
-    <div class="box"><h3 data-i18n="pr_how_t"></h3><ol data-i18n="pr_how"></ol>
+    <div class="box rv"><h3 data-i18n="pr_how_t"></h3><ol data-i18n="pr_how"></ol>
       <div class="copy"><code>Sava Yesh</code><button type="button" class="small" data-copy="Sava Yesh" data-i18n="copy_name"></button></div>
       <p class="mini" data-i18n="pr_note"></p></div>
+  
   </div>
-</div></section>
+</section>
 
-<section id="support"><div class="wrap">
-  <h2 data-i18n="sup_title"></h2>
-  <p class="lead" data-i18n="sup_lead"></p>
+<section id="support">
+  <div class="sh rv"><span class="no">11</span><h2 data-i18n="sup_title"></h2></div>
+  <p class="lead rv" data-i18n="sup_lead"></p>
   <div class="two">
-    <div class="box isk"><h3>☕ <span data-i18n="isk_t"></span></h3><p data-i18n="isk_p"></p>
+
+    <div class="box isk rv"><h3>☕ <span data-i18n="isk_t"></span></h3><p data-i18n="isk_p"></p>
       <div class="copy"><code>Sava Yesh</code><button type="button" class="small" data-copy="Sava Yesh" data-i18n="copy_name"></button></div>
       <p class="mini" data-i18n="isk_note"></p></div>
-    <div class="box raf"><h3>🚀 <span data-i18n="raf_t"></span></h3><p data-i18n="raf_p"></p>
+    <div class="box raf rv"><h3>🚀 <span data-i18n="raf_t"></span></h3><p data-i18n="raf_p"></p>
       <a class="btn primary" id="rafLink" href="https://www.eveonline.com/signup?invc=b5f2b5a8-f7f6-41a0-a7d1-8d18d73bc63e" target="_blank" rel="noopener" data-i18n="raf_btn"></a>
       <p class="mini" data-i18n="raf_note"></p></div>
+  
   </div>
-</div></section>
+</section>
+</main>
+</div>
 
 <footer><div class="wrap">
   <p>© 2026 Anoikis Traveler · <span data-i18n="rights"></span></p>
@@ -357,7 +500,6 @@ figure.wide{grid-column:1 / -1}
 
 <div id="lb"><img alt=""></div>
 <div id="toast"></div>
-
 <script>
 'use strict';
 const RAF = 'b5f2b5a8-f7f6-41a0-a7d1-8d18d73bc63e';
@@ -761,6 +903,87 @@ Object.assign(T.en, {"m21_t": "WH holders and threat", "m21_p": "In the <i>WH ho
 Object.assign(T.fr, {"m21_t": "Occupants de WH et menace", "m21_p": "Dans la fenêtre <i>WH holders</i>, notez un wormhole, son occupant (corporation ou alliance, facultatif) et un niveau de menace. Chaque fois qu'un de vos pilotes y saute alors qu'il est sur votre chaîne, le logo et le nom de l'occupant s'affichent en grand, avec un cadre de couleur qui pulse : vert pour ami jusqu'à magenta pour extrême, plus vite quand c'est plus dangereux. ▶ montre l'aperçu."});
 Object.assign(T.de, {"m21_t": "WH-Bewohner und Bedrohung", "m21_p": "Im Fenster <i>WH holders</i> trägst du ein Wurmloch, seinen Bewohner (Corporation oder Allianz, optional) und eine Bedrohungsstufe ein. Springt einer deiner Piloten hinein, während es auf deiner Kette ist, erscheinen Logo und Name groß, mit einem pulsierenden Farbrahmen: grün freundlich bis magenta extrem, schneller je gefährlicher. ▶ zeigt eine Vorschau."});
 Object.assign(T.es, {"m21_t": "Ocupantes de WH y amenaza", "m21_p": "En la ventana <i>WH holders</i> anota un agujero, su ocupante (corporación o alianza, opcional) y un nivel de amenaza. Cada vez que uno de tus pilotos salta dentro mientras está en tu cadena, el logo y el nombre aparecen en grande con un marco de color que late: verde amistoso hasta magenta extremo, más rápido cuanto más peligroso. ▶ muestra una vista previa."});
+/* New in this version of the guide: chains as regions, jump animation, active systems, window sizes, names, route focus */
+Object.assign(T.en, {"nav_new": "What's new", "vid_pause": "Pause video", "vid_play": "Play video", "scroll_cue": "Scroll",
+ "toc_t": "On this page",
+ "new_title": "What's new", "new_lead": "The latest additions to the regional maps. Everything below is in the demo too.",
+ "n1_t": "Wormhole chains as regions", "n1_p": "A regional map shows only the first wormholes touching its known space. Under each one: the name of the chain behind it and its size, e.g. <i>◈ Alpha · 7 systems (5 WH + 2 K-space)</i>. One click opens the chain as a map of its own, in 3D, named Alpha, Beta, Gamma… The same names for every pilot of a shared map.",
+ "n2_t": "Chains that split", "n2_p": "When a hole dies and cuts a chain in pieces, each piece becomes a new chain with a new name. The balls of a chain map can be moved by hand and keep their place.",
+ "n3_t": "Jump animation", "n3_p": "When your pilot jumps, the view swings into the axis of the connection and moves slowly along it, inside a tunnel of rings (blue for a gate, purple for a wormhole), then lands on the arrival, which becomes the centre of rotation.",
+ "n4_t": "Active systems & ESS", "n4_p": "The <i>Active systems</i> window lists the busiest systems of the map: rats, jumps, kills per hour, bounties and a simulated ESS main bank. <b>Dest</b> and <b>+WP</b> send them to your selected pilot in EVE.",
+ "n5_t": "Clean map, names on hover", "n5_p": "System and constellation names are hidden; hover a system to read its name and security. The <b>🏷 System names</b> button shows them all again. Your pilot's system, other regions, hubs and wormholes stay named.",
+ "n6_t": "Route focus", "n6_p": "A selected route glows and the rest of the map almost disappears. The <b>✦ Focus</b> button of the <i>Route</i> window turns it on or off.",
+ "n7_t": "Windows of any size", "n7_p": "Every window can be resized from its bottom-right corner; the size is kept. A double-click on the corner gives back its own size.",
+ "n8_t": "Region and pilot in big", "n8_p": "The region name at the top of the map, the followed pilot at the bottom, both centred. A region change shows the region, or the alliance holding the sovereignty, in big.",
+ "c5_alt": "A wormhole chain opened as a region", "c5_html": "<b>A chain as a region.</b> Alpha: its wormholes coloured by class, its known-space exits with their region, Thera when it touches it.",
+ "c6_alt": "The Active systems window", "c6_html": "<b>Active systems.</b> The busiest systems of the region, an ESS estimate, Set destination in one click.",
+ "c7_alt": "The jump animation", "c7_html": "<b>A jump.</b> The view flies along the connection inside a tunnel, slowly, to the arrival system.",
+ "t17_t": "Explore a wormhole chain", "t17_p": "On a regional map, the label under a wormhole names its chain: click it, or the ball of the wormhole, to open the chain as a map. The <i>WH regions</i> list also starts with every chain. Click a known-space exit there to open its region.",
+ "t18_t": "Find where people are", "t18_p": "Open <i>Active systems</i> (View window). Sort by Activity, Ratting, ESS, Traffic or PvP; click a name to see it on the map, <b>Dest</b> to fly there.",
+ "sd_sysNames": "Show the name of every system (otherwise hover a system)", "sd_constNames": "Show the constellation names", "sd_routeFocus": "A selected route stands out, the rest fades", "sd_tunnel": "Tunnel animation when your pilot jumps", "sd_tunnelSec": "Length of the jump animation (5 to 8 s)", "sg_act": "Active systems", "sd_essShare": "ESS: share of the bounties going to the main bank (estimate)", "sd_essBounty": "ESS: mean bounty of one NPC kill at -1.0 true security",
+ "q9": "Why did my chain change its name?", "a9": "A hole of the chain died and cut it in pieces: each piece is a new chain, with a new name. A chain that only grows or shrinks keeps its name.",
+ "q10": "Is the ESS figure exact?", "a10": "No. CCP does not publish the banks; the figure is a simulation from the NPC kills of the last hour. Adjust its two numbers in Settings → Active systems."});
+Object.assign(T.fr, {"nav_new": "Nouveautés", "vid_pause": "Mettre la vidéo en pause", "vid_play": "Lire la vidéo", "scroll_cue": "Défiler",
+ "toc_t": "Sur cette page",
+ "new_title": "Nouveautés", "new_lead": "Les derniers ajouts aux cartes régionales. Tout est aussi dans la démo.",
+ "n1_t": "Les chaînes de WH comme des régions", "n1_p": "Une carte régionale n'affiche que les premiers wormholes reliés à son K-space. Sous chacun : le nom de la chaîne derrière et sa taille, par ex. <i>◈ Alpha · 7 systems (5 WH + 2 K-space)</i>. Un clic ouvre la chaîne comme une carte à part entière, en 3D, nommée Alpha, Beta, Gamma… Les mêmes noms pour tous les pilotes d'une carte partagée.",
+ "n2_t": "Des chaînes qui se coupent", "n2_p": "Quand un trou meurt et coupe une chaîne en morceaux, chaque morceau devient une nouvelle chaîne avec un nouveau nom. Les boules d'une carte de chaîne se déplacent à la main et gardent leur place.",
+ "n3_t": "Animation de saut", "n3_p": "Quand votre pilote saute, la vue se met dans l'axe de la connexion et avance doucement le long d'elle, dans un tunnel d'anneaux (bleu pour une gate, violet pour un wormhole), puis se pose sur le système d'arrivée, qui devient le centre de rotation.",
+ "n4_t": "Systèmes actifs et ESS", "n4_p": "La fenêtre <i>Active systems</i> liste les systèmes les plus actifs de la carte : rats, sauts, kills par heure, primes et une banque ESS simulée. <b>Dest</b> et <b>+WP</b> les envoient à votre pilote sélectionné dans EVE.",
+ "n5_t": "Carte épurée, noms au survol", "n5_p": "Les noms de systèmes et de constellations sont masqués ; survolez un système pour lire son nom et sa sécurité. Le bouton <b>🏷 System names</b> les réaffiche tous. Le système de votre pilote, les autres régions, les hubs et les wormholes gardent leur nom.",
+ "n6_t": "Route en surbrillance", "n6_p": "Une route sélectionnée brille et le reste de la carte devient presque transparent. Le bouton <b>✦ Focus</b> de la fenêtre <i>Route</i> l'active ou le coupe.",
+ "n7_t": "Fenêtres à la taille voulue", "n7_p": "Chaque fenêtre se redimensionne par son coin en bas à droite ; la taille est gardée. Un double-clic sur le coin lui rend sa taille d'origine.",
+ "n8_t": "Région et pilote en grand", "n8_p": "Le nom de la région en haut de la carte, le pilote suivi en bas, tous deux centrés. Un changement de région affiche en grand la région, ou l'alliance qui tient la souveraineté.",
+ "c5_alt": "Une chaîne de wormholes ouverte comme une région", "c5_html": "<b>Une chaîne comme une région.</b> Alpha : ses wormholes colorés par classe, ses sorties K-space avec leur région, Thera quand elle la touche.",
+ "c6_alt": "La fenêtre Active systems", "c6_html": "<b>Active systems.</b> Les systèmes les plus actifs de la région, une estimation ESS, le Set destination en un clic.",
+ "c7_alt": "L'animation de saut", "c7_html": "<b>Un saut.</b> La vue vole le long de la connexion dans un tunnel, doucement, jusqu'au système d'arrivée.",
+ "t17_t": "Explorer une chaîne de wormholes", "t17_p": "Sur une carte régionale, l'étiquette sous un wormhole donne le nom de sa chaîne : cliquez-la, ou la boule du wormhole, pour ouvrir la chaîne comme une carte. La liste <i>WH regions</i> commence aussi par toutes les chaînes. Cliquez une sortie K-space pour ouvrir sa région.",
+ "t18_t": "Trouver où ça bouge", "t18_p": "Ouvrez <i>Active systems</i> (fenêtre View). Triez par Activity, Ratting, ESS, Traffic ou PvP ; cliquez un nom pour le voir sur la carte, <b>Dest</b> pour y aller.",
+ "sd_sysNames": "Afficher le nom de tous les systèmes (sinon, survol)", "sd_constNames": "Afficher les noms des constellations", "sd_routeFocus": "Une route sélectionnée ressort, le reste s'estompe", "sd_tunnel": "Animation tunnel quand votre pilote saute", "sd_tunnelSec": "Durée de l'animation de saut (5 à 8 s)", "sg_act": "Systèmes actifs", "sd_essShare": "ESS : part des primes qui va à la banque principale (estimation)", "sd_essBounty": "ESS : prime moyenne d'un NPC à -1,0 de true sec",
+ "q9": "Pourquoi ma chaîne a-t-elle changé de nom ?", "a9": "Un trou de la chaîne est mort et l'a coupée en morceaux : chaque morceau est une nouvelle chaîne, avec un nouveau nom. Une chaîne qui ne fait que grandir ou rétrécir garde son nom.",
+ "q10": "Le chiffre ESS est-il exact ?", "a10": "Non. CCP ne publie pas les banques ; c'est une simulation à partir des NPC tués dans la dernière heure. Ajustez ses deux valeurs dans Settings → Active systems."});
+Object.assign(T.de, {"nav_new": "Neu", "vid_pause": "Video anhalten", "vid_play": "Video abspielen", "scroll_cue": "Scrollen",
+ "toc_t": "Auf dieser Seite",
+ "new_title": "Neu", "new_lead": "Die neuesten Funktionen der Regionskarten. Alles davon steckt auch in der Demo.",
+ "n1_t": "Wurmlochketten als Regionen", "n1_p": "Eine Regionskarte zeigt nur die ersten Wurmlöcher an ihrem Known Space. Darunter: der Name der Kette dahinter und ihre Größe, z. B. <i>◈ Alpha · 7 systems (5 WH + 2 K-space)</i>. Ein Klick öffnet die Kette als eigene Karte in 3D, benannt Alpha, Beta, Gamma… Dieselben Namen für alle Piloten einer geteilten Karte.",
+ "n2_t": "Ketten, die zerfallen", "n2_p": "Stirbt ein Loch und teilt eine Kette, wird jedes Stück eine neue Kette mit neuem Namen. Die Kugeln einer Kettenkarte lassen sich von Hand verschieben und behalten ihren Platz.",
+ "n3_t": "Sprung-Animation", "n3_p": "Springt dein Pilot, dreht sich die Ansicht in die Achse der Verbindung und gleitet langsam an ihr entlang, durch einen Tunnel aus Ringen (blau für ein Gate, violett für ein Wurmloch), und landet auf dem Zielsystem, das zum Drehpunkt wird.",
+ "n4_t": "Aktive Systeme & ESS", "n4_p": "Das Fenster <i>Active systems</i> listet die aktivsten Systeme der Karte: Rats, Sprünge, Kills pro Stunde, Kopfgelder und eine simulierte ESS-Hauptbank. <b>Dest</b> und <b>+WP</b> schicken sie an deinen gewählten Piloten in EVE.",
+ "n5_t": "Aufgeräumte Karte, Namen beim Überfahren", "n5_p": "System- und Konstellationsnamen sind ausgeblendet; fahre über ein System, um Name und Sicherheit zu sehen. Der Knopf <b>🏷 System names</b> zeigt wieder alle. Das System deines Piloten, andere Regionen, Hubs und Wurmlöcher bleiben benannt.",
+ "n6_t": "Routen-Fokus", "n6_p": "Eine gewählte Route leuchtet, der Rest der Karte wird fast durchsichtig. Der Knopf <b>✦ Focus</b> im Fenster <i>Route</i> schaltet es ein oder aus.",
+ "n7_t": "Fenster in jeder Größe", "n7_p": "Jedes Fenster lässt sich an der unteren rechten Ecke vergrößern; die Größe bleibt. Ein Doppelklick auf die Ecke stellt die ursprüngliche Größe wieder her.",
+ "n8_t": "Region und Pilot groß", "n8_p": "Der Regionsname oben auf der Karte, der verfolgte Pilot unten, beide zentriert. Ein Regionswechsel zeigt die Region oder die Souveränitätsallianz groß an.",
+ "c5_alt": "Eine Wurmlochkette als Region geöffnet", "c5_html": "<b>Eine Kette als Region.</b> Alpha: ihre Wurmlöcher nach Klasse gefärbt, ihre Known-Space-Ausgänge mit Region, Thera, wenn es sie berührt.",
+ "c6_alt": "Das Fenster Active systems", "c6_html": "<b>Active systems.</b> Die aktivsten Systeme der Region, eine ESS-Schätzung, Set destination mit einem Klick.",
+ "c7_alt": "Die Sprung-Animation", "c7_html": "<b>Ein Sprung.</b> Die Ansicht fliegt langsam durch einen Tunnel entlang der Verbindung bis zum Zielsystem.",
+ "t17_t": "Eine Wurmlochkette erkunden", "t17_p": "Auf einer Regionskarte nennt das Etikett unter einem Wurmloch seine Kette: klicke es oder die Kugel des Wurmlochs, um die Kette als Karte zu öffnen. Die Liste <i>WH regions</i> beginnt ebenfalls mit allen Ketten. Klicke dort einen Known-Space-Ausgang, um seine Region zu öffnen.",
+ "t18_t": "Finden, wo etwas los ist", "t18_p": "Öffne <i>Active systems</i> (Fenster View). Sortiere nach Activity, Ratting, ESS, Traffic oder PvP; klicke einen Namen, um ihn auf der Karte zu sehen, <b>Dest</b>, um hinzufliegen.",
+ "sd_sysNames": "Namen aller Systeme zeigen (sonst beim Überfahren)", "sd_constNames": "Konstellationsnamen zeigen", "sd_routeFocus": "Eine gewählte Route hebt sich ab, der Rest verblasst", "sd_tunnel": "Tunnel-Animation beim Sprung deines Piloten", "sd_tunnelSec": "Dauer der Sprung-Animation (5 bis 8 s)", "sg_act": "Aktive Systeme", "sd_essShare": "ESS: Anteil der Kopfgelder für die Hauptbank (Schätzung)", "sd_essBounty": "ESS: mittleres Kopfgeld eines NPC bei -1,0 True Sec",
+ "q9": "Warum hat meine Kette den Namen gewechselt?", "a9": "Ein Loch der Kette ist gestorben und hat sie geteilt: jedes Stück ist eine neue Kette mit neuem Namen. Eine Kette, die nur wächst oder schrumpft, behält ihren Namen.",
+ "q10": "Ist der ESS-Wert genau?", "a10": "Nein. CCP veröffentlicht die Banken nicht; der Wert ist eine Simulation aus den NPC-Kills der letzten Stunde. Passe die zwei Zahlen unter Settings → Active systems an."});
+Object.assign(T.es, {"nav_new": "Novedades", "vid_pause": "Pausar el vídeo", "vid_play": "Reproducir el vídeo", "scroll_cue": "Desplazar",
+ "toc_t": "En esta página",
+ "new_title": "Novedades", "new_lead": "Lo último en los mapas regionales. Todo está también en la demo.",
+ "n1_t": "Cadenas de WH como regiones", "n1_p": "Un mapa regional solo muestra los primeros agujeros unidos a su known space. Debajo de cada uno: el nombre de la cadena que hay detrás y su tamaño, p. ej. <i>◈ Alpha · 7 systems (5 WH + 2 K-space)</i>. Un clic abre la cadena como un mapa propio en 3D, llamado Alpha, Beta, Gamma… Los mismos nombres para todos los pilotos de un mapa compartido.",
+ "n2_t": "Cadenas que se cortan", "n2_p": "Cuando un agujero muere y corta una cadena, cada trozo pasa a ser una cadena nueva con un nombre nuevo. Las bolas de un mapa de cadena se mueven a mano y conservan su sitio.",
+ "n3_t": "Animación de salto", "n3_p": "Cuando tu piloto salta, la vista se pone en el eje de la conexión y avanza despacio a lo largo de ella, dentro de un túnel de anillos (azul para un gate, violeta para un agujero), y se posa en el sistema de llegada, que pasa a ser el centro de giro.",
+ "n4_t": "Sistemas activos y ESS", "n4_p": "La ventana <i>Active systems</i> lista los sistemas más activos del mapa: rats, saltos, kills por hora, recompensas y un banco ESS simulado. <b>Dest</b> y <b>+WP</b> los envían a tu piloto seleccionado en EVE.",
+ "n5_t": "Mapa limpio, nombres al pasar", "n5_p": "Los nombres de sistemas y constelaciones están ocultos; pasa el ratón por un sistema para ver su nombre y seguridad. El botón <b>🏷 System names</b> los muestra todos de nuevo. El sistema de tu piloto, otras regiones, hubs y agujeros conservan su nombre.",
+ "n6_t": "Ruta resaltada", "n6_p": "Una ruta seleccionada brilla y el resto del mapa se vuelve casi transparente. El botón <b>✦ Focus</b> de la ventana <i>Route</i> lo activa o lo desactiva.",
+ "n7_t": "Ventanas del tamaño que quieras", "n7_p": "Cada ventana se redimensiona desde su esquina inferior derecha; el tamaño se guarda. Un doble clic en la esquina le devuelve su tamaño original.",
+ "n8_t": "Región y piloto en grande", "n8_p": "El nombre de la región arriba del mapa y el piloto seguido abajo, ambos centrados. Un cambio de región muestra en grande la región o la alianza que tiene la soberanía.",
+ "c5_alt": "Una cadena de agujeros abierta como región", "c5_html": "<b>Una cadena como región.</b> Alpha: sus agujeros coloreados por clase, sus salidas a known space con su región, Thera cuando la toca.",
+ "c6_alt": "La ventana Active systems", "c6_html": "<b>Active systems.</b> Los sistemas más activos de la región, una estimación ESS y Set destination en un clic.",
+ "c7_alt": "La animación de salto", "c7_html": "<b>Un salto.</b> La vista vuela despacio por un túnel a lo largo de la conexión hasta el sistema de llegada.",
+ "t17_t": "Explorar una cadena de agujeros", "t17_p": "En un mapa regional, la etiqueta bajo un agujero nombra su cadena: haz clic en ella, o en la bola del agujero, para abrir la cadena como un mapa. La lista <i>WH regions</i> también empieza con todas las cadenas. Haz clic en una salida a known space para abrir su región.",
+ "t18_t": "Encontrar dónde hay movimiento", "t18_p": "Abre <i>Active systems</i> (ventana View). Ordena por Activity, Ratting, ESS, Traffic o PvP; haz clic en un nombre para verlo en el mapa, <b>Dest</b> para ir allí.",
+ "sd_sysNames": "Mostrar el nombre de todos los sistemas (si no, al pasar el ratón)", "sd_constNames": "Mostrar los nombres de las constelaciones", "sd_routeFocus": "Una ruta seleccionada resalta, el resto se difumina", "sd_tunnel": "Animación de túnel cuando tu piloto salta", "sd_tunnelSec": "Duración de la animación de salto (5 a 8 s)", "sg_act": "Sistemas activos", "sd_essShare": "ESS: parte de las recompensas que va al banco principal (estimación)", "sd_essBounty": "ESS: recompensa media de un NPC a -1,0 de true sec",
+ "q9": "¿Por qué mi cadena cambió de nombre?", "a9": "Un agujero de la cadena murió y la cortó en trozos: cada trozo es una cadena nueva, con un nombre nuevo. Una cadena que solo crece o se encoge conserva su nombre.",
+ "q10": "¿Es exacta la cifra ESS?", "a10": "No. CCP no publica los bancos; es una simulación a partir de los NPC muertos en la última hora. Ajusta sus dos valores en Settings → Active systems."});
+Object.assign(T.en, {"tut_lead": "Step by step, from your first login to wormhole chains. You can try everything in the demo first."});
+Object.assign(T.fr, {"tut_lead": "Pas à pas, de la première connexion aux chaînes de wormholes. Vous pouvez tout essayer d'abord dans la démo."});
+Object.assign(T.de, {"tut_lead": "Schritt für Schritt, vom ersten Login bis zu den Wurmlochketten. Du kannst alles zuerst in der Demo ausprobieren."});
+Object.assign(T.es, {"tut_lead": "Paso a paso, desde el primer inicio de sesión hasta las cadenas de agujeros. Puedes probarlo todo antes en la demo."});
 const LANGS = Object.keys(T);
 const $ = s => document.querySelector(s);
 function pick(){
@@ -798,6 +1021,33 @@ document.querySelectorAll('figure img, .shot img').forEach(i => i.addEventListen
 $('#lb').addEventListener('click', () => $('#lb').classList.remove('on'));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lb').classList.remove('on'); });
 apply(lang);
+/* the video: the light version on small screens; pause button; a second copy in the band, played only when seen */
+(() => {
+  const small = matchMedia('(max-width:820px)').matches || (navigator.connection && navigator.connection.saveData);
+  const src = `../img/${small ? 'hero-small' : 'hero'}.mp4?v=2`, v = $('#sky'), v2 = $('#sky2'), b = $('#vidCtl');
+  const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  v.src = src; if (!still) v.play().catch(() => {}); else v.pause();
+  const label = () => { b.textContent = (v.paused ? T[lang].vid_play : T[lang].vid_pause) || ''; };
+  b.addEventListener('click', () => { if (v.paused) v.play().catch(() => {}); else v.pause(); label(); });
+  v.addEventListener('play', label); v.addEventListener('pause', label);
+  document.querySelectorAll('.lang button').forEach(x => x.addEventListener('click', label)); label();
+  if ('IntersectionObserver' in window){
+    new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ if (!v2.src) v2.src = `../img/hero-small.mp4?v=2`; if (!still) v2.play().catch(() => {}); } else v2.pause(); }), { threshold:.15 }).observe(v2);
+    new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) v.pause(); else if (!still && !v.dataset.user) v.play().catch(() => {}); }), { threshold:.05 }).observe(v);
+  }
+  b.addEventListener('click', () => { v.dataset.user = v.paused ? '1' : ''; });
+})();
+/* the top bar turns to glass after the video; the contents follow the reading */
+(() => {
+  const top = $('#top'), onScroll = () => top.classList.toggle('solid', scrollY > innerHeight * 0.6);
+  addEventListener('scroll', onScroll, { passive:true }); onScroll();
+  const links = [...document.querySelectorAll('.toc a, nav.links a')], secs = [...document.querySelectorAll('main section[id]')];
+  if (!('IntersectionObserver' in window)){ document.querySelectorAll('.rv').forEach(e => e.classList.add('in')); return; }
+  const spy = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ const id = e.target.id; links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + id)); } }), { rootMargin:'-40% 0px -55% 0px' });
+  secs.forEach(s => spy.observe(s));
+  const rv = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ e.target.classList.add('in'); rv.unobserve(e.target); } }), { rootMargin:'0px 0px -8% 0px' });
+  document.querySelectorAll('.rv').forEach((e, i) => { e.style.transitionDelay = (i % 4) * 60 + 'ms'; rv.observe(e); });
+})();
 /* Private visit counter: one count per browser per day, sent to the owner's server. Nothing is shown here. */
 (async () => {
   try{
