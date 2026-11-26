@@ -372,6 +372,9 @@ body.nf #hint{transform:translateY(-16px)}
 .sigform{display:grid;grid-template-columns:74px 1.2fr 1fr .8fr;gap:3px}
 .sigform input,.sigform select{min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:1px 4px;font:12px var(--body);height:22px}
 .sigt .x.ok{color:var(--ok)}
+.sigf{border:0;cursor:pointer;width:auto!important;margin:1px 0}
+.sigf.off{opacity:.3} .sigf.on{box-shadow:0 0 0 2px #fff inset}
+.sigf.all{background:none;border:1px solid var(--line);color:var(--dim);border-radius:3px;font-size:11px;padding:0 6px}
 .setwb{width:min(460px,calc(100vw - 40px));max-height:min(600px,calc(100vh - 120px));overflow:auto;font-size:12.5px}
 .setwb h4{margin:10px 0 4px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .setwb h4:first-child{margin-top:0}
@@ -1754,7 +1757,7 @@ async function pasteSigs(txt){
     renderSigs(); renderPanel();
   }
 }
-let sigEdit = null;   // the signature being edited
+let sigEdit = null, sigFilter = new Set(store.get('whmap.reg.sigFilter', []));   // types shown; empty = all   // the signature being edited
 const SIG_TYPES = ['Wormhole', 'Data Site', 'Relic Site', 'Gas Site', 'Combat Site', 'Ore Site'];
 const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h' : Math.floor(m / 1440) + ' d'; };
 const agoTxt = t => ago(t) === 'now' ? 'just now' : ago(t) + ' ago';
@@ -1769,12 +1772,15 @@ function renderSigs(force){
   const r = id ? sigsOf(id) : null, list = r ? Object.entries(r.list) : [];
   const order = k => { const c = sigCat(k[1].type); return c ? SIG_CAT.indexOf(c) : 99; };
   list.sort((a, b) => order(a) - order(b) || a[0].localeCompare(b[0]));
-  const unk = list.filter(([, v]) => !v.type).length;
-  $('#sigSub').textContent = id ? `${list.length}${unk ? ` · ${unk} to scan` : ''}` : '';
+  const unk = list.filter(([, v]) => !v.type).length, catKey = v => (sigCat(v.type) || ['?'])[0];
+  const shown = sigFilter.size ? list.filter(([, v]) => sigFilter.has(catKey(v))) : list;
+  const chip = (key, label, col, n, dark) => `<button type="button" class="sigc sigf${sigFilter.has(key) ? ' on' : ''}${sigFilter.size && !sigFilter.has(key) ? ' off' : ''}" data-sf="${key}" style="background:${col}${dark ? ';color:#fff' : ''}" title="${sigFilter.has(key) ? 'Click to hide' : 'Show only these (click others to add them)'}">${n} ${label}</button>`;
+  $('#sigSub').textContent = id ? `${sigFilter.size ? shown.length + ' / ' : ''}${list.length}${unk ? ` · ${unk} to scan` : ''}` : '';
   $('#sigList').innerHTML = !id ? '' : !list.length ? '<div class="dim" style="font-size:12.5px">No signature saved for this system yet.</div>'
-    : `<div class="sigsum">${SIG_CAT.map(c => [c, list.filter(([, v]) => sigCat(v.type) === c).length]).filter(x => x[1]).map(([c, n]) => `<span class="sigc" style="background:${c[2]}">${n} ${c[1]}</span>`).join(' ')}${unk ? ` <span class="sigc" style="background:#59627a;color:#fff">${unk} ?</span>` : ''}
-        · pasted ${agoTxt(r.t)}${r.by ? ' by ' + esc(r.by) : ''}</div>
-      <table class="sigt"><colgroup><col class="c1"><col class="c2"><col><col class="c4"><col class="c5"><col class="c6"></colgroup>${list.map(([k, v]) => { const c = sigCat(v.type);
+    : `<div class="sigsum">${SIG_CAT.map(c => [c, list.filter(([, v]) => sigCat(v.type) === c).length]).filter(x => x[1]).map(([c, n]) => chip(c[0], c[1], c[2], n)).join(' ')}${unk ? ' ' + chip('?', '?', '#59627a', unk, true) : ''}
+        ${sigFilter.size ? `<button type="button" class="sigf all" data-sf="*" title="Show every type">all</button>` : ''} · pasted ${agoTxt(r.t)}${r.by ? ' by ' + esc(r.by) : ''}</div>
+      ${!shown.length ? '<div class="dim" style="font-size:12.5px">No signature of the chosen types.</div>' : ''}
+      <table class="sigt"><colgroup><col class="c1"><col class="c2"><col><col class="c4"><col class="c5"><col class="c6"></colgroup>${shown.map(([k, v]) => { const c = sigCat(v.type);
         if (sigEdit === k) return `<tr class="edit"><td class="id">${esc(k)}</td><td colspan="4"><div class="sigform">
             <select data-f="type" title="Type"><option value="">?</option>${SIG_TYPES.map(t => `<option value="${t}"${sigCat(t) === c ? ' selected' : ''}>${t.replace(' Site', '')}</option>`).join('')}</select>
             <input data-f="name" value="${esc(v.name || '')}" placeholder="Name / K162 → C5" title="Site name, or wormhole type">
@@ -1784,6 +1790,9 @@ function renderSigs(force){
         return `<tr class="${Date.now() - v.t < 10 * 60000 ? 'new' : ''}" data-editsig="${esc(k)}" title="Click to edit"><td class="id">${esc(k)}</td><td>${c ? `<span class="sigc" style="background:${c[2]}">${c[1]}</span>` : '<span class="sigc" style="background:#59627a;color:#fff">?</span>'}</td>
           <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
           <td style="white-space:nowrap"><button type="button" class="x" data-editsig="${esc(k)}" title="Edit ${esc(k)}">✎</button><button type="button" class="x" data-delsig="${esc(k)}" title="Remove ${esc(k)}">✕</button></td></tr>`; }).join('')}</table>`;
+  $('#sigList').querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { const k = b.dataset.sf;
+    if (k === '*') sigFilter.clear(); else if (sigFilter.has(k)) sigFilter.delete(k); else sigFilter.add(k);
+    store.set('whmap.reg.sigFilter', [...sigFilter]); renderSigs(true); });
   $('#sigList').querySelectorAll('[data-editsig]').forEach(b => b.onclick = e => { if (e.target.closest('[data-delsig]')) return; sigEdit = b.dataset.editsig; renderSigs(true); const f = $('#sigList [data-f="bm"]'); if (f) f.focus(); });
   const cancel = $('#sigList [data-cancel]'); if (cancel) cancel.onclick = () => { sigEdit = null; renderSigs(true); };
   const save = $('#sigList [data-save]');
