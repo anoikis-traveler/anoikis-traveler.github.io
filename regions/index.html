@@ -3084,8 +3084,9 @@ function draw(){
       if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
       else { const sl = 46 + 16 * zs; ex = p.x + Math.cos(ang) * sl; ey = p.y + Math.sin(ang) * sl; }
       const hc = holeCol(here, other);
-      el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
-      el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
+      const dl = Math.hypot(ex - p.x, ey - p.y) || 1, cmx = (p.x + ex) / 2 + (ey - p.y) / dl * dl * 0.3, cmy = (p.y + ey) / 2 - (ex - p.x) / dl * dl * 0.3, dq = `M${p.x},${p.y} Q${cmx},${cmy} ${ex},${ey}`;   // curved like Thera and Turnur
+      el('path', { d:dq, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
+      el('path', { d:dq, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
       // the system at the other end: a ball of its class colour, like a system of the map
       const bg = el('g', { class:'stubball', 'data-stub':other, 'data-stubk':sk }, gStub);
       if (sel === String(other)) el('circle', { cx:ex, cy:ey, r:br + 5, class:'halo' }, bg);
