@@ -217,9 +217,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .view .proxy{display:none!important}
 .sovline{display:flex;align-items:center;gap:7px;margin:2px 0 6px;font-size:13px}.sovline img{border-radius:50%;background:#000}
 .winlist h5{margin:8px 0 3px;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-.winlist .wg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.winlist button{display:flex;align-items:center;gap:6px;text-align:left;font-size:12.5px;padding:4px 8px}
-.winlist button i{width:12px;font-style:normal;color:var(--accent);text-align:center}
+.winlist .wg{display:flex;flex-wrap:wrap;gap:4px}
+.winlist button{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px}
+.winlist button i{font-style:normal;color:var(--accent)}
+.winlist button i:empty{display:none}
+#wView{width:max-content;max-width:300px}
 .winlist button[aria-pressed=true]{border-color:rgba(242,167,75,.6);background:rgba(242,167,75,.1)}
 .winlist button.fd{border-style:dashed}
 .wnav a{font-size:12px;color:var(--dim);text-decoration:none;padding:2px 7px;border-radius:3px}
