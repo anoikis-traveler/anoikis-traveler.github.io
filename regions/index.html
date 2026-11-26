@@ -344,6 +344,23 @@ body.nf #hint{transform:translateY(-16px)}
 .stwb .top{display:grid;grid-template-columns:1fr auto;gap:2px 8px}
 .stwb .top .lk{justify-self:start}
 #wStats .wcol + .wcol{margin-left:0}
+#wSigs .wcol + .wcol{margin-left:0}
+#wSigs{width:440px}
+.sigwb{display:flex;flex-direction:column;gap:7px;max-height:min(620px,calc(100vh - 120px));overflow:auto}
+.sigwb textarea{width:100%;min-height:58px;resize:vertical;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:6px;font:12px var(--mono)}
+.sigwb .row{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:12px;color:var(--dim)}
+.sigfor{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+.sigfor b{font-size:14px}
+.sigt{width:100%;border-collapse:collapse;font-size:12.5px}
+.sigt td{padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle}
+.sigt td.id{font:600 12px var(--mono);white-space:nowrap}
+.sigt td.sg{font:11.5px var(--mono);text-align:right;color:var(--dim);white-space:nowrap}
+.sigt td.age{font-size:11px;color:var(--dim);white-space:nowrap;text-align:right}
+.sigt tr.new td.id{color:var(--ok)}
+.sigt .x{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 3px}
+.sigt .x:hover{color:#ff8a8a}
+.sigc{display:inline-block;min-width:62px;text-align:center;border-radius:3px;padding:0 5px;font:600 10.5px var(--body);letter-spacing:.04em;text-transform:uppercase;color:#0b0f18}
+.sigsum{font-size:12px;color:var(--dim)}
 .setwb{width:min(460px,calc(100vw - 40px));max-height:min(600px,calc(100vh - 120px));overflow:auto;font-size:12.5px}
 .setwb h4{margin:10px 0 4px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .setwb h4:first-child{margin-top:0}
@@ -519,6 +536,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" class="proxy" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" class="proxy" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
+        <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
         <button id="btnCols" class="proxy" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
@@ -587,6 +605,16 @@ body.nf #hint{transform:translateY(-16px)}
   <section class="widget" id="wStats" data-title="Statistics" hidden>
     <header class="wh"><span class="wt">Statistics</span><span class="wsub dim" id="statSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="statClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb stwb" id="statBody"></div>
+  </section>
+
+  <section class="widget" id="wSigs" data-title="Signatures" hidden>
+    <header class="wh"><span class="wt">Signatures</span><span class="wsub dim" id="sigSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="sigClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb sigwb">
+      <div class="sigfor" id="sigFor"></div>
+      <textarea id="sigText" spellcheck="false" placeholder="In EVE: open the probe scanner (Alt+P), click in the list, Ctrl+A then Ctrl+C, and paste here (Ctrl+V)."></textarea>
+      <div class="row"><label title="Like in the game: a signature that is not in your paste any more is gone"><input type="checkbox" id="sigDrop" checked> remove the ones not in my paste</label><button type="button" class="small" id="sigClear" title="Remove every signature of this system">Clear</button></div>
+      <div id="sigList"></div>
+    </div>
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
@@ -1661,6 +1689,102 @@ function renderStats(){
   $('#statNums').onchange = e => { statNums = e.target.checked; store.set('whmap.reg.statNums', statNums); render(); };
   box.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => { lookAway(); goTo(b.dataset.sys); });
 }
+/* Cosmic signatures, pasted from the probe scanner (EVE gives no access to it); shared with your map */
+const SIG_CAT = [ ['wh', 'Wormhole', '#a98bff', /wormhole|trou de ver|wurmloch|червоточ/i], ['data', 'Data', '#5fb6ff', /data|donn[ée]es|daten|информ/i],
+  ['relic', 'Relic', '#e8c25a', /relic|reliqu|relikt|археол/i], ['gas', 'Gas', '#5fd68a', /\bgas\b|gaz|gasgebiet|газ/i], ['combat', 'Combat', '#ef5a5a', /combat|kampf|боев/i], ['ore', 'Ore', '#c98b5a', /\bore\b|minerai|erz|руд/i] ];
+const SIG_KEEP = 72 * 3600e3;
+let sigPin = store.get('whmap.reg.sigPin', 'me');           // whose system: where I am, or the selected one
+const sigSys = () => { const m = me.sys && /^\d+$/.test(me.sys) ? me.sys : null, s2 = sel && /^\d+$/.test(sel) ? sel : null; return sigPin === 'sel' ? (s2 || m) : (m || s2); };
+function sigsAll(){
+  const loc = store.get(DEMO ? 'whmap.reg.sigs.demo' : 'whmap.reg.sigs', {}), sh = (share.map && share.map.data && share.map.data.sigs) || {};
+  return share.owner && !DEMO ? sh : loc;
+}
+const sigsOf = id => { const r = sigsAll()[String(id)]; return r && r.list ? r : null; };
+function sigCat(t){ for (const c of SIG_CAT) if (c[3].test(t || '')) return c; return null; }
+function parseSigs(txt){
+  const out = {}; let anoms = 0;
+  for (const line of String(txt || '').split(/\r?\n/)){
+    const c = line.split('\t').map(x => x.trim()); if (!/^[A-Z]{3}-\d{3}$/.test(c[0] || '')) continue;
+    if (c[1] && !/signa|сигнат/i.test(c[1])){ anoms++; continue; }            // cosmic anomalies (no probes needed) are left out
+    const sig = parseFloat(String(c[4] || '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
+    out[c[0]] = { type:c[2] || '', name:c[3] || '', sig };
+  }
+  return { out, anoms };
+}
+async function saveSigs(id, rec){
+  id = String(id);
+  if (!DEMO && share.owner && share.ws){
+    try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/sigs/${id}`, data:rec }); share.map.data = share.map.data || {}; share.map.data.sigs = { ...(share.map.data.sigs || {}) }; if (rec) share.map.data.sigs[id] = rec; else delete share.map.data.sigs[id]; }
+    catch(e){ toast(e.status === 403 || /refus|denied|permission/i.test(e.message) ? 'You have read-only access to this map: signatures not saved.' : 'The shared map did not accept the signatures: ' + e.message, true); return false; }
+  } else {
+    const key = DEMO ? 'whmap.reg.sigs.demo' : 'whmap.reg.sigs', loc = store.get(key, {});
+    for (const k in loc) if (!loc[k] || Date.now() - (loc[k].t || 0) > SIG_KEEP) delete loc[k];
+    if (rec) loc[id] = rec; else delete loc[id]; store.set(key, loc);
+  }
+  return true;
+}
+async function pasteSigs(txt){
+  const id = sigSys(); if (!id){ toast('Select a system on the map first (or log in a character)', true); return; }
+  const { out, anoms } = parseSigs(txt), n = Object.keys(out).length;
+  if (!n){ toast(anoms ? `Only cosmic anomalies in this paste (${anoms}): nothing to keep` : 'No signature found: copy the probe scanner list (Ctrl+A, Ctrl+C)', true); return; }
+  const now = Date.now(), old = (sigsOf(id) || {}).list || {}, list = {};
+  let added = 0, upd = 0, gone = 0;
+  if (!$('#sigDrop').checked) Object.assign(list, old);
+  for (const k in out){
+    const o = old[k], v = out[k];
+    if (!o){ list[k] = { ...v, t:now, u:now }; added++; continue; }
+    const better = (v.type && !o.type) || (v.name && !o.name) || v.sig > o.sig;
+    list[k] = { type:v.type || o.type, name:v.name || o.name, sig:Math.max(v.sig, o.sig || 0), t:o.t, u:better ? now : o.u }; if (better) upd++;
+  }
+  if ($('#sigDrop').checked) gone = Object.keys(old).filter(k => !out[k]).length;
+  if (await saveSigs(id, { t:now, by:tok ? tok.charName : (DEMO ? 'Demo Pilot' : ''), list })){
+    $('#sigText').value = '';
+    toast(`${sysName(id)}: ${added} new, ${upd} updated${gone ? `, ${gone} gone` : ''}${anoms ? ` (${anoms} anomalies left out)` : ''}`);
+    renderSigs(); renderPanel();
+  }
+}
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h' : Math.floor(m / 1440) + ' d'; };
+const agoTxt = t => ago(t) === 'now' ? 'just now' : ago(t) + ' ago';
+function renderSigs(){
+  if ($('#wSigs').hidden) return;
+  const id = sigSys(), m = me.sys && /^\d+$/.test(me.sys) ? me.sys : null, s2 = sel && /^\d+$/.test(sel) ? sel : null;
+  $('#sigFor').innerHTML = id ? `<span class="dim">System</span> <b>${esc(sysName(id))}</b> <span class="dim">${isJ(id) ? esc(classOf(id)) : byId[id] ? secR(byId[id].s).toFixed(1) : ''}</span>
+      <span style="margin-left:auto"></span>${m ? `<button type="button" class="small" data-pin="me" aria-pressed="${sigPin !== 'sel'}" title="The system your character is in">📍 where I am</button>` : ''}${s2 ? `<button type="button" class="small" data-pin="sel" aria-pressed="${sigPin === 'sel'}" title="The system selected on the map">◎ selected</button>` : ''}`
+    : '<span class="dim">Select a system on the map, or log in a character.</span>';
+  $('#sigFor').querySelectorAll('[data-pin]').forEach(b => b.onclick = () => { sigPin = b.dataset.pin; store.set('whmap.reg.sigPin', sigPin); renderSigs(); });
+  const r = id ? sigsOf(id) : null, list = r ? Object.entries(r.list) : [];
+  const order = k => { const c = sigCat(k[1].type); return c ? SIG_CAT.indexOf(c) : 99; };
+  list.sort((a, b) => order(a) - order(b) || a[0].localeCompare(b[0]));
+  const unk = list.filter(([, v]) => !v.type).length;
+  $('#sigSub').textContent = id ? `${list.length}${unk ? ` · ${unk} to scan` : ''}` : '';
+  $('#sigList').innerHTML = !id ? '' : !list.length ? '<div class="dim" style="font-size:12.5px">No signature saved for this system yet.</div>'
+    : `<div class="sigsum">${SIG_CAT.map(c => [c, list.filter(([, v]) => sigCat(v.type) === c).length]).filter(x => x[1]).map(([c, n]) => `<span class="sigc" style="background:${c[2]}">${n} ${c[1]}</span>`).join(' ')}${unk ? ` <span class="sigc" style="background:#59627a;color:#fff">${unk} ?</span>` : ''}
+        · pasted ${agoTxt(r.t)}${r.by ? ' by ' + esc(r.by) : ''}</div>
+      <table class="sigt">${list.map(([k, v]) => { const c = sigCat(v.type);
+        return `<tr class="${Date.now() - v.t < 10 * 60000 ? 'new' : ''}"><td class="id">${esc(k)}</td><td>${c ? `<span class="sigc" style="background:${c[2]}">${c[1]}</span>` : '<span class="sigc" style="background:#59627a;color:#fff">?</span>'}</td>
+          <td>${esc(v.name || (v.type && !c ? v.type : '') || '')}</td><td class="sg">${v.sig ? v.sig.toFixed(1) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
+          <td><button type="button" class="x" data-delsig="${esc(k)}" title="Remove ${esc(k)}">✕</button></td></tr>`; }).join('')}</table>`;
+  $('#sigList').querySelectorAll('[data-delsig]').forEach(b => b.onclick = async () => { const rec = sigsOf(id); if (!rec) return; const list2 = { ...rec.list }; delete list2[b.dataset.delsig];
+    if (await saveSigs(id, Object.keys(list2).length ? { ...rec, list:list2 } : null)){ renderSigs(); renderPanel(); } });
+}
+document.addEventListener('click', e => { const a = e.target.closest('[data-opensigs]'); if (!a) return; e.preventDefault(); sigPin = 'sel'; store.set('whmap.reg.sigPin', sigPin); if ($('#wSigs').hidden) $('#btnSigs').click(); else renderSigs(); });
+function setupSigs(){
+  const box = $('#wSigs'), btn = $('#btnSigs');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderSigs(); placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => show(box.hidden);
+  $('#sigClose').onclick = () => show(false);
+  $('#sigText').addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData).getData('text'); if (t){ e.preventDefault(); pasteSigs(t); } });
+  $('#sigText').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) pasteSigs($('#sigText').value); });
+  box.addEventListener('paste', e => { if (e.target.closest('textarea,input')) return; const t = (e.clipboardData || window.clipboardData).getData('text'); if (t) pasteSigs(t); });   // Ctrl+V anywhere in the window
+  $('#sigClear').onclick = async () => { const id = sigSys(); if (!id || !sigsOf(id)) return; const b = $('#sigClear');
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Clear all?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Clear'; }, 3000); return; }
+    if (await saveSigs(id, null)){ b.dataset.sure = ''; b.textContent = 'Clear'; renderSigs(); renderPanel(); } };
+  if (DEMO && !Object.keys(store.get('whmap.reg.sigs.demo', {})).length){
+    const t = Date.now(), L = { 'ABC-123':{ type:'Wormhole', name:'Unstable Wormhole', sig:100, t:t - 3600e3, u:t }, 'KLM-482':{ type:'Data Site', name:'Central Guristas Survey Site', sig:100, t:t - 7200e3, u:t },
+      'QRS-907':{ type:'Gas Site', name:'Barren Perimeter Reservoir', sig:100, t:t - 1800e3, u:t }, 'XYZ-311':{ type:'', name:'', sig:22.4, t:t - 300e3, u:t }, 'DEF-650':{ type:'Combat Site', name:'', sig:61.3, t:t - 600e3, u:t } };
+    store.set('whmap.reg.sigs.demo', { '31000123':{ t, by:'Demo Scout', list:L } });
+  }
+}
 function setupStats(){
   const box = $('#wStats'), btn = $('#btnStats');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderStats(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -2578,6 +2702,7 @@ function hubHtml(h){
     <p class="dim" style="font-size:12px">Signatures: ${esc(name)} side › other side. Click a system to open its region.</p>`;
 }
 function renderPanel(){
+  if (typeof renderSigs === 'function') try{ renderSigs(); }catch(e){}
   const P = $('#panel');
   if (!R){ P.innerHTML = ''; return; }
   $('#infoTitle').textContent = sel && isHubVirtual(sel) ? 'Network' : sel && byId[sel] ? 'System' : 'Region';
@@ -2618,6 +2743,7 @@ function renderPanel(){
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
     P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
+      ${sigsOf(id) ? (() => { const L = Object.values(sigsOf(id).list), u = L.filter(v => !v.type).length; return `<div class="sovline"><a href="#" data-opensigs="1">📡 ${L.length} signature${L.length > 1 ? 's' : ''}${u ? `, ${u} to scan` : ''}</a> <span class="dim">· ${agoTxt(sigsOf(id).t)}</span></div>`; })() : ''}
       ${sovOf(id) ? `<div class="sovline"><img src="https://images.evetech.net/alliances/${sovOf(id)}/logo?size=64" alt="" width="22" height="22"><span>Sovereignty: <a href="${sovNames[sovOf(id)] ? 'https://evemaps.dotlan.net/alliance/' + encodeURIComponent(sovNames[sovOf(id)].replace(/ /g, '_')) : 'https://zkillboard.com/alliance/' + sovOf(id) + '/'}" target="_blank" rel="noopener">${esc(sovNames[sovOf(id)] || 'alliance ' + sovOf(id))}</a></span></div>` : ''}
       <div class="dim">${s.ext ? `${esc(s.ext)} (neighbouring region)` : `${esc(R.constellations[s.c] || '')} · ${esc(R.region.name)}`}</div>
       ${tags ? `<div style="margin-top:6px">${tags}</div>` : ''}
@@ -3381,7 +3507,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -3427,10 +3553,10 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
-  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wSigs', 'Signatures', '#btnSigs'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
   ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
@@ -3458,10 +3584,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -3488,7 +3614,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats();
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs();
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
