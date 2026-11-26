@@ -2190,22 +2190,16 @@ function placeHubsScreen(P){
     const exits = hn.exits.map(id => P[id]).filter(Boolean);
     if (!exits.length) continue;
     const cx = exits.reduce((m, e) => m + e.x, 0) / exits.length, cy = exits.reduce((m, e) => m + e.y, 0) / exits.length;
-    let best = null, bc = Infinity;
-    // it keeps its place next to the system(s) it is linked to: while the map turns it moves with them, same offset on screen
-    const fk = R.region.id + '|' + hn.exits.join(','), fx = hubFix[hn.h];
-    if (fx && fx.k === fk){ best = { x:cx + fx.dx, y:cy + fx.dy }; hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy }; P[hn.h] = { x:best.x, y:best.y, d:-1 }; taken.push(best); continue; }
-    const prev = hubOff[hn.h];
-    if (prev){ const q = { x:cx + prev.dx, y:cy + prev.dy }, c = cost(q, exits); if (c < 400){ best = q; bc = c; } }
-    if (!best){
-      for (const r of [70, 95, 125, 160, 210, 270, 340, 420, 520, 640, 780]) for (let k = 0; k < 36; k++){
-        const a = k / 36 * Math.PI * 2 - Math.PI / 2, q = { x:cx + Math.cos(a) * r, y:cy + Math.sin(a) * r }, c = cost(q, exits);
-        if (c < bc){ bc = c; best = q; }
-      }
-    }
-    hubOff[hn.h] = { dx:best.x - cx, dy:best.y - cy };
-    hubFix[hn.h] = { k:fk, dx:best.x - cx, dy:best.y - cy };
-    P[hn.h] = { x:best.x, y:best.y, d:-1 };
-    taken.push(best);
+    // a point of the region's own 3D space, next to its exits and a little above: it turns with the map like a system
+    const ws = hn.exits.map(id => norm[id]).filter(Boolean); if (!ws.length) continue;
+    const e = { x:ws.reduce((m, w) => m + w.x, 0) / ws.length, y:ws.reduce((m, w) => m + w.y, 0) / ws.length, z:ws.reduce((m, w) => m + w.z, 0) / ws.length };
+    const k = hubNodes.filter(x => !x.real && x.exits.length).indexOf(hn), L = Math.hypot(e.x, e.z) || 1;
+    const a0 = Math.atan2(e.z / L, e.x / L) + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.5;      // fanned out when several hubs share a side
+    const wpt = { x:e.x + Math.cos(a0) * 0.32, y:e.y + 0.22, z:e.z + Math.sin(a0) * 0.32 };
+    const q = proj(wpt);
+    hubOff[hn.h] = { dx:q.x - cx, dy:q.y - cy };
+    P[hn.h] = { x:q.x, y:q.y, d:q.d };
+    taken.push(q);
   }
 }
 const hubColour = h => WH_COL[HUB_CLASS[String(h)]];
