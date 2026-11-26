@@ -42,6 +42,12 @@ header .grow{flex:1}
 main{display:grid;grid-template-columns:1fr 330px;min-height:0}
 #stage{position:fixed;inset:0;overflow:hidden;touch-action:none}
 #map{width:100%;height:100%;display:block;cursor:grab;user-select:none;position:relative;z-index:1}
+/* route shown: everything else almost transparent */
+#map.routing > g > *:not(.onr):not(.route):not(.ap):not(.goldglow){opacity:.1;transition:opacity .3s}
+#map.routing .route,#map.routing .ap{filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px rgba(95,214,138,.6));stroke-width:3.2px}
+#map.routing .onr text,#map.routing .lbl.onr{font-weight:600}
+#hovLbl{position:fixed;z-index:6;pointer-events:none;font:600 13px var(--mono);color:#fff;background:rgba(7,10,18,.82);border:1px solid var(--line);border-radius:4px;padding:2px 7px;white-space:nowrap;transform:translate(14px,-50%)}
+#hovLbl[hidden]{display:none} #hovLbl small{color:var(--dim);font-weight:400;margin-left:5px}
 #bgsky{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 #map.dragging{cursor:grabbing}
 #hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--dim);pointer-events:none}
@@ -107,6 +113,10 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .share-st.wait,.share-st.none{color:var(--dim)}
 #map.pdim{opacity:.22;filter:saturate(.35)}
 #pilRing{position:absolute;border:2px solid var(--ok);border-radius:50%;box-shadow:0 0 14px rgba(90,220,140,.55);pointer-events:none;z-index:4}
+#hovName{position:absolute;z-index:6;pointer-events:none;padding:2px 7px;background:rgba(10,14,26,.9);border:1px solid rgba(255,255,255,.28);border-radius:5px;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.5);transform:translateY(-50%)}
+#hovName .hs{margin-left:6px;font-weight:700}#hovName .hr{margin-left:6px;color:#9aa6bd;font-weight:400}
+.namesbtn{font-weight:700;letter-spacing:.02em;border:1px solid rgba(120,200,255,.55)!important;color:#bfe3ff!important;background:rgba(40,90,140,.25)!important}
+.namesbtn[aria-pressed="true"]{background:rgba(70,150,220,.55)!important;color:#fff!important;border-color:#8fd0ff!important;box-shadow:0 0 10px rgba(110,190,255,.45)}
 #pilPop{position:absolute;z-index:5;min-width:210px;max-width:300px;max-height:70vh;overflow:auto;padding:8px 10px 6px;background:rgba(10,14,26,.94);border:1px solid rgba(90,220,140,.45);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.55);font-size:13px}
 #pilPop .pph{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line)}
 #pilPop .pph b{font-family:var(--display);font-size:15px;letter-spacing:.06em;text-transform:uppercase}
@@ -587,10 +597,12 @@ body.nf #hint{transform:translateY(-16px)}
   <svg id="map" aria-label="3D region map"></svg>
   <div id="pilRing" hidden></div>
   <button type="button" id="nfBack" hidden title="Follow me is still on: the map comes back on your next jump. Click to go back now."></button>
+  <div id="hovLbl" hidden></div>
   <div id="pilotBig" hidden></div>
   <div id="regionBig" hidden></div>
   <div id="noFollow" hidden><button type="button" id="nfTxt" title="Follow your pilot again"></button></div>
   <div id="pilPop" hidden></div>
+  <div id="hovName" hidden></div>
   <div id="banner"></div>
   <div id="killBar" aria-live="polite"></div>
   <div id="hubCards"></div>
@@ -604,7 +616,7 @@ body.nf #hint{transform:translateY(-16px)}
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
       <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
       <datalist id="sysList"></datalist>
-      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button></div>
+      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ Home</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button></div>
     </div>
   </section>
 
@@ -2306,7 +2318,7 @@ function applySettings(k){
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
   if (k === 'kills') pollKills();
   if (k === 'bigName') renderNoFollow();
-  if (k === 'sysNames' || k === 'constNames') render();
+  if (k === 'sysNames' || k === 'constNames'){ render(); const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } }
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
 }
 function killStatHtml(){
@@ -3044,6 +3056,17 @@ function drawBg(){
   const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .35, w / 2, h / 2, Math.hypot(w, h) * .62); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
   g.fillStyle = v; g.fillRect(0, 0, w, h);
 }
+// hovering a system shows its name (names are mostly hidden on the map)
+function setupHover(){
+  const svg = $('#map'), hl = $('#hovLbl');
+  svg.addEventListener('pointerover', e => { const g = e.target.closest('.sys,.stubball'); if (!g){ hl.hidden = true; return; }
+    const id = g.dataset.id || g.dataset.stub, s = byId[id], r = g.getBoundingClientRect();
+    const sec = s ? secR(s.s) : secOfId(id) != null ? secR(secOfId(id)) : null;
+    hl.innerHTML = `${esc(s ? s.n : sysName(id))}${sec != null ? ` <span style="color:${secCol(s ? s.s : secOfId(id))}">${sec.toFixed(1)}</span>` : ` <span style="color:var(--eol)">${esc(classOf(id) || '')}</span>`}${s && s.ext ? `<small>${esc(s.ext)}</small>` : s ? `<small>${esc(R.constellations[s.c] || '')}</small>` : ''}`;
+    hl.style.left = Math.round(r.left + r.width / 2 + r.width / 4) + 'px'; hl.style.top = Math.round(r.top + r.height / 2) + 'px'; hl.hidden = false; });
+  svg.addEventListener('pointerout', e => { if (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('.sys,.stubball')) hl.hidden = true; });
+  svg.addEventListener('pointerdown', () => { hl.hidden = true; });
+}
 function syncBlink(){ if (!document.getAnimations) return; for (const an of document.getAnimations()) if (typeof CSSAnimation !== 'undefined' && an instanceof CSSAnimation && an.startTime !== 0) an.startTime = 0; }
 const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); drawBg(); syncBlink(); placeTop(); }); };
 let touch = {};
@@ -3057,6 +3080,9 @@ function draw(){
   const svg = $('#map'); const b = svg.getBoundingClientRect(); W = b.width || 800; H = b.height || 600;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = '';
+  // a route is shown: it stands out, the rest of the map fades almost away
+  const onRoute = new Set([...(route && route.ids.length > 1 ? route.ids : []), ...(ap && ap.path && ap.path.length > 1 ? ap.path : [])].map(String));
+  svg.classList.toggle('routing', onRoute.size > 1);
   if (!R) return;
   // shared shading that turns each dot into a small sphere
   const defs = el('defs', {}, svg);
@@ -3190,7 +3216,7 @@ function draw(){
   const order = R.systems.slice().sort((a, b) => P[b.id].d - P[a.id].d);
   for (const s of order){
     const id = String(s.id), p = P[id];
-    const g = el('g', { class:'sys' + (s.ext ? ' ext' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
+    const g = el('g', { class:'sys' + (s.ext ? ' ext' : '') + (onRoute.has(id) ? ' onr' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
     const r = (s.ext ? 5 : 9) * zs;
     if (colorMode === 'wh' && touch[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4, fill:'none', stroke:touch[id], 'stroke-width':2, opacity:.85 }, g);
     else if (mapper.nodes[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4.5, class:'inmap' }, g);
@@ -3238,13 +3264,13 @@ function draw(){
   const pilotSys = followRemote && typeof remotePilot === 'function' && remotePilot() ? String(remotePilot().sys) : me.sys;
   for (const L of labels){
     // names kept: systems of other regions, and the system of the selected pilot (the others: hover a system for its name)
-    const named = SET.sysNames || L.s.ext || L.id === pilotSys;
+    const named = SET.sysNames || L.s.ext || L.id === pilotSys || onRoute.has(L.id);
     if (!named && !L.pil.length) continue;
     const txt = !named ? '' : L.s.ext ? `${L.s.n} › ${L.s.ext}` : `${L.s.n} ${secR(L.s.s).toFixed(1)}`;
     const ptxt = L.pil.slice(0, 3).map(x => x.name).join(', '), box = { x:L.p.x + L.r + 3, y:L.p.y - 7, w:Math.max(txt.length, ptxt.length) * 6.3 + 2, h:L.pil.length ? 26 : 13 };
     if (L.pri > 2 && placed.some(q => box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h)) continue;
     placed.push(box);
-    const t = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 4, class:'lbl' + (L.s.ext ? ' ext' : '') + (sel === L.id ? ' sel' : '') }, gLbl);
+    const t = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 4, class:'lbl' + (L.s.ext ? ' ext' : '') + (sel === L.id ? ' sel' : '') + (onRoute.has(L.id) ? ' onr' : '') }, gLbl);
     t.textContent = txt;
     if (L.pil.length){ const tp = el('text', { x:L.p.x + L.r + 4, y:L.p.y + (txt ? 16 : 4), class:'pil', 'data-pid':L.id }, gLbl);
       const shown = L.pil.length > 3 ? L.pil.slice(0, 2) : L.pil;
@@ -3284,13 +3310,24 @@ function placePilPop(){
   y = Math.max(8, Math.min(st.height - h - 8, y));
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
+/* hovering a system shows its name, even when the names are hidden */
+function showHovName(g){
+  const box = $('#hovName'); if (!box) return;
+  const id = g && g.dataset.id, s = id && (byId[id] || (sysName(id) && sysName(id) !== String(id) ? { n:sysName(id), s:secOf(id) } : null));
+  if (!s || pilHover){ box.hidden = true; return; }
+  const dot = g.querySelector('.dot') || g, r = dot.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), sv = secR(s.s), wh = s.s == null || isNaN(s.s);
+  box.innerHTML = `${esc(s.n)}${wh ? '' : `<span class="hs" style="color:${secCol(s.s)}">${sv.toFixed(1)}</span>`}${s.ext ? `<span class="hr">› ${esc(s.ext)}</span>` : ''}`;
+  box.style.left = (r.right - st.left + 8) + 'px'; box.style.top = (r.top + r.height / 2 - st.top) + 'px'; box.hidden = false;
+}
 function setupPilPop(){
   document.addEventListener('pointermove', e => {
     if ($('#map').classList.contains('dragging')){ showPilPop(null); return; }
     if (e.target.closest && e.target.closest('#pilPop')) return;
     const t = e.target.closest && e.target.closest('#map .sys, #map [data-pid]');
     showPilPop(t ? (t.dataset.id || t.dataset.pid) : null);
+    showHovName(t && t.classList.contains('sys') ? t : null);
   });
+  $('#map').addEventListener('pointerleave', () => showHovName(null));
   $('#map').addEventListener('pointerleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#pilPop'))) showPilPop(null); });
   $('#pilPop').addEventListener('pointerleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#map .sys, #map [data-pid]'))) showPilPop(null); });
 }
@@ -3626,6 +3663,9 @@ function setupInput(){
   $('#btnExit').onclick = () => { if (mapper.exit) goMark(mapper.exit.id); };
   renderHomeBtn();
   $('#btnReset').onclick = () => { cam.zoom = 1; cam.px = 0; cam.py = 0; cam.yaw = 0; cam.pitch = 58 * Math.PI / 180; if (me.sys && byId[me.sys]) centerOn(me.sys); render(); };
+  const syncNames = () => { const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } };
+  $('#btnNames').onclick = () => { SET.sysNames = SET.sysNames ? 0 : 1; saveSettings(); applySettings('sysNames'); syncNames(); if (!$('#wSet').hidden) renderSettings(); };
+  syncNames();
   $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
@@ -4300,7 +4340,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); loadStandings(); setInterval(loadStandings, 30 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); setupHover(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
