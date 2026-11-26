@@ -214,16 +214,13 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .brand{font-family:var(--display);font-size:1.2rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text);text-decoration:none}
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
-.wnav .vmb{font:600 12px var(--body);background:#1a2440;border:1px solid var(--line);color:var(--text);padding:1px 9px;border-radius:3px;margin-right:4px;cursor:pointer}
-.wnav .vmb[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}
-.vmenu{position:absolute;z-index:60;min-width:230px;background:rgba(12,17,30,.98);border:1px solid #3a4d75;border-radius:6px;box-shadow:0 12px 34px rgba(0,0,0,.6);padding:5px}
-.vmenu[hidden]{display:none}
-.vmenu h5{margin:6px 8px 2px;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-.vmenu button{display:flex;width:100%;gap:8px;align-items:center;background:none;border:0;border-radius:4px;padding:5px 8px;color:var(--text);font:500 13px var(--body);text-align:left;cursor:pointer}
-.vmenu button:hover{background:#18233d}
-.vmenu button i{width:14px;font-style:normal;color:var(--accent);text-align:center}
-.vmenu button .st{margin-left:auto;font-size:11px;color:var(--dim)}
-.vmenu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.view .proxy{display:none!important}
+.winlist h5{margin:8px 0 3px;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.winlist .wg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.winlist button{display:flex;align-items:center;gap:6px;text-align:left;font-size:12.5px;padding:4px 8px}
+.winlist button i{width:12px;font-style:normal;color:var(--accent);text-align:center}
+.winlist button[aria-pressed=true]{border-color:rgba(242,167,75,.6);background:rgba(242,167,75,.1)}
+.winlist button.fd{border-style:dashed}
 .wnav a{font-size:12px;color:var(--dim);text-decoration:none;padding:2px 7px;border-radius:3px}
 .wnav a:hover{color:var(--text);background:var(--panel-2)}
 .wb.tool{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -477,7 +474,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
 
   <section class="widget" id="wTool" data-title="Anoikis Traveler">
-    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><button type="button" id="viewMenuBtn" class="vmb" aria-haspopup="true" aria-expanded="false" title="Open or close the map's windows">View ▾</button><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a href="../mail/">Mail</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a href="../mail/">Mail</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb tool">
       <select id="regSel" aria-label="Region"></select>
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
@@ -487,36 +484,36 @@ body.nf #hint{transform:translateY(-16px)}
     </div>
   </section>
 
-  <div id="viewMenu" class="vmenu" role="menu" hidden></div>
-  <section class="widget" id="wView" data-title="View">
-    <header class="wh"><span class="wt">Map options</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xView" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
+    <section class="widget" id="wView" data-title="View">
+    <header class="wh"><span class="wt">View</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb view">
       <label class="dim">Colour <select id="colorSel" aria-label="Colour systems by"><option value="wh">Grey + wormholes</option><option value="sec">Security</option><option value="const">Constellation</option></select></label>
       <div class="btns">
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
-        <button id="btnChain" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
-        <button id="btnAll" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
-        <button id="btnPoch" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
-        <button id="btnStats" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
-        <button id="btnSet" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
-        <button id="btnCols" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
-        <button id="btnJb" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
-        <button id="btnAssets" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
+        <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
+        <button id="btnAll" class="proxy" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
+        <button id="btnPoch" class="proxy" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
+        <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
+        <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
+        <button id="btnCols" class="proxy" type="button" aria-pressed="false" title="Choose the colour of every kind of connection">Colours</button>
+        <button id="btnJb" class="proxy" type="button" aria-pressed="false" title="Ansiblex jump bridges: paste or import them, shown on the map and used in routes">Jump bridges</button>
+        <button id="btnAssets" class="proxy" type="button" aria-pressed="false" title="Mark the systems where your characters have assets">Assets</button>
         <button id="btnReset" type="button">Recenter</button>
-        <button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button>
       </div>
+      <div id="winList" class="winlist" aria-label="Windows"></div>
+      <div class="btns"><button id="btnLayout" type="button" title="Put every window back in its place">Reset windows</button></div>
     </div>
   </section>
 
   <section class="widget" id="wChars" data-title="Characters">
-    <header class="wh"><span class="wt">Characters</span><span id="who" class="dim wsub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChars" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
+    <header class="wh"><span class="wt">Characters</span><span id="who" class="dim wsub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChars" aria-label="Close" title="Close (reopen it from the View window)">✕</button></header>
     <div class="wb" id="charsBody"></div>
   </section>
 
   <section class="widget" id="wWatch" data-title="Pilots">
-    <header class="wh"><span class="wt">Pilots</span><span class="wsub dim" id="watchSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xWatch" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
+    <header class="wh"><span class="wt">Pilots</span><span class="wsub dim" id="watchSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xWatch" aria-label="Close" title="Close (reopen it from the View window)">✕</button></header>
     <div class="wb" id="watchBody"></div>
   </section>
 
@@ -569,12 +566,12 @@ body.nf #hint{transform:translateY(-16px)}
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
-    <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xInfo" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
+    <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xInfo" aria-label="Close" title="Close (reopen it from the View window)">✕</button></header>
     <div class="wb"><div id="panel" aria-live="polite"></div></div>
   </section>
 
   <section class="widget" id="wChain" data-title="Chain" hidden>
-    <header class="wh"><span class="wt">Chain</span><span class="wsub dim" id="chainSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChain" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
+    <header class="wh"><span class="wt">Chain</span><span class="wsub dim" id="chainSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChain" aria-label="Close" title="Close (reopen it from the View window)">✕</button></header>
     <div class="wb chainwb">
       <div class="chaintools">
         <select id="chainSel" aria-label="Chain"></select>
@@ -1922,7 +1919,7 @@ function renderChars(){
   renderWatch();
   // the site owner's own links: shown only when one of the owner's characters is logged in here
   if (!DEMO){ const own = vaultChars().some(isOwnerChar);
-    const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own; }
+    const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own; if (typeof renderViewMenu === 'function') renderViewMenu(); }
   const box = $('#charsBody'); if (!box) return;
   const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
   box.innerHTML = (list.length ? list.map(c => { const st = chars[c.charId] || {}, on = tok && tok.charId === c.charId;
@@ -3273,7 +3270,7 @@ function initWidget(el){
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
 function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
-const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region / system info'], ['wView', 'Map options']]],
+const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
   ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
   ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
@@ -3285,25 +3282,18 @@ function openWin(id, on){
   else if (!w || !w[2]){ el.hidden = !on; wstate[id] = { ...(wstate[id] || {}), closed:!on }; store.set('whmap.reg.widgets', wstate); }
   if (on){ el.hidden = false; placeWidget(el); el.style.zIndex = ++wz; }
 }
-function renderViewMenu(){
-  const m = $('#viewMenu'), own = !$('#navAdmin').hidden;
-  m.innerHTML = WINS.filter(g => g[0] !== 'Site owner' || own).map(([g, ws]) => `<h5>${g}</h5>` + ws.map(([id, label]) => { const el = $('#' + id), open = !el.hidden, fold = open && el.classList.contains('folded');
-    return `<button type="button" role="menuitemcheckbox" aria-checked="${open}" data-win="${id}"><i>${open ? (fold ? '▁' : '✓') : ''}</i>${esc(label)}<span class="st">${fold ? 'folded' : open ? '' : 'closed'}</span></button>`; }).join('')).join('')
-    + `<hr><button type="button" data-win="#reset"><i>↺</i>Reset windows</button>`;
-  m.querySelectorAll('[data-win]').forEach(b => b.onclick = () => {
-    const id = b.dataset.win;
-    if (id === '#reset') $('#btnLayout').click();
-    else { const el = $('#' + id); openWin(id, el.hidden || el.classList.contains('folded')); }
-    renderViewMenu(); });
+function renderViewMenu(){   // the View window lists every window: lit when open, dashed when folded
+  const m = $('#winList'); if (!m) return; const own = !$('#navAdmin').hidden;
+  m.innerHTML = WINS.filter(g => g[0] !== 'Site owner' || own).map(([g, ws]) => `<h5>${g}</h5><div class="wg">` + ws.map(([id, label]) => { const el = $('#' + id), open = !el.hidden, fold = open && el.classList.contains('folded');
+    return `<button type="button" aria-pressed="${open}" class="${fold ? 'fd' : ''}" data-win="${id}" title="${fold ? 'Folded at the bottom left: click to open it' : open ? 'Click to close it' : 'Click to open it where it was'}"><i>${open ? (fold ? '▁' : '✓') : ''}</i>${esc(label)}</button>`; }).join('') + '</div>').join('');
+  m.querySelectorAll('[data-win]').forEach(b => b.onclick = () => { const el = $('#' + b.dataset.win); openWin(b.dataset.win, el.hidden || el.classList.contains('folded')); renderViewMenu(); });
 }
 function setupViewMenu(){
-  const b = $('#viewMenuBtn'), m = $('#viewMenu');
-  const show = on => { m.hidden = !on; b.setAttribute('aria-expanded', String(on)); if (on){ renderViewMenu(); const r = b.getBoundingClientRect(); m.style.left = Math.min(r.left, innerWidth - 250) + 'px'; m.style.top = r.bottom + 4 + 'px'; } };
-  b.onclick = e => { e.stopPropagation(); show(m.hidden); };
-  document.addEventListener('pointerdown', e => { if (!m.hidden && !m.contains(e.target) && e.target !== b) show(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !m.hidden) show(false); });
   document.querySelectorAll('.wx').forEach(x => x.onclick = () => openWin(x.closest('.widget').id, false));
   for (const [id] of WINS[0][1]) if ((wstate[id] || {}).closed) $('#' + id).hidden = true;    // the windows you closed stay closed
+  new MutationObserver(ms => { if (ms.some(x => x.target.classList && x.target.classList.contains('widget'))) renderViewMenu(); })
+    .observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden', 'class'] });
+  renderViewMenu();
 }
 function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
