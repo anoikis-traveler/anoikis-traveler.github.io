@@ -345,7 +345,7 @@ body.nf #hint{transform:translateY(-16px)}
 .stwb .top .lk{justify-self:start}
 #wStats .wcol + .wcol{margin-left:0}
 #wSigs .wcol + .wcol{margin-left:0}
-#wSigs{width:440px}
+#wSigs{width:560px;max-width:calc(100vw - 16px)}
 .sigwb{display:flex;flex-direction:column;gap:7px;max-height:min(620px,calc(100vh - 120px));overflow:auto}
 .sigwb textarea{width:100%;min-height:58px;resize:vertical;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:6px;font:12px var(--mono)}
 .sigwb .row{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:12px;color:var(--dim)}
@@ -362,12 +362,16 @@ body.nf #hint{transform:translateY(-16px)}
 .sigc{display:inline-block;min-width:62px;text-align:center;border-radius:3px;padding:0 5px;font:600 10.5px var(--body);letter-spacing:.04em;text-transform:uppercase;color:#0b0f18}
 .sigsum{font-size:12px;color:var(--dim)}
 .sigt tr[data-editsig]{cursor:pointer} .sigt tr[data-editsig]:hover td{background:#121a2c}
-.sigt .bm{font-size:11.5px;color:#e8c25a;margin-top:1px}
-.sigt .bm.dim{color:var(--dim)}
-.sigform{display:grid;gap:5px;padding:4px 0}
-.sigform label{display:grid;grid-template-columns:70px 1fr;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
-.sigform input,.sigform select{background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:4px 6px;font:12.5px var(--body)}
-.sigform .row{display:flex;justify-content:space-between}
+.sigt{table-layout:fixed}
+.sigt col.c1{width:66px} .sigt col.c2{width:80px} .sigt col.c4{width:50px} .sigt col.c5{width:40px} .sigt col.c6{width:44px}
+.sigt td:last-child{overflow:visible;text-overflow:clip;padding:0}
+.sigt .sigc{min-width:0;width:100%;box-sizing:border-box}
+.sigt td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sigt td.nm .bm{font-size:11.5px;color:#e8c25a;margin-left:7px}
+.sigt td.nm .bm.dim{color:var(--dim)}
+.sigform{display:grid;grid-template-columns:74px 1.2fr 1fr .8fr;gap:3px}
+.sigform input,.sigform select{min-width:0;background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:3px;padding:1px 4px;font:12px var(--body);height:22px}
+.sigt .x.ok{color:var(--ok)}
 .setwb{width:min(460px,calc(100vw - 40px));max-height:min(600px,calc(100vh - 120px));overflow:auto;font-size:12.5px}
 .setwb h4{margin:10px 0 4px;font-family:var(--display);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .setwb h4:first-child{margin-top:0}
@@ -1770,15 +1774,15 @@ function renderSigs(force){
   $('#sigList').innerHTML = !id ? '' : !list.length ? '<div class="dim" style="font-size:12.5px">No signature saved for this system yet.</div>'
     : `<div class="sigsum">${SIG_CAT.map(c => [c, list.filter(([, v]) => sigCat(v.type) === c).length]).filter(x => x[1]).map(([c, n]) => `<span class="sigc" style="background:${c[2]}">${n} ${c[1]}</span>`).join(' ')}${unk ? ` <span class="sigc" style="background:#59627a;color:#fff">${unk} ?</span>` : ''}
         · pasted ${agoTxt(r.t)}${r.by ? ' by ' + esc(r.by) : ''}</div>
-      <table class="sigt">${list.map(([k, v]) => { const c = sigCat(v.type);
-        if (sigEdit === k) return `<tr class="edit"><td class="id">${esc(k)}</td><td colspan="5"><div class="sigform">
-            <label>Type <select data-f="type"><option value="">? (not scanned)</option>${SIG_TYPES.map(t => `<option${sigCat(t) === c ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-            <label>Name <input data-f="name" value="${esc(v.name || '')}" placeholder="Site name, or wormhole type (e.g. K162 → C5)"></label>
-            <label>Bookmark <input data-f="bm" value="${esc(v.bm || '')}" placeholder="Name of your bookmark in game"></label>
-            <label>Note <input data-f="note" value="${esc(v.note || '')}" placeholder="Anything for your group"></label>
-            <div class="row"><span></span><span><button type="button" class="small" data-cancel="1">Cancel</button> <button type="button" class="small primary" data-save="${esc(k)}">Save</button></span></div></div></td></tr>`;
+      <table class="sigt"><colgroup><col class="c1"><col class="c2"><col><col class="c4"><col class="c5"><col class="c6"></colgroup>${list.map(([k, v]) => { const c = sigCat(v.type);
+        if (sigEdit === k) return `<tr class="edit"><td class="id">${esc(k)}</td><td colspan="4"><div class="sigform">
+            <select data-f="type" title="Type"><option value="">?</option>${SIG_TYPES.map(t => `<option value="${t}"${sigCat(t) === c ? ' selected' : ''}>${t.replace(' Site', '')}</option>`).join('')}</select>
+            <input data-f="name" value="${esc(v.name || '')}" placeholder="Name / K162 → C5" title="Site name, or wormhole type">
+            <input data-f="bm" value="${esc(v.bm || '')}" placeholder="🔖 bookmark" title="Name of your bookmark in game">
+            <input data-f="note" value="${esc(v.note || '')}" placeholder="note" title="Anything for your group"></div></td>
+            <td style="white-space:nowrap"><button type="button" class="x ok" data-save="${esc(k)}" title="Save (Enter)">✓</button><button type="button" class="x" data-cancel="1" title="Cancel (Esc)">↶</button></td></tr>`;
         return `<tr class="${Date.now() - v.t < 10 * 60000 ? 'new' : ''}" data-editsig="${esc(k)}" title="Click to edit"><td class="id">${esc(k)}</td><td>${c ? `<span class="sigc" style="background:${c[2]}">${c[1]}</span>` : '<span class="sigc" style="background:#59627a;color:#fff">?</span>'}</td>
-          <td>${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<div class="bm">🔖 ${esc(v.bm)}</div>` : ''}${v.note ? `<div class="bm dim">${esc(v.note)}</div>` : ''}</td><td class="sg">${v.sig ? v.sig.toFixed(1) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
+          <td class="nm" title="${esc([v.name, v.bm ? '🔖 ' + v.bm : '', v.note].filter(Boolean).join(' · '))}">${esc(v.name || (v.type && !c ? v.type : '') || '')}${v.bm ? `<span class="bm">🔖 ${esc(v.bm)}</span>` : ''}${v.note ? `<span class="bm dim">${esc(v.note)}</span>` : ''}</td><td class="sg">${v.sig ? (v.sig >= 100 ? '100' : v.sig.toFixed(1)) + '%' : ''}</td><td class="age" title="First seen ${new Date(v.t).toLocaleString()}">${ago(v.t)}</td>
           <td style="white-space:nowrap"><button type="button" class="x" data-editsig="${esc(k)}" title="Edit ${esc(k)}">✎</button><button type="button" class="x" data-delsig="${esc(k)}" title="Remove ${esc(k)}">✕</button></td></tr>`; }).join('')}</table>`;
   $('#sigList').querySelectorAll('[data-editsig]').forEach(b => b.onclick = e => { if (e.target.closest('[data-delsig]')) return; sigEdit = b.dataset.editsig; renderSigs(true); const f = $('#sigList [data-f="bm"]'); if (f) f.focus(); });
   const cancel = $('#sigList [data-cancel]'); if (cancel) cancel.onclick = () => { sigEdit = null; renderSigs(true); };
