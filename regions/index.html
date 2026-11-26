@@ -2296,7 +2296,9 @@ function hubCard(h, p, gLine){
 }
 /* ---------- Render ---------- */
 let rafId = 0;
-const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); }); };
+// the map is redrawn at each frame while it turns: new elements would restart their blinking at 0, so every CSS animation runs on one shared clock
+function syncBlink(){ if (!document.getAnimations) return; for (const an of document.getAnimations()) if (typeof CSSAnimation !== 'undefined' && an instanceof CSSAnimation && an.startTime !== 0) an.startTime = 0; }
+const render = () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); syncBlink(); }); };
 let touch = {};
 function colourOf(s){
   if (statMode && !s.ext) return statCol(statVal(String(s.id)));
