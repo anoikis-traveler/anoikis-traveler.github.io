@@ -225,6 +225,13 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .widget .wcol:hover{border-color:var(--line)}
 .widget .wb{padding:10px 11px;overflow:auto;min-height:0}
 .widget.folded .wb,.widget.folded #apHead{display:none}
+.wgrip{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;z-index:3;touch-action:none;background:linear-gradient(135deg,transparent 50%,rgba(150,170,210,.45) 50%,rgba(150,170,210,.45) 58%,transparent 58%,transparent 70%,rgba(150,170,210,.45) 70%,rgba(150,170,210,.45) 78%,transparent 78%);border-bottom-right-radius:6px;opacity:.6}
+.wgrip:hover,.widget.resizing .wgrip{opacity:1}
+.widget.folded .wgrip{display:none}
+.widget.sized .wb{max-height:none!important;flex:1 1 auto}
+.widget.sized{max-width:calc(100vw - 8px)!important;min-width:0!important}
+.widget.sized > *:not(.wh):not(.wgrip){max-height:none}
+.widget.resizing{user-select:none}
 .widget.folded .wh{border-bottom:none;cursor:pointer}
 /* folded windows: all the same size, in a column at the bottom left of the map */
 .widget.folded{width:230px!important;min-width:0!important;height:auto!important;transition:top .2s,left .2s}
@@ -4332,11 +4339,14 @@ function dockFolded(){   // folded windows line up from the bottom left, oldest 
 function placeWidget(el){
   const st = wstate[el.id] || {}, d = defaultPos(el.id, el);
   el.classList.toggle('folded', !!st.folded);
-  if (st.folded){ dockFolded(); return; }
+  if (st.folded){ el.style.maxHeight = ''; dockFolded(); return; }
   const x = st.x != null ? st.x : d.x, y = st.y != null ? st.y : d.y;
   el.style.left = Math.max(4, Math.min(innerWidth - Math.min(el.offsetWidth, innerWidth - 8) - 4, x)) + 'px';
   el.style.top = Math.max(4, Math.min(innerHeight - 36, y)) + 'px';
+  fitH(el);
 }
+// a window never runs off the bottom of the screen: its own scroll bar instead, and its resize corner stays in reach
+function fitH(el){ if (!el.classList.contains('folded')) el.style.maxHeight = Math.max(80, innerHeight - el.offsetTop - 6) + 'px'; }
 function initWidget(el){
   const head = el.querySelector('.wh'), fold = el.querySelector('.wcol:not([id])');
   let st = null;
@@ -4350,7 +4360,7 @@ function initWidget(el){
     el.style.left = Math.max(4 - el.offsetWidth + 60, Math.min(innerWidth - 60, st.l + e.clientX - st.x)) + 'px';
     el.style.top = Math.max(4, Math.min(innerHeight - 36, st.t + e.clientY - st.y)) + 'px';
   });
-  const end = () => { if (!st) return; st = null; el.classList.remove('dragging'); wstate[el.id] = { ...(wstate[el.id] || {}), x:el.offsetLeft, y:el.offsetTop }; store.set('whmap.reg.widgets', wstate); };
+  const end = () => { if (!st) return; st = null; el.classList.remove('dragging'); fitH(el); wstate[el.id] = { ...(wstate[el.id] || {}), x:el.offsetLeft, y:el.offsetTop }; store.set('whmap.reg.widgets', wstate); };
   head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
   head.addEventListener('dblclick', e => { if (!e.target.closest('button,a,select,input') && !el.classList.contains('folded')) fold.click(); });
   head.addEventListener('click', e => { if (el.classList.contains('folded') && !e.target.closest('button,a,select,input')) fold.click(); });   // a click on a folded bar opens it
@@ -4361,6 +4371,18 @@ function initWidget(el){
     store.set('whmap.reg.widgets', wstate); fold.textContent = f ? '+' : '–';
     el.classList.toggle('folded', f); placeWidget(el); dockFolded(); if (!f) el.style.zIndex = ++wz; });
   if ((wstate[el.id] || {}).folded) fold.textContent = '+';
+  // every window can be resized from its bottom-right corner; the size is kept (double-click the corner: back to its own size)
+  const grip = document.createElement('div'); grip.className = 'wgrip'; grip.title = 'Drag to resize · double-click: original size'; el.appendChild(grip);
+  const applySize = () => { const w = wstate[el.id] || {}; if (w.w){ el.style.width = w.w + 'px'; el.style.height = w.h + 'px'; el.classList.add('sized'); } else { el.style.width = ''; el.style.height = ''; el.classList.remove('sized'); } };
+  el._applySize = applySize; applySize();
+  let rs = null;
+  grip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); rs = { x:e.clientX, y:e.clientY, w:el.offsetWidth, h:el.offsetHeight }; grip.setPointerCapture(e.pointerId); el.classList.add('resizing', 'sized'); document.body.style.userSelect = 'none'; el.style.zIndex = ++wz; });
+  grip.addEventListener('pointermove', e => { if (!rs) return;
+    el.style.width = Math.max(180, Math.min(innerWidth - el.offsetLeft - 4, rs.w + e.clientX - rs.x)) + 'px';
+    el.style.height = Math.max(70, Math.min(innerHeight - el.offsetTop - 4, rs.h + e.clientY - rs.y)) + 'px'; });
+  const rEnd = () => { if (!rs) return; rs = null; el.classList.remove('resizing'); document.body.style.userSelect = ''; wstate[el.id] = { ...(wstate[el.id] || {}), w:el.offsetWidth, h:el.offsetHeight }; store.set('whmap.reg.widgets', wstate); if (el.id === 'wChain' && typeof renderChain === 'function') renderChain(); };
+  grip.addEventListener('pointerup', rEnd); grip.addEventListener('pointercancel', rEnd);
+  grip.addEventListener('dblclick', () => { const w = { ...(wstate[el.id] || {}) }; delete w.w; delete w.h; wstate[el.id] = w; store.set('whmap.reg.widgets', wstate); applySize(); placeWidget(el); });
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
@@ -4398,7 +4420,7 @@ function setupWidgets(){
   ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => initWidget($('#' + id)));
   addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; if (el._applySize) el._applySize(); placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
