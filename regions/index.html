@@ -1146,6 +1146,8 @@ function drawHoles(){
    green = map open (news less than 3 min old) · red = map closed · EVE badge = connected in the game */
 /* ---------- Settings: every timer and threshold of the map, in one place (Settings window) ---------- */
 const SETTINGS = [
+  { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
+  { g:'Map', k:'constNames', label:'Names of the constellations', type:'bool', def:0 },
   { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
   { g:'Map', k:'spinSpeed', label:'Turning speed', unit:'°/s', def:3, min:1, max:30 },
   { g:'Map', k:'spinIdle', label:'Start turning again after you stop touching the map for', unit:'s', def:5, min:1, max:120 },
@@ -2304,6 +2306,7 @@ function applySettings(k){
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
   if (k === 'kills') pollKills();
   if (k === 'bigName') renderNoFollow();
+  if (k === 'sysNames' || k === 'constNames') render();
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
 }
 function killStatHtml(){
@@ -3090,7 +3093,7 @@ function draw(){
   // constellation names
   const cs = {};
   for (const s of R.systems){ if (s.ext) continue; const p = P[s.id]; (cs[s.c] = cs[s.c] || []).push(p); }
-  for (const c in cs){ const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
+  if (SET.constNames) for (const c in cs){ const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
     const t = el('text', { x, y, 'text-anchor':'middle', class:'clbl' }, gConst); t.textContent = R.constellations[c]; }
   // jump bridges: an arc between the two systems (or towards the other region)
   for (const j of jbList()){
@@ -3232,14 +3235,18 @@ function draw(){
   }
   const placed = [];
   labels.sort((a, b) => a.pri - b.pri || a.p.d - b.p.d);
+  const pilotSys = followRemote && typeof remotePilot === 'function' && remotePilot() ? String(remotePilot().sys) : me.sys;
   for (const L of labels){
-    const txt = L.s.ext ? `${L.s.n} › ${L.s.ext}` : `${L.s.n} ${secR(L.s.s).toFixed(1)}`;
+    // names kept: systems of other regions, and the system of the selected pilot (the others: hover a system for its name)
+    const named = SET.sysNames || L.s.ext || L.id === pilotSys;
+    if (!named && !L.pil.length) continue;
+    const txt = !named ? '' : L.s.ext ? `${L.s.n} › ${L.s.ext}` : `${L.s.n} ${secR(L.s.s).toFixed(1)}`;
     const ptxt = L.pil.slice(0, 3).map(x => x.name).join(', '), box = { x:L.p.x + L.r + 3, y:L.p.y - 7, w:Math.max(txt.length, ptxt.length) * 6.3 + 2, h:L.pil.length ? 26 : 13 };
     if (L.pri > 2 && placed.some(q => box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h)) continue;
     placed.push(box);
     const t = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 4, class:'lbl' + (L.s.ext ? ' ext' : '') + (sel === L.id ? ' sel' : '') }, gLbl);
     t.textContent = txt;
-    if (L.pil.length){ const tp = el('text', { x:L.p.x + L.r + 4, y:L.p.y + 16, class:'pil', 'data-pid':L.id }, gLbl);
+    if (L.pil.length){ const tp = el('text', { x:L.p.x + L.r + 4, y:L.p.y + (txt ? 16 : 4), class:'pil', 'data-pid':L.id }, gLbl);
       const shown = L.pil.length > 3 ? L.pil.slice(0, 2) : L.pil;
       shown.forEach((x, i) => { if (i){ const sp = el('tspan', { class:'psep' }, tp); sp.textContent = ', '; }
         const ts = el('tspan', { class:x.active ? 'pme' : x.live ? '' : 'poff' }, tp); ts.textContent = x.name; });
