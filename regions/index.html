@@ -1311,6 +1311,7 @@ function logout(id){
   renderChars(); renderWho(); render();
 }
 function switchChar(id){
+  if (typeof followRemote !== 'undefined' && followRemote){ followRemote = null; sess.set('whmap.followRemote', ''); }
   sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
   pickChar(); if (!DEMO && tok && share.charId !== tok.charId){ shareClose(); shareConnect(); } readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
   render(); if (!$('#wAssets').hidden && assetsSys) openAssets(assetsSys);      // the assets follow the selected pilot
@@ -2139,7 +2140,19 @@ function setupHubr(){
   $('#hubrWh').onchange = () => { store.set('whmap.reg.hubrWh', $('#hubrWh').checked); hubrCompute(); };
 }
 /* My pilots: the characters of this browser (same computer), and alts on other computers you mark as yours */
-let mineOther = store.get('whmap.reg.mineOther', []);         // names of your alts logged in elsewhere
+let mineOther = store.get('whmap.reg.mineOther', []);
+var followRemote = sess.get('whmap.followRemote') || null, remoteLast = null;   // one of your alts on another computer, followed through the shared map
+const remotePilot = () => followRemote ? watchList().find(p => !p.self && String(p.name).toLowerCase() === followRemote.toLowerCase()) : null;
+function setRemote(name){ followRemote = name || null; remoteLast = null; sess.set('whmap.followRemote', followRemote || ''); setFollow(true); trackRemote(); renderMine(); render(); if (!$('#wAssets').hidden && assetsSys) openAssets(assetsSys); }
+async function trackRemote(){
+  if (!followRemote || !follow || peek) return;
+  const p = remotePilot(); if (!p || !p.sys || p.sys === remoteLast) return;
+  remoteLast = p.sys; const reg = regionOf(p.sys);
+  if (reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(p.sys); }
+  if (byId[p.sys] && !byId[p.sys].ext) followTo(p.sys);
+  renderNoFollow();
+}
+setInterval(trackRemote, 2000);         // names of your alts logged in elsewhere
 function renderMine(){
   const box = $('#wMine'); if (!box || box.hidden) return;
   const here = vaultChars(), pil = watchList().filter(p => !p.self);
@@ -2153,10 +2166,11 @@ function renderMine(){
   const row = (id, name, sys, on, active, extra) => `<div class="mrow${active ? ' on' : ''}" ${extra}><img alt="" src="https://images.evetech.net/characters/${id}/portrait?size=64"><div><div class="n">${esc(name)}</div><div class="l"><span class="dot${on ? ' on' : ''}"></span>${sys ? esc(sysName(sys)) : 'position unknown'}</div></div>`;
   const others = [...new Set([...mineOther, ...auto])].map(n => ({ n, auto:auto.has(n) && !mineOther.includes(n), p:pil.find(p => String(p.name).toLowerCase() === n.toLowerCase()) })).filter(x => !here.some(c => c.charName.toLowerCase() === x.n.toLowerCase()));
   $('#mineSub').textContent = String(here.length + others.length);
-  $('#mineList').innerHTML = '<h5>This computer</h5>' + (here.map(c => row(c.charId, c.charName, loc(c), onl(c), tok && tok.charId === c.charId, `data-mine="${c.charId}"`) + `<span class="dim" style="font-size:11px">${tok && tok.charId === c.charId ? (follow ? 'followed' : 'active') : ''}</span></div>`).join('') || '<div class="dim" style="font-size:12px">No character logged in here.</div>')
-    + (others.length ? '<h5>Other computers</h5>' + others.map(x => row(ids[x.n.toLowerCase()] || 1, x.n, x.p && x.p.sys, x.p && x.p.ingame, false, `data-mineo="${esc(x.n)}"`) + (x.auto ? '<span class="dim" style="font-size:10.5px" title="Logged in in the same browser as one of your characters, on another computer">same player</span>' : `<button type="button" class="x" data-minex="${esc(x.n)}" title="Not one of mine">✕</button>`) + '</div>').join('') : '');
-  $('#mineList').querySelectorAll('[data-mine]').forEach(r => r.onclick = () => { switchChar(Number(r.dataset.mine)); setFollow(true); renderMine(); });
-  $('#mineList').querySelectorAll('[data-mineo]').forEach(r => r.onclick = e => { if (e.target.closest('[data-minex]')) return; const x = others.find(o => o.n === r.dataset.mineo); if (x && x.p && x.p.sys) goTo(String(x.p.sys)); else toast(`${r.dataset.mineo}: position not shared on the map right now`, true); });
+  $('#mineList').innerHTML = '<h5>This computer</h5>' + (here.map(c => row(c.charId, c.charName, loc(c), onl(c), !followRemote && tok && tok.charId === c.charId, `data-mine="${c.charId}"`) + `<span class="dim" style="font-size:11px">${tok && tok.charId === c.charId ? (follow && !followRemote ? 'followed' : 'active') : ''}</span></div>`).join('') || '<div class="dim" style="font-size:12px">No character logged in here.</div>')
+    + (others.length ? '<h5>Other computers</h5>' + others.map(x => row(ids[x.n.toLowerCase()] || 1, x.n, x.p && x.p.sys, x.p && x.p.ingame, followRemote === x.n, `data-mineo="${esc(x.n)}"`) + (followRemote === x.n ? `<span class="dim" style="font-size:11px">${follow ? 'followed' : ''}</span>` : '') + (x.auto ? '<span class="dim" style="font-size:10.5px" title="Logged in in the same browser as one of your characters, on another computer">same player</span>' : `<button type="button" class="x" data-minex="${esc(x.n)}" title="Not one of mine">✕</button>`) + '</div>').join('') : '');
+  $('#mineList').querySelectorAll('[data-mine]').forEach(r => r.onclick = () => { followRemote = null; sess.set('whmap.followRemote', ''); switchChar(Number(r.dataset.mine)); setFollow(true); renderMine(); });
+  $('#mineList').querySelectorAll('[data-mineo]').forEach(r => r.onclick = e => { if (e.target.closest('[data-minex]')) return; const x = others.find(o => o.n === r.dataset.mineo);
+    if (!x || !x.p || !x.p.sys){ toast(`${r.dataset.mineo}: position not shared on the map right now`, true); return; } setRemote(x.n); });
   $('#mineList').querySelectorAll('[data-minex]').forEach(b => b.onclick = () => { mineOther = mineOther.filter(n => n !== b.dataset.minex); store.set('whmap.reg.mineOther', mineOther); renderMine(); });
   $('#mineAddList').innerHTML = pil.map(p => p.name).filter(n => n && !mineOther.includes(n) && !here.some(c => c.charName === n)).map(n => `<option value="${esc(n)}">`).join('');
 }
@@ -2436,13 +2450,14 @@ async function openAssets(sys){
   body.innerHTML = '<p class="dim">Loading…</p>';
   const data = await assetsDetail(sys);
   if (assetsSys !== sys) return;
-  const who = `<div class="as-who"><button type="button" class="small" data-aswho="0" aria-pressed="${!assetsAll}">${tok ? esc(tok.charName) : 'Selected pilot'}</button><button type="button" class="small" data-aswho="1" aria-pressed="${assetsAll}">All my characters</button></div>`;
+  const curName = followRemote || (tok ? tok.charName : 'Selected pilot');
+  const who = `<div class="as-who"><button type="button" class="small" data-aswho="0" aria-pressed="${!assetsAll}">${esc(curName)}</button><button type="button" class="small" data-aswho="1" aria-pressed="${assetsAll}">All my characters</button></div>`;
   const flat = [];
   const row = x => { flat.push(x); const nm = typeNames[x.type_id] || ('Type ' + x.type_id), has = x.kids.length;
     return `<li><div class="as-it${has ? ' box' : ''}" data-t="${x.type_id}" data-q="${x.quantity}"><img loading="lazy" alt="" src="https://images.evetech.net/types/${x.type_id}/icon?size=32"><span class="nm">${esc(nm)}${has ? ` <span class="dim">(${x.kids.length})</span>` : ''}</span><span class="q">${x.quantity > 1 ? '×' + x.quantity.toLocaleString('en-US') : ''}</span><span class="v"></span></div>${has ? `<ul class="as-list" hidden>${x.kids.map(row).join('')}</ul>` : ''}</li>`; };
   body.innerHTML = data.length ? data.map(c => `<div class="as-char">${esc(c.name)}</div>${c.err ? `<p class="dim">${esc(c.err)}</p>` : ''}${c.places.map(p => `<div class="as-loc">${esc(p.place)}</div><ul class="as-list">${p.items.map(row).join('')}</ul>`).join('')}`).join('')
       + `<div class="as-tools"><button type="button" class="primary" id="asSellBtn" title="What these assets fetch if sold right now to the buy orders of this system">Sell here</button><button type="button" id="asAppr" title="Value of these assets in the trade hubs (Appraisal)">Appraise</button><button type="button" id="asOpen">Open all</button></div><div id="asSell"></div>`
-    : `<p class="dim">No assets of ${assetsAll || !tok ? 'your characters' : esc(tok.charName)} here.</p>`;
+    : `<p class="dim">${!assetsAll && followRemote ? `${esc(followRemote)} is logged in on another computer: its assets can only be read there.` : `No assets of ${assetsAll || !tok ? 'your characters' : esc(tok.charName)} here.`}</p>`;
   body.insertAdjacentHTML('afterbegin', who);
   body.querySelectorAll('[data-aswho]').forEach(b => b.onclick = () => { assetsAll = b.dataset.aswho === '1'; store.set('whmap.reg.assetsAll', assetsAll); render(); openAssets(sys); });
   body.querySelectorAll('.as-it.box').forEach(b => b.addEventListener('click', () => { b.classList.toggle('open'); b.nextElementSibling.hidden = !b.classList.contains('open'); }));
@@ -2455,7 +2470,7 @@ async function openAssets(sys){
 }
 // whose assets: the selected (followed) pilot, or all your characters of this browser
 let assetsAll = store.get('whmap.reg.assetsAll', false);
-const assetChars = () => { const all = vaultChars(); return assetsAll || !tok ? all : all.filter(c => c.charId === tok.charId); };
+const assetChars = () => { const all = vaultChars(); if (assetsAll) return all; if (followRemote) return all.filter(c => c.charName.toLowerCase() === followRemote.toLowerCase()); return !tok ? all : all.filter(c => c.charId === tok.charId); };   // an alt followed on another computer: its assets are not readable here
 function assetsAt(sys){
   if (!assetsOn) return [];
   const ids = new Set(assetChars().map(c => String(c.charId)));
@@ -2495,8 +2510,9 @@ function renderNoFollow(){
   f.hidden = !on;
   const bk = $('#nfBack'); if (bk){ bk.hidden = !(follow && peek && tok && me.sys); if (!bk.hidden) bk.textContent = `↩ Back to ${tok.charName} · ${sysName(me.sys)}`; } document.body.classList.toggle('nf', on);
   const pb = $('#pilotBig');
-  if (pb){ const show = !!tok && follow && SET.bigName > 0; pb.hidden = !show;
-    if (show){ pb.style.fontSize = SET.bigName + 'px'; pb.innerHTML = `${esc(tok.charName)}${me.sys ? `<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">${esc(sysName(me.sys))}</small>` : ''}`; } }
+  if (pb){ const rp = typeof remotePilot === 'function' ? remotePilot() : null, nm = followRemote ? followRemote : tok && tok.charName, sy = followRemote ? rp && rp.sys : me.sys;
+    const show = !!nm && follow && SET.bigName > 0; pb.hidden = !show;
+    if (show){ pb.style.fontSize = SET.bigName + 'px'; pb.innerHTML = `${esc(nm)}${sy ? `<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">${esc(sysName(sy))}</small>` : ''}`; } }
   if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
@@ -2532,6 +2548,7 @@ function zoomTo(id){   // a clicked system: glide to the closest zoom, the syste
 }
 async function onMove(){
   holderOnMove();
+  if (followRemote){ computeRoute(); render(); renderPanel(); renderWho(); return; }
   if (!me.sys || Date.now() < holdCam) return;
   if (peek){ peek = false; renderNoFollow(); }
   if (isJ(me.sys) || !regionOf(me.sys)) await lookupName(me.sys);
