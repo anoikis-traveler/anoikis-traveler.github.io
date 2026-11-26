@@ -2819,7 +2819,7 @@ function draw(){
     el('circle', { cx:p.x, cy:p.y, r, fill:colourOf(s), class:'dot' }, g);
     if (statMode && statNums && !s.ext){ const v = statVal(id); if (v){ const st = el('text', { x:p.x, y:p.y + 3.5, 'text-anchor':'middle', class:'statn' }, g); st.textContent = v > 999 ? Math.round(v / 100) / 10 + 'k' : STATS[statMode].dec ? (v < 10 ? v.toFixed(1) : Math.round(v)) : v; } }
     const ally = !s.ext && sovLogos && !statMode ? sovOf(id) : null;
-    if (ally){ const lr = r * 0.96, tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:p.x, cy:p.y, r:r + 2.5, fill:'none', stroke:THREAT[tl].c, 'stroke-width':2.2, class:'sovring', 'pointer-events':'none' }, g); el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
+    if (ally){ const lr = r * 0.96, tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:p.x + r * 0.95, cy:p.y - r * 0.95, r:Math.max(2.6, r * 0.32), fill:THREAT[tl].c, stroke:'#05070d', 'stroke-width':1, class:'sovring', 'pointer-events':'none' }, g);   /* a small dot of the threat colour, up right of the ball */ el('image', { href:`https://images.evetech.net/alliances/${ally}/logo?size=64`, x:p.x - lr, y:p.y - lr, width:lr * 2, height:lr * 2, 'clip-path':'url(#ballclip)', class:'sovlogo', 'pointer-events':'none' }, g); }
     el('circle', { cx:p.x, cy:p.y, r, fill:'url(#shine)', 'pointer-events':'none', opacity:ally ? .7 : 1 }, g);
     el('title', {}, g).textContent = (s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`) + (sovOf(id) ? ` · ${sovNames[sovOf(id)] || 'alliance'}` : '');
     const as = assetsAt(id);
