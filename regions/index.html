@@ -2406,7 +2406,9 @@ function draw(){
   cardRects = [];
   for (const { h, conns, real } of hubNodes){
     const p = P[h]; if (!p) continue;
-    if (real){ hubCard(h, p, gWh); continue; }
+    // its label card only while it, or a system it is linked to, is selected
+    const showCard = !!sel && (sel === h || conns.some(l => String(l.a) === sel || String(l.b) === sel));
+    if (real){ if (showCard) hubCard(h, p, gWh); continue; }
     const col = hubColour(h), total = hubLinks(h).length;
     const gr = el('radialGradient', { id:'hg' + h }, defs2);
     el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
@@ -2418,7 +2420,7 @@ function draw(){
     el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (${h === 'POCH' ? 'your chain' : 'EVE-Scout'}). Click for the whole network.`;
     const t = el('text', { x:p.x, y:p.y - 34, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
     const t2 = el('text', { x:p.x, y:p.y - 21, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
-    hubCard(h, p, gWh);
+    if (showCard) hubCard(h, p, gWh);
   }
   for (const h in hubEls) if (!hubSeen.has(h)){ hubEls[h].remove(); delete hubEls[h]; }
   // systems, far to near; labels are placed afterwards, skipping those that would overlap (zoom in to see them all)
