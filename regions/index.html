@@ -903,18 +903,18 @@ async function newSystem(id){
   if (!sovNames[a]){ try{ const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([a]) }); if (n.ok){ sovNames[a] = (await n.json())[0].name; store.set('whmap.reg.allyNames', sovNames); } }catch(e){} }
   sovSplash(id, a);
 }
-async function regionSplash(id, r){   // no alliance holds it: the region itself, same look (with its empire / pirate faction when there is one)
+async function regionSplash(id, r, why = 'new wormhole into'){   // no alliance holds it: the region itself, same look (with its empire / pirate faction when there is one)
   if (!factions){ try{ const x = await fetch(`${ESI}/universe/factions/`); factions = x.ok ? await x.json() : []; }catch(e){ factions = []; } }
   const fid = facMap[String(id)], fac = fid && factions.find(f => f.faction_id === fid), s = byId[String(id)];
-  const sec = s ? secR(s.s) : null;
+  const sec = s ? secR(s.s) : null, fl = fid && standReady() && stand.map[fid] != null ? lvlOfStanding(stand.map[fid]) : 0;   // a faction in your contacts frames it too
   splash(`${fac && fac.corporation_id ? `<img src="https://images.evetech.net/corporations/${fac.corporation_id}/logo?size=256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(regionName(r).split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
     <div class="sn">${esc(regionName(r))}</div>
-    <div class="ss">new wormhole into <b>${esc(sysName(id))}</b>${sec != null ? ` <span style="color:${secCol(s.s)}">${sec.toFixed(1)}</span>` : ''} · ${fac ? esc(fac.name) + ' space' : 'no sovereignty'}</div>`);
+    <div class="ss">${esc(why)} <b>${esc(sysName(id))}</b>${sec != null ? ` <span style="color:${secCol(s.s)}">${sec.toFixed(1)}</span>` : ''} · ${fac ? esc(fac.name) + ' space' : 'no sovereignty'}${fl ? ` · <b style="color:${THREAT[fl].c}">${THREAT[fl].n}</b> <span class="dim">(standings)</span>` : ''}</div>`, fl);
 }
-function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over a nearly faded map; a frame of its threat colour
+function sovSplash(id, a, why = 'new wormhole'){   // 10 s: the alliance logo, big and breathing, over a nearly faded map; a frame of its threat colour
   const L = sovLvl(a), t = THREAT[L.lvl];
   splash(`<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
-    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · new wormhole${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)}</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
+    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · ${esc(why)}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)}</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
 function splash(html, lvl){
   document.querySelectorAll('.sovsplash').forEach(x => x.remove());
@@ -1055,6 +1055,7 @@ const SETTINGS = [
   { g:'New wormhole', k:'newZoom', label:'Zoom on the system a new wormhole opens to', type:'bool', def:1 },
   { g:'New wormhole', k:'splash', label:'Show the alliance logo (or the region) in big', type:'bool', def:1 },
   { g:'New wormhole', k:'splashSec', label:'Show it for', unit:'s', def:10, min:2, max:60 },
+  { g:'New wormhole', k:'travel', label:'Show the region (or the sovereignty holder) when you change region or leave a wormhole', type:'bool', def:1 },
   { g:'New wormhole', k:'holder', label:'Show the holder\'s logo each time you jump into a wormhole of the WH holders list', type:'bool', def:1 },
   { g:'Kills (zKillboard)', k:'kills', label:'Kill alarms: a blinking red halo on systems with a recent kill', type:'bool', def:1 },
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
@@ -1126,7 +1127,13 @@ function demoScout(){
           S(5, 31000005, 31000123, 'Q063', 'L', 11, 'c3'), S(6, 31000005, 31000456, 'Q063', 'L', 7, 'c5'), S(7, 31000005, 31002002, 'Q063', 'M', 3, 'c6'),
           S(8, 30002086, K('O-9G5Y'), 'Q063', 'L', 12), S(9, 30002086, K('Jita'), 'Q063', 'XL', 16)].filter(l => l.a && l.b);
 }
+let demoTour = 0;   // while the scripted trip runs, the demo pilot does not wander
+function demoTrip(){   // into a wormhole, out into null-sec sovereignty, then into another region: shows what appears on the way
+  const steps = [ [45000, 31000900, 'jumped into the wormhole <b>J000900</b>'], [53000, 30004759, 'left the wormhole into <b>1DQ1-A</b> (Delve)'], [68000, 30000142, 'took the gates into <b>Jita</b> (The Forge)'] ];
+  for (const [t, id, txt] of steps) setTimeout(() => { demoTour = Date.now() + 16000; demoPos[90000001] = String(id); demoNews('Demo Pilot ' + txt); }, t);
+}
 function demoStep(){                       // the demo pilot flies a gate every few seconds, never back where it just was
+  if (Date.now() < demoTour) return;
   const cur = demoPos[90000001];
   if (!cur || !adj[cur]){ demoPos[90000001] = sysByName('5M2-KP') || (R && String(R.systems[0].id)); return; }
   const next = adj[cur].filter(n => byId[n] && !byId[n].ext);
@@ -1976,7 +1983,23 @@ function holderSplash(id, preview){
     <div class="sn">${esc(h.name)}</div><div class="ss">lives in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${h.kind ? ` · ${h.kind}` : ''}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
 let holdLast = null;   // the system your pilot was in: only a jump into the hole shows its holder (not opening the page inside)
-function holderOnMove(){ if (!me.sys) return; if (holdLast && me.sys !== holdLast && holdAll()[String(me.sys)]) holderSplash(me.sys); holdLast = me.sys; }
+function holderOnMove(){
+  if (!me.sys) return;
+  const prev = holdLast, now = me.sys; holdLast = now;
+  if (!prev || prev === now) return;                                   // opening the page inside a system shows nothing
+  if (holdAll()[String(now)]) { holderSplash(now); return; }
+  // known space: a new region, or the way out of a wormhole, shows who holds it (sovereignty with your standings) or the region
+  const rn = regionOf(now); if (!rn || isJ(now) || !SET.travel) return;
+  const fromWh = isJ(prev) || HUB_LIST.includes(String(prev)), rp = regionOf(prev);
+  if (fromWh || rp !== rn) areaSplash(now, rn, fromWh);
+}
+async function areaSplash(id, r, fromWh){
+  if (!Object.keys(sovMap).length) await loadSov();
+  const a = sovOf(id);
+  if (a){ if (!sovNames[a]){ try{ const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([a]) }); if (n.ok){ sovNames[a] = (await n.json())[0].name; store.set('whmap.reg.allyNames', sovNames); } }catch(e){} }
+    sovSplash(id, a, fromWh ? 'out of a wormhole' : 'entering the region'); }
+  else regionSplash(id, r, fromWh ? 'out of a wormhole into' : 'entering the region at');
+}
 function setupHold(){
   const box = $('#wHold'), btn = $('#btnHold');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderHold(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -3812,7 +3835,7 @@ function setupWidgets(){
   if (!reg || !index.regions.some(g => g.id === reg)) reg = (index.regions.find(g => g.slug === 'insmother') || index.regions[0]).id;
   if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
-  if (DEMO){ demoStep(); pickChar();
+  if (DEMO){ demoStep(); pickChar(); demoTrip();
     setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000);
     setTimeout(() => { demoNewWh2 = Date.now(); demoNews('New wormhole from J000900 into <b>Hek</b> (Metropolis)'); readMapper(); render(); }, 32000); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
