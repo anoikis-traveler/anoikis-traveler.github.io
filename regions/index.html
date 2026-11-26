@@ -2054,8 +2054,11 @@ function holderSplash(id, preview){
 }
 let holdLast = null;   // the system your pilot was in: only a jump into the hole shows its holder (not opening the page inside)
 function holderOnMove(){
-  if (!me.sys) return;
+  if (!me.sys || followRemote) return;
   const prev = holdLast, now = me.sys; holdLast = now;
+  travelShow(prev, now);
+}
+function travelShow(prev, now){
   if (!prev || prev === now) return;                                   // opening the page inside a system shows nothing
   if (holdAll()[String(now)]) { holderSplash(now); return; }
   // known space: a new region, or the way out of a wormhole, shows who holds it (sovereignty with your standings) or the region
@@ -2156,7 +2159,8 @@ function setRemote(name){ followRemote = name || null; remoteLast = null; sess.s
 async function trackRemote(){
   if (!followRemote || !follow || peek) return;
   const p = remotePilot(); if (!p || !p.sys || p.sys === remoteLast) return;
-  remoteLast = p.sys; const reg = regionOf(p.sys);
+  const was = remoteLast; remoteLast = p.sys; const reg = regionOf(p.sys);
+  if (was) travelShow(was, p.sys);                                     // the alt you follow changes region or leaves a hole: same big logo
   if (reg && (!R || reg !== R.region.id)){ await loadRegion(reg); centerOn(p.sys); }
   if (byId[p.sys] && !byId[p.sys].ext) followTo(p.sys);
   renderNoFollow();
