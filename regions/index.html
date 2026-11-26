@@ -348,6 +348,7 @@ body.nf #hint{transform:translateY(-16px)}
 #wHubs .wcol + .wcol{margin-left:0}
 #wHubs{width:520px;max-width:calc(100vw - 16px)}
 .hubrwb{display:flex;flex-direction:column;gap:7px;max-height:min(640px,calc(100vh - 120px));overflow:auto}
+#hubrSrcSel{background:#0a0f1c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:3px 6px;font:13px var(--body);max-width:330px}
 .hubrt{width:100%;border-collapse:collapse;font-size:13px}
 .hubrt th{text-align:left;font-weight:600;font-size:11.5px;color:var(--dim);padding:3px 6px;white-space:nowrap}
 .hubrt td{padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -2042,12 +2043,21 @@ function setupHold(){
 }
 /* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
 const HUBS_T = [ [30000142, 'Jita'], [30002187, 'Amarr'], [30002659, 'Dodixie'], [30002510, 'Rens'], [30002053, 'Hek'] ];
-let hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0;
+let hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0, hubrSrc = null;   // hubrSrc: a character id, or 'sel' (the selected system); null = the active character
+function hubrPilots(){   // your own characters and where they are
+  return vaultChars().map(c => ({ id:c.charId, name:c.charName, sys:DEMO ? demoPos[c.charId] : chars[c.charId] && chars[c.charId].sys ? chars[c.charId].sys : (store.get(CK.me + c.charId, null) || {}).current })).filter(p => p.sys && /^\d+$/.test(String(p.sys)));
+}
+function hubrOrigin(){
+  const s2 = sel && /^\d+$/.test(sel) ? sel : null;
+  if (hubrSrc === 'sel') return s2;
+  const ps = hubrPilots(), p = ps.find(x => String(x.id) === String(hubrSrc)) || ps.find(x => tok && x.id === tok.charId) || ps[0];
+  return p ? String(p.sys) : s2;
+}
 const secOfId = id => { id = String(id); return byId[id] ? byId[id].s : index && index.sys[id] ? index.sys[id][2] : null; };
 function hubrMix(ids){ const n = { hs:0, ls:0, ns:0, wh:0 }; for (const id of ids.slice(1)){ const v = secOfId(id); if (v == null) n.wh++; else { const r = secR(v); if (r >= 0.5) n.hs++; else if (r > 0) n.ls++; else n.ns++; } } return n; }
 const scoutOnly = () => whConns();
 async function hubrCompute(){
-  const from = sigSys(); hubrFrom = from; hubrRes = {}; hubrPick = null; $('#hubrDetail').innerHTML = '';
+  const from = hubrOrigin(); hubrFrom = from; hubrRes = {}; hubrPick = null; $('#hubrDetail').innerHTML = '';
   if (!from){ renderHubr(); return; }
   const wh = $('#hubrWh').checked, gates = jbList().flatMap(j => [{ from:Number(j.a), to:Number(j.b) }, { from:Number(j.b), to:Number(j.a) }]), all = whConns();
   const my = ++hubrBusy; renderHubr();
@@ -2059,10 +2069,11 @@ async function hubrCompute(){
 }
 function renderHubr(){
   const box = $('#wHubs'); if (!box || box.hidden) return;
-  const from = sigSys(), m = me.sys && /^\d+$/.test(me.sys) ? me.sys : null, s2 = sel && /^\d+$/.test(sel) ? sel : null;
-  $('#hubrFor').innerHTML = from ? `<span class="dim">From</span> <b>${esc(sysName(from))}</b> <span class="dim">${byId[from] || (index && index.sys[from]) ? secR(secOfId(from)).toFixed(1) : esc(classOf(from) || '')}</span><span style="margin-left:auto"></span>${m ? `<button type="button" class="small" data-hpin="me" aria-pressed="${sigPin !== 'sel'}">📍 where I am</button>` : ''}${s2 ? `<button type="button" class="small" data-hpin="sel" aria-pressed="${sigPin === 'sel'}">◎ selected</button>` : ''}`
-    : '<span class="dim">Select a system on the map, or log in a character.</span>';
-  $('#hubrFor').querySelectorAll('[data-hpin]').forEach(b => b.onclick = () => { sigPin = b.dataset.hpin; store.set('whmap.reg.sigPin', sigPin); hubrCompute(); renderSigs && renderSigs(); });
+  const from = hubrOrigin(), s2 = sel && /^\d+$/.test(sel) ? sel : null, ps = hubrPilots();
+  const cur = hubrSrc === 'sel' ? 'sel' : String((ps.find(x => String(x.id) === String(hubrSrc)) || ps.find(x => tok && x.id === tok.charId) || ps[0] || {}).id || '');
+  $('#hubrFor').innerHTML = `<span class="dim">From</span> <select id="hubrSrcSel" title="The pilot the routes start from">${ps.map(p => `<option value="${p.id}"${cur === String(p.id) ? ' selected' : ''}>📍 ${esc(p.name)} · ${esc(sysName(p.sys))}</option>`).join('')}${s2 ? `<option value="sel"${cur === 'sel' ? ' selected' : ''}>◎ selected: ${esc(sysName(s2))}</option>` : ''}${!ps.length && !s2 ? '<option>no pilot located, no system selected</option>' : ''}</select>
+    ${from ? `<span class="dim">${byId[from] || (index && index.sys[from]) ? secR(secOfId(from)).toFixed(1) : esc(classOf(from) || '')}</span>` : ''}`;
+  $('#hubrSrcSel').onchange = e => { hubrSrc = e.target.value; hubrCompute(); };
   if (from && from !== hubrFrom && !hubrBusy){ hubrCompute(); return; }
   const wh = $('#hubrWh').checked, cols = [['short', 'Shortest'], ['safe', 'Safest'], ...(wh ? [['wshort', 'Shortest · WH'], ['wsafe', 'Safest · WH']] : [])];
   $('#hubrSub').textContent = hubrBusy ? 'computing…' : '';
@@ -2081,11 +2092,13 @@ function hubrShow(){
   const path = r.map((id, i) => { const v = secOfId(id), via = i && pairs[pairKey(r[i - 1], id)];
     return `${i ? (via ? `<span class="wh" title="${esc(via)}">⟿</span>` : '<span class="dim">›</span>') : ''}<span class="${v == null ? 'wh' : ''}" style="${v != null ? `color:${secCol(v)}` : ''}">${esc(sysName(id))}${v != null ? ` ${secR(v).toFixed(1)}` : ''}</span>`; }).join(' ');
   const mx = hubrMix(r);
-  $('#hubrDetail').innerHTML = `<div class="hubrd"><div><b>${esc(hubN)}</b> · ${r.length - 1} jumps · ${mx.hs} high, ${mx.ls} low, ${mx.ns} null${mx.wh ? `, ${mx.wh} in wormholes` : ''}</div>
+  const pl = hubrSrc === 'sel' ? null : (hubrPilots().find(x => String(x.id) === String(hubrSrc)) || hubrPilots().find(x => tok && x.id === tok.charId));
+  $('#hubrDetail').innerHTML = `<div class="hubrd"><div>${pl ? `<span class="dim">${esc(pl.name)} →</span> ` : ''}<b>${esc(hubN)}</b> · ${r.length - 1} jumps · ${mx.hs} high, ${mx.ls} low, ${mx.ns} null${mx.wh ? `, ${mx.wh} in wormholes` : ''}</div>
     <div class="path">${path}</div>
     <div>${firstWh === 1 ? `<span class="dim">The first hole is right here: jump it, then</span> <button type="button" class="small primary" data-hdest="${h}">➤ Set destination ${esc(hubN)}</button>` : firstWh > 0 ? `<button type="button" class="small primary" data-hdest="${r[firstWh - 1]}" title="EVE's autopilot does not use wormholes: go to the hole first">➤ Destination: ${esc(sysName(r[firstWh - 1]))} (the hole)</button>` : `<button type="button" class="small primary" data-hdest="${h}">➤ Set destination ${esc(hubN)}</button>`}
       <button type="button" class="small" data-hmap="${h}" title="Draw this route on the map">Show on the map</button></div></div>`;
-  $('#hubrDetail').querySelectorAll('[data-hdest]').forEach(b => b.onclick = e => sendWaypoint(b.dataset.hdest, e.shiftKey));
+  const pilot = hubrSrc === 'sel' ? null : (hubrPilots().find(x => String(x.id) === String(hubrSrc)) || hubrPilots().find(x => tok && x.id === tok.charId));
+  $('#hubrDetail').querySelectorAll('[data-hdest]').forEach(b => { if (pilot) b.title = `Sent to ${pilot.name} in EVE (Shift+click: add as waypoint)`; b.onclick = e => sendWaypoint(b.dataset.hdest, e.shiftKey, pilot && pilot.id); });
   $('#hubrDetail').querySelectorAll('[data-hmap]').forEach(b => b.onclick = () => { if (regionOf(h)) goTo(h); });
 }
 function setupHubr(){
@@ -3096,14 +3109,15 @@ function renderPanel(){
   P.querySelectorAll('[data-openassets]').forEach(b => b.addEventListener('click', () => openAssets(b.dataset.openassets)));
 }
 /* Destination / waypoint in the EVE client (needs the mapper's login with the waypoint option) */
-async function sendWaypoint(id, add){
+async function sendWaypoint(id, add, charId){   // charId: send it to another of your characters (else the active one)
   id = String(id);
-  if (DEMO){ toast(`Demo: ${add ? 'waypoint added' : 'destination set'}: ${sysName(id)}`); apSetFrom(id, add); return; }
-  if (!tok){ toast('Log in with EVE first (Characters window)', true); return; }
-  if (!canWp()){ toast('This character was logged in without "Set destination": log in again with that option ticked', true); return; }
+  const t = charId && (!tok || Number(charId) !== tok.charId) ? (DEMO ? vaultChars().find(c => c.charId === Number(charId)) : store.get(CK.tok + charId, null)) : tok, other = t && tok && t.charId !== tok.charId;
+  if (DEMO){ toast(`Demo: ${add ? 'waypoint added' : 'destination set'}${t ? ' for ' + t.charName : ''}: ${sysName(id)}`); if (!other) apSetFrom(id, add); return; }
+  if (!t){ toast('Log in with EVE first (Characters window)', true); return; }
+  if (!scopesOf(t).includes(WP_SCOPE)){ toast(`${t.charName} was logged in without "Set destination": log in again with that option ticked`, true); return; }
   try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:id });
-    await esiAuth(`/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(add ? `Waypoint added: ${sysName(id)}` : `Destination set: ${sysName(id)}`);
-    apSetFrom(id, add); }
+    await esiFor(t, `/ui/autopilot/waypoint/?${q}`, { method:'POST' }); toast(`${other ? t.charName + ': ' : ''}${add ? `Waypoint added: ${sysName(id)}` : `Destination set: ${sysName(id)}`}`);
+    if (!other) apSetFrom(id, add); }
   catch(e){ toast('EVE refused the waypoint (' + e.message + '). Is the character online?', true); }
 }
 function select(id){ sel = id == null ? null : String(id); computeRoute(); render(); renderPanel(); }
