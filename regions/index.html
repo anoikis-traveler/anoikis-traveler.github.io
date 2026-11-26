@@ -1359,6 +1359,7 @@ function switchChar(id){
   sess.set('whmap.tabChar', String(id)); if (!DEMO) store.set('whmap.lastChar', Number(id));
   pickChar(); if (!DEMO && tok && share.charId !== tok.charId){ shareClose(); shareConnect(); } readMapper(); renderWhSel(); apLoad(); renderChars(); renderWho(); onMove(); computeAp(true);
   render(); if (!$('#wAssets').hidden && assetsSys) openAssets(assetsSys);      // the assets follow the selected pilot
+  if (me.sys){ chainFocus = me.sys; buildChains(); }                              // and the Chain window shows the chain this pilot is in
 }
 async function withLock(name, fn){ return navigator.locks && navigator.locks.request ? navigator.locks.request(name, fn) : fn(); }
 /* a fresh access token for any stored character; one tab renews it, the others pick it up (same lock as the mapper) */
@@ -3663,16 +3664,22 @@ async function buildChains(){
       const kj = comps[j].filter(isK).slice(0, 25); if (!kj.length) continue;   // the chain's way in = its known-space system nearest to home
       let best = null;
       for (const b of kj){ const d = await jumps(hId, b); if (my !== chainBusy) return; if (!best || d < best.d) best = { a:hId, b, d }; }
-      if (best && best.d < 999){ par[find(j)] = find(hi); bridges.push({ ...best, home:true }); }
+      if (best && best.d < 999) bridges.push({ ...best, home:true, chain:j });       // its own way home, the chains stay apart
     }
   }
   const groups = {};
   comps.forEach((c, i) => (groups[find(i)] = groups[find(i)] || []).push(...c));
+  if (hId && isK(hId)) for (const k in groups){ const hb = bridges.filter(b => b.home && b.chain != null && find(b.chain) === Number(k)).sort((a, b) => a.d - b.d)[0];
+    if (hb && !groups[k].includes(hId)) groups[k].push(hId); for (const b of bridges) if (b.home && b.chain != null && find(b.chain) === Number(k) && b !== hb) b.drop = true; }
+  for (let i = bridges.length - 1; i >= 0; i--) if (bridges[i].drop) bridges.splice(i, 1);
+  // which of YOUR characters are in each chain (named in the list, the selected pilot's chain first)
+  const myPil = vaultChars().map(c => ({ id:c.charId, name:c.charName, sys:String(DEMO ? demoPos[c.charId] || '' : (chars[c.charId] || {}).sys || (tok && tok.charId === c.charId ? me.sys : '') || '') })).filter(x => x.sys);
   const homeId = (store.get('whmap.cfg', {}).home || {}).id, mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
   chainGroups = Object.values(groups).map(ids => {
     const set = new Set(ids);
-    return { ids, set, home:homeId != null && set.has(String(homeId)), mine:ids.some(id => mine.has(id)), bridges:bridges.filter(b => set.has(b.a) && set.has(b.b)) };
-  }).sort((a, b) => (b.home - a.home) || (b.mine - a.mine) || b.ids.length - a.ids.length);
+    const pil = myPil.filter(x => set.has(x.sys) && !(String(x.sys) === hId && ids.filter(i2 => i2 !== hId).length && !links.some(l => String(l.a) === hId || String(l.b) === hId)));
+    return { ids, set, home:homeId != null && set.has(String(homeId)), mine:pil.length > 0, pil, sel:pil.some(x => tok && x.id === tok.charId), bridges:bridges.filter(b => set.has(b.a) && set.has(b.b)) };
+  }).sort((a, b) => (b.sel - a.sel) || (b.mine - a.mine) || (b.home - a.home) || b.ids.length - a.ids.length);
   // no wormhole mapped: from home, the nearest Thera and the nearest Turnur connections (EVE-Scout), drawn the same way
   // always offered in the list (first when no wormhole is mapped)
   const noWh = !chainLinks().some(l => l.type !== 'gate');
@@ -3707,7 +3714,7 @@ async function buildChains(){
 function chainName(g, i){
   const named = g.ids.find(id => isJ(id)) || g.ids[0];
   if (g.hubs) return 'Home · nearest Thera & Turnur';
-  return `${i === 0 ? 'Main chain' : 'Secondary ' + i} · ${sysName(named)}${g.ids.length > 1 ? ` +${g.ids.length - 1}` : ''}${g.home ? ' · home' : ''}`;
+  return `${g.pil && g.pil.length ? '👤 ' + g.pil.map(x => x.name).join(', ') : i === 0 ? 'Chain' : 'Other chain'} · ${sysName(named)}${g.ids.length > 1 ? ` +${g.ids.length - 1}` : ''}`;
 }
 function renderChainSel(){
   const sel_ = $('#chainSel'); if (!sel_) return;
@@ -3807,7 +3814,7 @@ function renderChain(){
     const golds = (id === homeId ? ['⌂ HOME'] : []).concat(markAt(id).map(k => MARKS[k].label));
       if (golds.length){ el('rect', { x:-3, y:-3, width:BW + 6, height:BH + 6, rx:7, class:'goldbox' }, n);
         let tx = BW - 6; for (const txt of golds){ const w = txt.length * 6.6 + 10; tx -= w; const tg = el('g', { class:'gtag' }, n); el('rect', { x:tx, y:BH - 17, width:w, height:13, rx:3 }, tg); const tt = el('text', { x:tx + w / 2, y:BH - 7, 'text-anchor':'middle' }, tg); tt.textContent = txt; tx -= 4; } } }
-    if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:BW - 20, y:19, 'text-anchor':'end', class:'cpil' }, n); tp.textContent = here.length > 1 ? here.length : ''; }
+    if (here){ el('circle', { cx:BW - 12, cy:15, r:5, fill:'var(--ok)' }, n); const tp = el('text', { x:4, y:BH + 12, class:'cpil' }, n); const nm = here.join(', '); tp.textContent = '👤 ' + (nm.length > 26 ? nm.slice(0, 25) + '…' : nm); el('title', {}, tp).textContent = nm; }
     el('title', {}, n).textContent = `${sysName(id)} ${cl} · ${sysSub(id)}${here ? '\nHere: ' + here.join(', ') : ''}${isK(id) ? '\nClick: show its region' : ''}`;
   }
   $('#chainNote').textContent = `${g.ids.length} systems from ${sysName(root)}${g.bridges.length ? ` · ${g.bridges.length} gate link${g.bridges.length > 1 ? 's' : ''}` : ''} · click a system for its actions, right-click for the menu, Ctrl/Shift+click or Shift+drag to select several, drag to move them on the grid, Delete to remove · your additions and deletions stay in this browser`;
