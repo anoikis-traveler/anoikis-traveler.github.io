@@ -220,6 +220,7 @@ body.splashing > :not(.sovsplash),body.splashing .widget,body.splashing .hubcard
 .sovsplash{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;pointer-events:auto}
 .sovsplash img{width:256px;height:256px;border-radius:50%;animation:sovbreath 2.4s ease-in-out infinite;filter:drop-shadow(0 0 30px rgba(242,167,75,.55))}
 .sovsplash .sn{font:700 44px var(--display);letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 0 18px var(--accent),0 0 40px rgba(242,167,75,.6);animation:sovbreath 2.4s ease-in-out infinite;text-align:center;padding:0 20px}
+.sovsplash .regbadge{width:220px;height:220px;border-radius:50%;display:grid;place-items:center;font:700 84px var(--display);letter-spacing:.06em;color:var(--accent);background:radial-gradient(circle at 35% 30%,#24345e,#0b1222 70%);border:4px solid rgba(242,167,75,.8);box-shadow:0 0 40px rgba(242,167,75,.45);animation:sovbreath 2.4s ease-in-out infinite}
 .sovsplash .ss{font-size:16px;color:var(--dim)} .sovsplash .ss b{color:var(--text)}
 @keyframes sovbreath{0%,100%{opacity:.55;transform:scale(.97)}50%{opacity:1;transform:scale(1.03)}}
 @media (prefers-reduced-motion:reduce){.sovsplash img,.sovsplash .sn{animation:none}}
@@ -502,6 +503,7 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="btns">
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
+        <button id="btnSpin" type="button" title="The map turns slowly on its own (it stops while you use it)">Rotate</button>
         <button id="btnSov" type="button" aria-pressed="true" title="Null-sec: the logo of the alliance holding the sovereignty on each system">Alliance logos</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
@@ -813,15 +815,26 @@ async function newSystem(id){
   if (me.sys !== id) lookAway();
   select(id); zoomTo(id);
   if (!Object.keys(sovMap).length) await loadSov();
-  const a = sovOf(id); if (!a) return;
+  const a = sovOf(id); if (!a) return regionSplash(id, r);
   if (!sovNames[a]){ try{ const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([a]) }); if (n.ok){ sovNames[a] = (await n.json())[0].name; store.set('whmap.reg.allyNames', sovNames); } }catch(e){} }
   sovSplash(id, a);
 }
+async function regionSplash(id, r){   // no alliance holds it: the region itself, same look (with its empire / pirate faction when there is one)
+  if (!factions){ try{ const x = await fetch(`${ESI}/universe/factions/`); factions = x.ok ? await x.json() : []; }catch(e){ factions = []; } }
+  const fid = facMap[String(id)], fac = fid && factions.find(f => f.faction_id === fid), s = byId[String(id)];
+  const sec = s ? secR(s.s) : null;
+  splash(`${fac && fac.corporation_id ? `<img src="https://images.evetech.net/corporations/${fac.corporation_id}/logo?size=256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(regionName(r).split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
+    <div class="sn">${esc(regionName(r))}</div>
+    <div class="ss">new wormhole into <b>${esc(sysName(id))}</b>${sec != null ? ` <span style="color:${secCol(s.s)}">${sec.toFixed(1)}</span>` : ''} · ${fac ? esc(fac.name) + ' space' : 'no sovereignty'}</div>`);
+}
 function sovSplash(id, a){   // 10 s: the alliance logo, big and breathing, over a nearly faded map
+  splash(`<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
+    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · new wormhole</div>`);
+}
+function splash(html){
   document.querySelectorAll('.sovsplash').forEach(x => x.remove());
   const d = document.createElement('div'); d.className = 'sovsplash'; d.setAttribute('role', 'status');
-  d.innerHTML = `<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
-    <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · new wormhole</div>`;
+  d.innerHTML = html;
   document.body.appendChild(d); document.body.classList.add('splashing');
   const end = () => { d.remove(); if (!document.querySelector('.sovsplash')) document.body.classList.remove('splashing'); };
   d.onclick = end; setTimeout(end, 10000);
@@ -883,12 +896,12 @@ let scout = [], scoutT = 0;
 /* Incursions (CCP, public): infested systems and their staging system */
 let incSys = {};
 /* sovereignty: the alliance holding each null-sec system, its logo drawn on the ball */
-let sovMap = {}, sovNames = store.get('whmap.reg.allyNames', {}), sovLogos = store.get('whmap.reg.sovLogos', true);
+let facMap = {}, factions = null, sovMap = {}, sovNames = store.get('whmap.reg.allyNames', {}), sovLogos = store.get('whmap.reg.sovLogos', true);
 async function loadSov(){
   try{
     const r = await fetch(`${ESI}/sovereignty/map/`); if (!r.ok) throw 0;
-    const m = {}; for (const x of await r.json()) if (x.alliance_id) m[String(x.system_id)] = x.alliance_id;
-    sovMap = m;
+    const m = {}, f = {}; for (const x of await r.json()){ if (x.alliance_id) m[String(x.system_id)] = x.alliance_id; else if (x.faction_id) f[String(x.system_id)] = x.faction_id; }
+    sovMap = m; facMap = f;
     const miss = [...new Set(Object.values(m))].filter(a => !sovNames[a]);
     for (let i = 0; i < miss.length; i += 900){
       const n = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(miss.slice(i, i + 900)) });
@@ -998,9 +1011,10 @@ function demoMapper(){
             d4:L('d4', K('4M-QXK'), K('5M2-KP'), { wh:'K162', size:'XL', eol:true, eolAt:now - 3600e3 }),
             ...(K('Kino') && K('QYD-WK') ? { d5:L('d5', K('QYD-WK'), K('Kino'), { wh:'C729', size:'L' }) } : {}),
             ...(K('Nalvula') && K('Y-4CFK') ? { d6:L('d6', K('Y-4CFK'), K('Nalvula'), { wh:'C729', size:'L', mass:'reduced' }) } : {}),
-            ...(demoNewWh ? { d7:L('d7', 31000901, K('1DQ1-A') || 30004759, { wh:'X877', size:'L', created:demoNewWh }) } : {}) } };
+            ...(demoNewWh ? { d7:L('d7', 31000901, K('1DQ1-A') || 30004759, { wh:'X877', size:'L', created:demoNewWh }) } : {}),
+            ...(demoNewWh2 ? { d8:L('d8', 31000900, K('Hek') || 30002053, { wh:'B274', size:'L', created:demoNewWh2 }) } : {}) } };
 }
-let demoNewWh = 0;   // the demo opens a new hole into null-sec a few seconds in, to show the sovereignty splash
+let demoNewWh = 0, demoNewWh2 = 0;   // the demo opens a new hole into null-sec a few seconds in, to show the sovereignty splash
 if (DEMO) try{ localStorage.removeItem('whmap.reg.seen.demo'); }catch(e){}
 function demoScout(){
   const now = Date.now(), K = n => Number(sysByName(n)), S = (i, hub, b, wh, size, h, cls) => ({ id:'demo' + i, a:hub, b, type:'wh', src:'eve-scout', wh, size, expires:now + h * 3600e3, mass:'fresh', eol:false, outSig:'ABC-' + (100 + i), inSig:'XYZ-' + (200 + i), clsTxt:cls || '' });
@@ -1032,15 +1046,14 @@ function demoNews(html){
   const b = $('#banner'); if (!b) return; b.dataset.news = '1';
   b.innerHTML = `<b>Demo</b> · ${html} <span class="dim">· simulated characters, chain and Thera.</span> <a href="./">Leave the demo</a>`; b.classList.add('on');
 }
-// the demo map turns slowly on its own until you touch it
-let demoIdle = Date.now();
+// the map can turn slowly on its own (pauses 5 s after you touch it); on by default only in the demo
+let demoIdle = Date.now(), spinOn = store.get('whmap.reg.spin' + (DEMO ? '.demo' : ''), DEMO);
 function demoSpin(){
-  if (!DEMO) return;
   ['pointerdown', 'wheel', 'keydown'].forEach(ev => addEventListener(ev, () => { demoIdle = Date.now(); }, { capture:true, passive:true }));
   let last = performance.now();
   const tick = t => {
     const dt = Math.min(100, t - last); last = t;
-    if (!document.hidden && Date.now() - demoIdle > 5000 && R && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
+    if (spinOn && !document.hidden && Date.now() - demoIdle > 5000 && R && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
       keepPivot(() => { cam.yaw += dt * 0.00012; }); render();
     }
     requestAnimationFrame(tick);
@@ -2792,6 +2805,8 @@ function setupInput(){
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
     if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
       if (miss.length) toast(`No asset permission for ${miss.join(', ')}: log in again with "Allow reading assets" ticked`, true); } };
+  const rb = $('#btnSpin'); rb.setAttribute('aria-pressed', String(spinOn));
+  rb.onclick = () => { spinOn = !spinOn; store.set('whmap.reg.spin' + (DEMO ? '.demo' : ''), spinOn); rb.setAttribute('aria-pressed', String(spinOn)); demoIdle = 0; };
   const sb = $('#btnSov'); sb.setAttribute('aria-pressed', String(sovLogos));
   sb.onclick = () => { sovLogos = !sovLogos; store.set('whmap.reg.sovLogos', sovLogos); sb.setAttribute('aria-pressed', String(sovLogos)); render(); };
   const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
@@ -3408,7 +3423,8 @@ function setupWidgets(){
   if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
   if (DEMO){ demoStep(); pickChar();
-    setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000); }
+    setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000);
+    setTimeout(() => { demoNewWh2 = Date.now(); demoNews('New wormhole from J000900 into <b>Hek</b> (Metropolis)'); readMapper(); render(); }, 32000); }
   if (qs && byId[qs]){ select(qs); centerOn(qs); }
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
