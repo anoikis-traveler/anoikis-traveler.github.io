@@ -2800,6 +2800,12 @@ function placeHubs(){
 /* On screen: close to its exits, on a free spot (no system, label or other hub under it), inside the view.
    It keeps its spot while that spot stays free, so it does not jump around while the map turns. */
 const hubOff = {}, hubFix = {};
+const stubPos = store.get('whmap.reg.stubPos', {});      // where you put the system at the end of a hole: offset in the region's own space
+function unproj(sx, sy, yw){   // the point of the region's ground (at height yw) under a screen point
+  const c = Math.cos(cam.yaw), s2 = Math.sin(cam.yaw), sp = Math.sin(cam.pitch), cp = Math.cos(cam.pitch), S = Math.min(W, H) * 0.44 * cam.zoom;
+  const rx = (sx - W / 2 - cam.px) / S, rn = (-(sy - H / 2 - cam.py) / S - yw * cam.hx * cp) / sp;
+  return { x:rx * c + rn * s2, z:-rx * s2 + rn * c };
+}
 let mapPts = [], mapHull = [];
 function hullOf(ps){
   const a = ps.map(p => [p.x, p.y]).sort((u, v) => u[0] - v[0] || u[1] - v[1]); if (a.length < 3) return a;
@@ -2995,7 +3001,7 @@ function draw(){
   hubPts = hubNodes.map(x => P[x.h]).filter(Boolean);
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
   touch = whTouch();
-  const gDrop = el('g', {}, svg), gLinks = el('g', {}, svg), gConst = el('g', {}, svg), gWh = el('g', {}, svg), gNodes = el('g', {}, svg), gLbl = el('g', {}, svg);
+  const gDrop = el('g', {}, svg), gLinks = el('g', {}, svg), gConst = el('g', {}, svg), gWh = el('g', {}, svg), gNodes = el('g', {}, svg), gLbl = el('g', {}, svg), gStub = el('g', {}, svg);   // gStub on top: the systems at the end of a hole can always be clicked and dragged
   // drop lines to the region's mean plane: gives a sense of height, like the in-game map
   // by default only for the selected system and your position; "Height lines" shows them all
   if (cam.pitch < 1.5){
@@ -3061,18 +3067,21 @@ function draw(){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
       const i = (stubs[here] = (stubs[here] || 0) + 1) - 1;
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
-      const sl = 46 + 12 * zs, ex = p.x + Math.cos(ang) * sl, ey = p.y + Math.sin(ang) * sl, br = 6.5 * zs;
+      const br = 9 * zs, sk = here + '>' + other, so = stubPos[sk], base = norm[here];
+      let ex, ey;
+      if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
+      else { const sl = 46 + 16 * zs; ex = p.x + Math.cos(ang) * sl; ey = p.y + Math.sin(ang) * sl; }
       const hc = holeCol(here, other);
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
       el('line', { x1:p.x, y1:p.y, x2:ex, y2:ey, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
       // the system at the other end: a ball of its class colour, like a system of the map
-      const bg = el('g', { class:'stubball', 'data-stub':other }, gWh);
+      const bg = el('g', { class:'stubball', 'data-stub':other, 'data-stubk':sk }, gStub);
       if (sel === String(other)) el('circle', { cx:ex, cy:ey, r:br + 5, class:'halo' }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:WH_COL[classOf(other)] || hc }, bg);
       el('circle', { cx:ex, cy:ey, r:br, fill:'url(#shine)', 'pointer-events':'none' }, bg);
-      el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)}`;
+      el('title', {}, bg).textContent = `${sysName(other)} ${classOf(other)} · click: details · drag: move it`;
       const node = mapper.nodes[other] || {};
-      const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', 'data-stub':other, style:colorMode === 'wh' ? `fill:${hc}` : '' }, gWh);
+      const t = el('text', { x:ex + br + 4, y:ey + 4, class:'stub', 'data-stub':other, 'data-stubk':sk, style:colorMode === 'wh' ? `fill:${hc}` : '' }, gStub);
       t.textContent = `${sysName(other)}${node.cls ? ' ' + String(node.cls).toUpperCase() : ''}${label ? ' · ' + label : ''}`;
       el('title', {}, t).textContent = `${sysName(other)} ${classOf(other)}`;
     }
@@ -3498,11 +3507,16 @@ function setupInput(){
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
     moved = true; svg.classList.add('dragging');
+    if (start.stub && !start.pan && start.stub.dataset.stubk){   // dragging the system at the end of a hole
+      const sk = start.stub.dataset.stubk, here = sk.split('>')[0], base = norm[here];
+      if (base){ const r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, base.y); stubPos[sk] = { dx:w.x - base.x, dz:w.z - base.z }; demoIdle = Date.now(); render(); }
+      return; }
     if (start.pan){ cam.px += dx; cam.py += dy; }
     else keepPivot(() => { cam.yaw += dx * 0.008; cam.pitch = Math.max(0.05, Math.min(Math.PI / 2, cam.pitch - dy * 0.008)); });
     render();
   });
   const up = e => {
+    if (moved && start && start.stub && start.stub.dataset.stubk) store.set('whmap.reg.stubPos', stubPos);
     ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
     svg.classList.remove('dragging');
     if (!moved && start && ptrs.size === 0){
