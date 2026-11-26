@@ -947,6 +947,7 @@ function setupR(id, keepCam){
   const own = R.chain ? R.systems : R.systems.filter(s => !s.ext);   // a chain: its exits are part of its shape
   const c = own.reduce((m, s) => ({ x:m.x + s.x / own.length, y:m.y + s.y / own.length, z:m.z + s.z / own.length }), { x:0, y:0, z:0 });
   let rad = 1; for (const s of own) rad = Math.max(rad, Math.hypot(s.x - c.x, s.z - c.z, s.y - c.y));
+  R._c = c; R._rad = rad;
   norm = {}; for (const s of R.systems) norm[String(s.id)] = { x:(s.x - c.x) / rad, y:(s.y - c.y) / rad, z:(s.z - c.z) / rad };
   $('#regSel').value = R.chain ? '' : String(id);
   document.title = `${R.region.name} · Anoikis Traveler`;
@@ -1126,7 +1127,7 @@ function whChains(){
 const chainOfSys = id => whChains().find(c => c.mem.includes(String(id))) || null;
 const chainTxt = c => `${c.n} system${c.n > 1 ? 's' : ''} (${c.mem.length} WH + ${c.exits.size} K-space)`;
 /* its 3D shape: a force layout, like a region of New Eden; each system keeps its place when the chain changes */
-const whcPos = store.get('whmap.reg.whcPos', {});
+const whcPos = store.get('whmap.reg.whcPos', {}), whcPin = store.get('whmap.reg.whcPin', {});
 function whcLayout(c, nodes, edges){
   const hash = t => { let h = 2166136261; for (const ch of String(t)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return ((h >>> 0) % 10000) / 10000; };
   const P = {}, nb = {};
@@ -1144,7 +1145,7 @@ function whcLayout(c, nodes, edges){
       F[nodes[i]][0] += dx * f; F[nodes[i]][1] += dy * f * 0.5; F[nodes[i]][2] += dz * f; F[nodes[j]][0] -= dx * f; F[nodes[j]][1] -= dy * f * 0.5; F[nodes[j]][2] -= dz * f; }
     for (const [a0, b0] of edges){ const a = P[a0], b = P[b0]; const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], d = Math.hypot(dx, dy, dz) || 0.01, f = (d - 1) * 0.6 / d;
       F[a0][0] += dx * f; F[a0][1] += dy * f; F[a0][2] += dz * f; F[b0][0] -= dx * f; F[b0][1] -= dy * f; F[b0][2] -= dz * f; }
-    for (const id of nodes){ const p = P[id], f = F[id];
+    for (const id of nodes){ if (whcPin[id]) continue; const p = P[id], f = F[id];
       f[0] -= p[0] * 0.02; f[1] -= p[1] * 0.08; f[2] -= p[2] * 0.02;          // a flat-ish disc, like a region
       const m = Math.hypot(...f), s = m > 1 ? 1 / m : 1; p[0] += f[0] * t * s * 4; p[1] += f[1] * t * s * 4; p[2] += f[2] * t * s * 4; } }
   for (const id of nodes) whcPos[id] = P[id].map(v => Math.round(v * 1000) / 1000);
@@ -3843,12 +3844,20 @@ function setupInput(){
       const sk = start.stub.dataset.stubk, here = sk.split('>')[0], base = norm[here];
       if (base){ const r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, base.y); stubPos[sk] = { dx:w.x - base.x, dz:w.z - base.z }; demoIdle = Date.now(); render(); }
       return; }
+    if (R && R.chain && start.target && !start.pan && !start.right && norm[start.target.dataset.id]){   // a chain map: its systems can be moved by hand
+      const id = start.target.dataset.id, n0 = norm[id], r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, n0.y);
+      if (isFinite(w.x) && isFinite(w.z)){ n0.x = w.x; n0.z = w.z; start.movedSys = id; demoIdle = Date.now(); render(); }
+      return; }
     if (start.pan){ cam.px += dx; cam.py += dy; }
     else keepPivot(() => { cam.yaw += dx * 0.008; cam.pitch = Math.max(0.05, Math.min(Math.PI / 2, cam.pitch - dy * 0.008)); });
     render();
   });
   const up = e => {
     if (moved && start && start.stub && start.stub.dataset.stubk) store.set('whmap.reg.stubPos', stubPos);
+    if (moved && start && start.movedSys && R && R.chain){ const id = start.movedSys, n0 = norm[id], S = 1e16;   // kept: in the chain's own space, pinned
+      whcPos[id] = [(n0.x * R._rad + R._c.x) / S, (n0.y * R._rad + R._c.y) / S, (n0.z * R._rad + R._c.z) / S].map(v => Math.round(v * 1000) / 1000);
+      whcPin[id] = 1; store.set('whmap.reg.whcPos', whcPos); store.set('whmap.reg.whcPin', whcPin);
+      const sy = R.systems.find(x => String(x.id) === id); if (sy){ sy.x = whcPos[id][0] * S; sy.z = whcPos[id][2] * S; } }
     ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
     svg.classList.remove('dragging');
     if (!moved && start && ptrs.size === 0){
