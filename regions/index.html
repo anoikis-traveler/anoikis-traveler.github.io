@@ -1073,12 +1073,25 @@ const whLinks = () => Object.values(mapper.links).filter(l => l && l.type !== 'g
 const GREEK = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega'];
 const CNK = () => 'whmap.reg.chainReg.' + (DEMO ? 'demo' : share.owner || 'local');
 let whcCache = [], whcKey = null, whcT = 0;
+// the names live in the shared map: every pilot of the map sees the same Alpha, Beta…
+const whcShared = () => !DEMO && share.owner && share.map;
+const whcRegGet = () => whcShared() ? JSON.parse(JSON.stringify((share.map.data && share.map.data.chainreg) || { list:[], next:0 })) : store.get(CNK(), { list:[], next:0 });
+const whcSig = reg => reg.next + '#' + (reg.list || []).map(o => o.name + ':' + o.mem.join(',')).sort().join(';');
+let whcPut = 0;
+function whcRegSet(reg, old){
+  const stale = (old.list || []).some(o => Date.now() - (o.t || 0) > 3600e3);      // the "last seen" time, refreshed once an hour
+  if (whcSig(reg) === whcSig(old) && !stale) return;
+  if (!whcShared()){ store.set(CNK(), reg); return; }
+  share.map.data = share.map.data || {}; share.map.data.chainreg = reg;
+  if (share.ws && Date.now() - whcPut > 2000){ whcPut = Date.now(); shareSend({ op:'put', path:`maps/${share.owner}/data/chainreg`, data:reg }).catch(() => {}); }
+}
 function whChains(){
   if (performance.now() - whcT < 400) return whcCache;           // drawn many times a second while the map turns
   whcT = performance.now();
   const links = allHoles().filter(l => l.type !== 'gate' && !downOf(l)), own = new Set();
   for (const l of whLinks()) if (!downOf(l)) { own.add(String(l.a)); own.add(String(l.b)); }
-  const key = CNK() + '#' + links.map(l => pairKey(l.a, l.b)).sort().join(',');
+  const reg = whcRegGet(), old = JSON.parse(JSON.stringify(reg));
+  const key = CNK() + '#' + whcSig(reg) + '#' + links.map(l => pairKey(l.a, l.b)).sort().join(',');
   if (key === whcKey) return whcCache;
   const inJ = x => isJ(x) && !HUB_LIST.includes(x), adjJ = {}, outK = {}, hubs = {};
   for (const l of links){ const a = String(l.a), b = String(l.b);
@@ -1094,7 +1107,7 @@ function whChains(){
       for (const y of adjJ[x] || []) if (!done.has(y)){ done.add(y); q.push(y); } }
     c.mem.sort(); comps.push(c); }
   // names: a chain keeps the name of the one it continues; a chain cut in pieces gives new names to every piece
-  const reg = store.get(CNK(), { list:[], next:0 }), where = {}, claim = [];
+  const where = {}, claim = [];
   comps.forEach((c, i) => c.mem.forEach(m => where[m] = i));
   const keep = [];   // chains not seen right now (the map still loading, a moment without data): their name is kept a few hours
   for (const o of reg.list){ const hit = new Set(o.mem.map(m => where[m]).filter(i => i != null));
@@ -1107,7 +1120,7 @@ function whChains(){
   comps.forEach((c, i) => c.name = claim[i] ? claim[i].name : fresh());
   comps.sort((a, b) => GREEK.indexOf(a.name.split(' ')[0]) - GREEK.indexOf(b.name.split(' ')[0]) || a.name.localeCompare(b.name));
   for (const c of comps) c.n = c.mem.length + c.exits.size;
-  reg.list = comps.map(c => ({ name:c.name, mem:c.mem, t:Date.now() })).concat(keep); store.set(CNK(), reg);
+  reg.list = comps.map(c => ({ name:c.name, mem:c.mem, t:Date.now() })).concat(keep); whcRegSet(reg, old);
   whcKey = key; whcCache = comps; return comps;
 }
 const chainOfSys = id => whChains().find(c => c.mem.includes(String(id))) || null;
