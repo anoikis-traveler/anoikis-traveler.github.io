@@ -2554,7 +2554,7 @@ function followTo(id, soft){
 }
 const ZOOM_MAX = 12;
 function zoomTo(id){   // a clicked system: glide to the closest zoom, the system in the free middle of the map
-  const p = norm[String(id)]; if (!p) return;
+  const p = norm[String(id)]; if (!p || !isFinite(p.x) || !isFinite(p.z)) return;
   const z0 = cam.zoom, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;
   const step = now => { if (my !== camAnim) return; const k = Math.min(1, (now - t0) / 550), e = 1 - Math.pow(1 - k, 3);
     cam.zoom = z0 + (ZOOM_MAX - z0) * e;
@@ -2900,6 +2900,7 @@ function draw(){
   el('stop', { offset:'0%', 'stop-color':'#fff', 'stop-opacity':'.75' }, sh); el('stop', { offset:'35%', 'stop-color':'#fff', 'stop-opacity':'.12' }, sh);
   el('stop', { offset:'75%', 'stop-color':'#000', 'stop-opacity':'.15' }, sh); el('stop', { offset:'100%', 'stop-color':'#000', 'stop-opacity':'.55' }, sh);
   el('circle', { cx:.5, cy:.5, r:.5 }, el('clipPath', { id:'ballclip', clipPathUnits:'objectBoundingBox' }, defs));   // an alliance logo cut to the ball
+  if (!isFinite(cam.zoom) || cam.zoom <= 0) cam.zoom = 1; if (!isFinite(cam.px)) cam.px = 0; if (!isFinite(cam.py)) cam.py = 0; if (!isFinite(cam.yaw)) cam.yaw = 0;   // never draw from a broken camera
   const zs = Math.max(0.85, Math.min(1.9, Math.pow(cam.zoom, 0.4)));
   placeHubs();
   hubSeen.clear();
