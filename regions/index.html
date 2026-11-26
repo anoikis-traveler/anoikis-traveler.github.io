@@ -208,12 +208,22 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .widget.folded .wh{border-bottom:none;cursor:pointer}
 /* folded windows: all the same size, in a column at the bottom left of the map */
 .widget.folded{width:230px!important;min-width:0!important;height:auto!important;transition:top .2s,left .2s}
-.widget.folded .wnav,.widget.folded .wh > :not(.wt):not(.wsub):not(.wcol){display:none}
+.widget.folded .wnav a,.widget.folded .wh > :not(.wt):not(.wsub):not(.wcol):not(.wnav){display:none}
 .widget.folded .wt{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .widget.folded .wh{padding:5px 6px 5px 10px}
 .brand{font-family:var(--display);font-size:1.2rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text);text-decoration:none}
 .brand b{color:var(--accent)}
 .wnav{display:flex;gap:2px;margin-left:6px}
+.wnav .vmb{font:600 12px var(--body);background:#1a2440;border:1px solid var(--line);color:var(--text);padding:1px 9px;border-radius:3px;margin-right:4px;cursor:pointer}
+.wnav .vmb[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}
+.vmenu{position:absolute;z-index:60;min-width:230px;background:rgba(12,17,30,.98);border:1px solid #3a4d75;border-radius:6px;box-shadow:0 12px 34px rgba(0,0,0,.6);padding:5px}
+.vmenu[hidden]{display:none}
+.vmenu h5{margin:6px 8px 2px;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.vmenu button{display:flex;width:100%;gap:8px;align-items:center;background:none;border:0;border-radius:4px;padding:5px 8px;color:var(--text);font:500 13px var(--body);text-align:left;cursor:pointer}
+.vmenu button:hover{background:#18233d}
+.vmenu button i{width:14px;font-style:normal;color:var(--accent);text-align:center}
+.vmenu button .st{margin-left:auto;font-size:11px;color:var(--dim)}
+.vmenu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .wnav a{font-size:12px;color:var(--dim);text-decoration:none;padding:2px 7px;border-radius:3px}
 .wnav a:hover{color:var(--text);background:var(--panel-2)}
 .wb.tool{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -467,7 +477,7 @@ body.nf #hint{transform:translateY(-16px)}
   <div id="zoomBtns"><button id="zIn" type="button" aria-label="Zoom in">+</button><button id="zOut" type="button" aria-label="Zoom out">−</button></div>
 
   <section class="widget" id="wTool" data-title="Anoikis Traveler">
-    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a href="../mail/">Mail</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt"><a href="../" class="brand">Anoikis <b>Traveler</b></a></span><nav class="wnav"><button type="button" id="viewMenuBtn" class="vmb" aria-haspopup="true" aria-expanded="false" title="Open or close the map's windows">View ▾</button><a href="../appraisal/">Appraisal</a><a href="../fitting/">Fitting</a><a href="../guide/">Guide</a><a href="../mail/">Mail</a><a id="navAdmin" class="navadm" href="../admin/" hidden title="Every map, characters allowed, subscriptions and payment history (site owner only)">Admin</a><a id="navPay" class="navadm" href="../pay/" hidden title="Wallet link and payments waiting for a map">Payments</a></nav><button class="wcol" type="button" aria-label="Fold">–</button></header>
     <div class="wb tool">
       <select id="regSel" aria-label="Region"></select>
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
@@ -477,8 +487,9 @@ body.nf #hint{transform:translateY(-16px)}
     </div>
   </section>
 
+  <div id="viewMenu" class="vmenu" role="menu" hidden></div>
   <section class="widget" id="wView" data-title="View">
-    <header class="wh"><span class="wt">View</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt">Map options</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xView" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
     <div class="wb view">
       <label class="dim">Colour <select id="colorSel" aria-label="Colour systems by"><option value="wh">Grey + wormholes</option><option value="sec">Security</option><option value="const">Constellation</option></select></label>
       <div class="btns">
@@ -500,12 +511,12 @@ body.nf #hint{transform:translateY(-16px)}
   </section>
 
   <section class="widget" id="wChars" data-title="Characters">
-    <header class="wh"><span class="wt">Characters</span><span id="who" class="dim wsub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt">Characters</span><span id="who" class="dim wsub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChars" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
     <div class="wb" id="charsBody"></div>
   </section>
 
   <section class="widget" id="wWatch" data-title="Pilots">
-    <header class="wh"><span class="wt">Pilots</span><span class="wsub dim" id="watchSub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt">Pilots</span><span class="wsub dim" id="watchSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xWatch" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
     <div class="wb" id="watchBody"></div>
   </section>
 
@@ -558,12 +569,12 @@ body.nf #hint{transform:translateY(-16px)}
   </section>
 
   <section class="widget" id="wInfo" data-title="Info">
-    <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt" id="infoTitle">Region</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xInfo" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
     <div class="wb"><div id="panel" aria-live="polite"></div></div>
   </section>
 
   <section class="widget" id="wChain" data-title="Chain" hidden>
-    <header class="wh"><span class="wt">Chain</span><span class="wsub dim" id="chainSub"></span><button class="wcol" type="button" aria-label="Fold">–</button></header>
+    <header class="wh"><span class="wt">Chain</span><span class="wsub dim" id="chainSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol wx" type="button" id="xChain" aria-label="Close" title="Close (reopen it from the View menu)">✕</button></header>
     <div class="wb chainwb">
       <div class="chaintools">
         <select id="chainSel" aria-label="Chain"></select>
@@ -3261,19 +3272,52 @@ function initWidget(el){
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
 function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+/* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
+const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region / system info'], ['wView', 'Map options']]],
+  ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
+  ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
+  ['Site owner', [['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
+const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
+function openWin(id, on){
+  const el = $('#' + id), w = winOf(id); if (!el) return;
+  if (on && !el.hidden && el.classList.contains('folded')){ el.querySelector('.wcol:not([id])').click(); return; }   // folded in the column: open it where it was
+  if (w && w[2] && el.hidden === on) $(w[2]).click();             // windows with their own switch keep it in step
+  else if (!w || !w[2]){ el.hidden = !on; wstate[id] = { ...(wstate[id] || {}), closed:!on }; store.set('whmap.reg.widgets', wstate); }
+  if (on){ el.hidden = false; placeWidget(el); el.style.zIndex = ++wz; }
+}
+function renderViewMenu(){
+  const m = $('#viewMenu'), own = !$('#navAdmin').hidden;
+  m.innerHTML = WINS.filter(g => g[0] !== 'Site owner' || own).map(([g, ws]) => `<h5>${g}</h5>` + ws.map(([id, label]) => { const el = $('#' + id), open = !el.hidden, fold = open && el.classList.contains('folded');
+    return `<button type="button" role="menuitemcheckbox" aria-checked="${open}" data-win="${id}"><i>${open ? (fold ? '▁' : '✓') : ''}</i>${esc(label)}<span class="st">${fold ? 'folded' : open ? '' : 'closed'}</span></button>`; }).join('')).join('')
+    + `<hr><button type="button" data-win="#reset"><i>↺</i>Reset windows</button>`;
+  m.querySelectorAll('[data-win]').forEach(b => b.onclick = () => {
+    const id = b.dataset.win;
+    if (id === '#reset') $('#btnLayout').click();
+    else { const el = $('#' + id); openWin(id, el.hidden || el.classList.contains('folded')); }
+    renderViewMenu(); });
+}
+function setupViewMenu(){
+  const b = $('#viewMenuBtn'), m = $('#viewMenu');
+  const show = on => { m.hidden = !on; b.setAttribute('aria-expanded', String(on)); if (on){ renderViewMenu(); const r = b.getBoundingClientRect(); m.style.left = Math.min(r.left, innerWidth - 250) + 'px'; m.style.top = r.bottom + 4 + 'px'; } };
+  b.onclick = e => { e.stopPropagation(); show(m.hidden); };
+  document.addEventListener('pointerdown', e => { if (!m.hidden && !m.contains(e.target) && e.target !== b) show(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !m.hidden) show(false); });
+  document.querySelectorAll('.wx').forEach(x => x.onclick = () => openWin(x.closest('.widget').id, false));
+  for (const [id] of WINS[0][1]) if ((wstate[id] || {}).closed) $('#' + id).hidden = true;    // the windows you closed stay closed
+}
 function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
   ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => initWidget($('#' + id)));
   addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => placeWidget($('#' + id))));
-  $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
+  $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
     ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
 (async function init(){
-  setupWidgets();
+  setupWidgets(); setupViewMenu();
   try{ await loadIndex(); }catch(e){ $('#panel').innerHTML = `<p>${esc(e.message)}</p>`; return; }
   await handleCallback();
   pickChar(); readMapper(); apLoad(); setupInput(); setupPilPop(); demoSpin(); renderChars(); renderWho(); renderWhSel();
