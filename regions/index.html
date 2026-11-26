@@ -72,6 +72,11 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .whl.reduced{stroke:var(--c-reduced);stroke-dasharray:10 5}
 .whl.critical{stroke:var(--c-critical);stroke-dasharray:4 4}
 .whl.eol{stroke:var(--c-eol)}
+.whl.down{stroke:#6b7280!important;stroke-dasharray:3 7;opacity:.55;animation:none!important}
+.hc-row.down .hc-n{text-decoration:line-through;opacity:.55}
+.hc-row .hc-x{background:none;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-size:11px;padding:0 4px;cursor:pointer;margin-right:3px}
+.hc-row .hc-x:hover{color:#ff8a8a;border-color:#7a3030}
+.hc-row.down .hc-x{color:var(--ok)}
 .whl.dying{animation:whdie 1.1s ease-in-out infinite}
 @keyframes whdie{0%,100%{opacity:1}50%{opacity:.08}}
 .sys{cursor:pointer}
@@ -1269,6 +1274,29 @@ function setHome(id){
   else { c.home = { id:Number(id), name:sysName(id) }; store.set('whmap.cfg', c); toast(`⌂ Home set to ${sysName(id)}`); }
   renderHomeBtn(); render(); renderPanel(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains();
 }
+/* Thera / Turnur / Pochven connections marked "collapsed" by a pilot, until EVE-Scout drops them (kept 24 h at most) */
+const DOWN_MS = 24 * 3600e3;
+function downAll(){
+  const loc = store.get(DEMO ? 'whmap.reg.down.demo' : 'whmap.reg.down', {}), sh = (share.map && share.map.data && share.map.data.down) || {}, out = {};
+  for (const src of [loc, sh]) for (const k in src) if (src[k] && Date.now() - src[k].t < DOWN_MS) out[k] = src[k];
+  return out;
+}
+const downKey = l => l.src === 'eve-scout' ? String(l.id) : pairKey(l.a, l.b);   // one EVE-Scout signature: a new hole to the same system is not "collapsed"
+const downOf = l => downAll()[downKey(l)] || null;
+async function setDown(l, on){
+  const k = downKey(l), val = on ? { t:Date.now(), by:tok ? tok.charName : (DEMO ? 'Demo Pilot' : ''), a:Number(l.a), b:Number(l.b) } : null;
+  if (!DEMO && share.owner && share.ws){
+    const all = { ...((share.map && share.map.data && share.map.data.down) || {}) };
+    for (const x in all) if (!all[x] || Date.now() - all[x].t > DOWN_MS) delete all[x];      // old marks go away
+    if (val) all[k] = val; else delete all[k];
+    try{ await shareSend({ op:'put', path:`maps/${share.owner}/data/down`, data:all }); share.map.data = share.map.data || {}; share.map.data.down = all; }
+    catch(e){ toast(e.status === 403 || /refus|denied|permission/i.test(e.message) ? 'You have read-only access to this map: not changed.' : 'The shared map did not accept the change: ' + e.message, true); return; }
+  } else { const key = DEMO ? 'whmap.reg.down.demo' : 'whmap.reg.down', loc = store.get(key, {}); if (val) loc[k] = val; else delete loc[k]; store.set(key, loc); }
+  const hub = [l.a, l.b].map(String).find(x => HUB_LIST.includes(hubOf(x))), other = String(l.a) === hub ? l.b : l.a;
+  toast(on ? `${sysName(hubOf(hub) || hub)} ↔ ${sysName(other)} marked as collapsed${!DEMO && share.owner ? ' for your whole map' : ''}` : `${sysName(other)}: connection restored`);
+  computeRoute(); render(); renderPanel();
+}
+const hubLinksAt = id => HUB_LIST.flatMap(h => hubLinks(h).filter(x => String(x.o) === String(id) || String(x.via) === String(id)).map(x => ({ ...x, h })));
 function markAt(id){ return ['enter', 'exit'].filter(k => mapper[k] && String(mapper[k].id) === String(id)); }
 async function setMark(kind, id){
   const val = id == null ? null : { id:Number(id), name:sysName(id), by:tok ? tok.charName : '', t:Date.now() };
@@ -2074,7 +2102,7 @@ function graph(){
   const g = {};
   const add = (a, b, k) => { (g[a] = g[a] || []).push([b, k]); (g[b] = g[b] || []).push([a, k]); };
   for (const [a, b] of R.links) add(String(a), String(b), 'g:' + [a, b].sort().join('-'));
-  for (const l of allHoles()) add(String(l.a), String(l.b), 'w:' + l.id);
+  for (const l of allHoles()) if (!downOf(l)) add(String(l.a), String(l.b), 'w:' + l.id);   // a collapsed hole is no way through
   for (const j of jbList()) add(String(j.a), String(j.b), 'j:' + jbKey(j.a, j.b));
   return g;
 }
@@ -2254,16 +2282,17 @@ function hubCard(h, p, gLine){
     const s2 = secOf(r.o), cc = r.kind === 1 ? (WH_COL[classOf(r.o)] || WH_COL.J) : (s2 != null ? secCol(s2) : WH_COL.J);
     const tag = r.kind === 1 ? classOf(r.o) : s2 != null ? secR(s2).toFixed(1) : '';
     const meta = [h === 'POCH' ? '⇄ ' + sysName(r.via) : '', r.kind === 2 ? regionName(r.reg) : '', r.l.wh, r.l.size && r.l.size !== '?' ? r.l.size : '', r.l.expires ? leftTxt(r.l.expires - now) : ''].filter(Boolean).join(' · ');
-    const canGo = r.kind !== 1;
-    html += `<div class="hc-row${r.chain.length ? ' on' : ''}" data-go="${r.o}" title="${r.kind === 1 ? 'Wormhole space' : 'Show on the map'}">
+    const canGo = r.kind !== 1, dn = downOf(r.l);
+    const xb = `<button type="button" class="hc-x" data-down="${esc(downKey(r.l))}" title="${dn ? `Marked collapsed by ${esc(dn.by || 'a pilot')} ${Math.round((now - dn.t) / 60000)} min ago: click to restore` : 'Mark this connection as collapsed (until EVE-Scout removes it)'}">${dn ? '↺' : '✕'}</button>`;
+    html += `<div class="hc-row${r.chain.length ? ' on' : ''}${dn ? ' down' : ''}" data-go="${r.o}" title="${dn ? 'Collapsed' : r.kind === 1 ? 'Wormhole space' : 'Show on the map'}">
       <i style="background:${cc}"></i><span class="hc-n" style="${r.chain.length ? `color:${cc}` : ''}">${esc(sysName(r.o))} <small>${esc(tag)}</small> <small>${esc(meta)}</small></span>
-      ${canGo ? `<button type="button" class="hc-wp" data-wp="${r.o}" ${wpOk ? '' : 'disabled'} title="${wpOk ? 'Set destination in EVE (Shift+click: add waypoint)' : 'Log in through the mapper with the waypoint option'}">➤</button>` : '<span></span>'}</div>`;
+      <span style="display:flex;align-items:center">${xb}${canGo ? `<button type="button" class="hc-wp" data-wp="${r.o}" ${wpOk ? '' : 'disabled'} title="${wpOk ? 'Set destination in EVE (Shift+click: add waypoint)' : 'Log in through the mapper with the waypoint option'}">➤</button>` : ''}</span></div>`;
     if (r.chain.length) html += `<div class="hc-chain">↳ your chain: ${esc(r.chain.slice(0, 5).map(c => `${sysName(c.id)} ${classOf(c.id)}`).join(', '))}${r.chain.length > 5 ? ` +${r.chain.length - 5}` : ''}</div>`;
   }
   let box = hubEls[h];
   if (!box){ box = hubEls[h] = document.createElement('div'); box.className = 'hubcard'; box.dataset.hub = h; $('#hubCards').appendChild(box); dragHub(box, h); }
   box.style.borderColor = col;
-  const htmlNew = `<button type="button" class="hc-head" aria-expanded="${open}" data-tog="${h}"><span class="car">▾</span><b style="color:${col}">${esc(sysName(h))}</b><span class="cnt">${rows.length} connection${rows.length > 1 ? 's' : ''}</span>
+  const htmlNew = `<button type="button" class="hc-head" aria-expanded="${open}" data-tog="${h}"><span class="car">▾</span><b style="color:${col}">${esc(sysName(h))}</b><span class="cnt">${rows.length} connection${rows.length > 1 ? 's' : ''}${rows.filter(r => downOf(r.l)).length ? ` · ${rows.filter(r => downOf(r.l)).length} collapsed` : ''}</span>
       ${h === '30002086' ? `<span class="hc-wp" role="button" data-wp="${h}" title="Set destination: Turnur" style="border:1px solid var(--line);border-radius:3px">➤</span>` : ''}</button>
     <div class="hc-body"${open ? '' : ' hidden'} style="max-height:${Math.max(120, Math.min(420, H - 80))}px">${html}</div>`;
   if (box._html !== htmlNew){ box.innerHTML = htmlNew; box._html = htmlNew; }
@@ -2377,7 +2406,7 @@ function draw(){
   for (const l of drawHoles()){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
     if ((isHubVirtual(a) || isHubVirtual(b)) && !(pa && pb)) continue;
-    const cls = 'whl ' + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
+    const cls = 'whl ' + (downOf(l) ? 'down ' : '') + (l.eol ? 'eol ' : '') + (l.mass || 'fresh') + (whPhase(l) === 'dying' ? ' dying' : '') + (route && route.edges.has('w:' + l.id) ? ' route' : apSet.has(pairKey(a, b)) ? ' ap' : '');
     const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : ''].filter(Boolean).join(' ');
     if (pa && pb){
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - Math.hypot(pb.x - pa.x, pb.y - pa.y) * 0.25;
@@ -2658,7 +2687,7 @@ function apSave(){
 }
 function whConns(){
   const out = [];
-  for (const l of allHoles()){ if (!/^\d+$/.test(String(l.a)) || !/^\d+$/.test(String(l.b))) continue;
+  for (const l of allHoles()){ if (!/^\d+$/.test(String(l.a)) || !/^\d+$/.test(String(l.b)) || downOf(l)) continue;
     out.push({ from:Number(l.a), to:Number(l.b) }, { from:Number(l.b), to:Number(l.a) }); }
   for (const j of jbList()) out.push({ from:Number(j.a), to:Number(j.b) }, { from:Number(j.b), to:Number(j.a) });
   return out;
@@ -2869,6 +2898,8 @@ function setupInput(){
   $('#hubCards').addEventListener('click', e => {
     const tg = e.target.closest('[data-tog]'), wpb = e.target.closest('[data-wp]'), go = e.target.closest('[data-go]');
     if (wpb){ e.stopPropagation(); if (!wpb.disabled) sendWaypoint(wpb.dataset.wp, e.shiftKey); return; }
+    const xb = e.target.closest('[data-down]');
+    if (xb){ e.stopPropagation(); const l = allHoles().find(l => downKey(l) === xb.dataset.down); if (l) setDown(l, !downOf(l)); return; }
     if (tg) return;                                   // handled on pointerup (drag or fold)
     if (go){ const id = go.dataset.go; if (isJ(id) && !HUB_LIST.includes(id)) toast(`${sysName(id)}: wormhole space, no region map`); else { lookAway(); goTo(id); } }
   });
@@ -3164,6 +3195,7 @@ function sysMenu(e, id){
     + item('dest', 'Set destination', '', !wpOk) + item('wp', 'Add waypoint', '', !wpOk) + '<hr>'
     + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
     + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('')
+    + (hubLinksAt(id).length ? '<hr>' + hubLinksAt(id).map((x, i) => item('dn-' + i, downOf(x.l) ? `↺ ${esc(sysName(x.h))} connection: restore` : `✕ Mark the ${esc(sysName(x.h))} connection collapsed`)).join('') : '')
     + '<hr>' + (assetsOn && assetsAt(id).length ? item('assets', '📦 Your assets here') : '') + (s && s.ext ? item('region', `Go to ${esc(s.ext)}`) : '') + item('dotlan', 'Dotlan ↗') + item('zkill', 'zKillboard ↗');
   m.hidden = false;
   const w = m.offsetWidth, h = m.offsetHeight;
@@ -3176,6 +3208,7 @@ function sysMenu(e, id){
     else if (act === 'home') setHome(isHome(id) ? null : id);
     else if (act.startsWith('mk-')){ const k = act.slice(3); setMark(k, markAt(id).includes(k) ? null : id); }
     else if (act === 'assets') openAssets(id);
+    else if (act.startsWith('dn-')){ const x = hubLinksAt(id)[+act.slice(3)]; if (x) setDown(x.l, !downOf(x.l)); }
     else if (act === 'region') loadRegion(s.r).then(() => { select(id); centerOn(id); render(); });
     else if (act === 'zkill') open(`https://zkillboard.com/system/${id}/`, '_blank', 'noopener');
     else if (act === 'dotlan') open(`https://evemaps.dotlan.net/system/${encodeURIComponent(sysName(id).replace(/ /g, '_'))}`, '_blank', 'noopener');
