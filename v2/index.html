@@ -1389,7 +1389,6 @@ function drawHoles(){
 /* ---------- Settings: every timer and threshold of the map, in one place (Settings window) ---------- */
 const SETTINGS = [
   { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
-  { g:'Map', k:'constNames', label:'Names of the constellations', type:'bool', def:0 },
   { g:'Map', k:'routeFocus', label:'A selected route stands out, the rest of the map almost transparent', type:'bool', def:1 },
   { g:'Active systems', k:'essShare', label:'ESS: share of the bounties going to the main bank (estimate)', unit:'%', def:25, min:1, max:100 },
   { g:'Active systems', k:'essBounty', label:'ESS: mean bounty of one NPC kill at -1.0 true security', unit:'k ISK', def:450, min:50, max:3000 },
@@ -2614,7 +2613,7 @@ function applySettings(k){
   if (k === 'kills') pollKills();
   if (k === 'bigName') renderNoFollow();
   if (k === 'routeFocus'){ const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Focus on' : '✦ Focus off'; } }
-  if (k === 'sysNames' || k === 'constNames'){ render(); const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } }
+  if (k === 'sysNames'){ render(); const b = $('#btnNames'); if (b){ b.setAttribute('aria-pressed', SET.sysNames ? 'true' : 'false'); b.textContent = SET.sysNames ? '🏷 Hide system names' : '🏷 Show system names'; } }
   renderWatch(); renderWhSel(); computeRoute(); render(); renderPanel(); if (!$('#wChain').hidden) renderChain();
 }
 function killStatHtml(){
@@ -3040,9 +3039,9 @@ function followTo(id, soft){
   requestAnimationFrame(step);
 }
 const ZOOM_MAX = 12;
-function zoomTo(id){   // a clicked system: glide to the closest zoom, the system in the free middle of the map
+function zoomTo(id){   // a clicked system: glide to an intermediate zoom, the system in the free middle of the map
   const p = norm[String(id)]; if (!p || !isFinite(p.x) || !isFinite(p.z)) return;
-  const z0 = cam.zoom, z1 = isFlat() ? z0 : ZOOM_MAX, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;   // 2D: the zoom stays as it is, the card only slides to the middle
+  const z0 = cam.zoom, z1 = isFlat() ? z0 : ZOOM_MAX * 0.5, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;   // 2D: the zoom stays as it is, the card only slides to the middle
   const step = now => { if (my !== camAnim) return; const k = Math.min(1, (now - t0) / 550), e = 1 - Math.pow(1 - k, 3);
     cam.zoom = z0 + (z1 - z0) * e;
     const q = proj(p), wx = q0.x + (t.x - q0.x) * e, wy = q0.y + (t.y - q0.y) * e;
@@ -3581,7 +3580,7 @@ function draw(){
   // constellation names
   const cs = {};
   for (const s of R.systems){ if (s.ext) continue; const p = P[s.id]; (cs[s.c] = cs[s.c] || []).push(p); }
-  if (SET.constNames) for (const c in cs){ const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
+  if (false) for (const c in cs){   // constellation names: removed in v2 const pts = cs[c]; const x = pts.reduce((m, p) => m + p.x, 0) / pts.length, y = Math.min(...pts.map(p => p.y)) - 16;
     const t = el('text', { x, y, 'text-anchor':'middle', class:'clbl' }, gConst); t.textContent = R.constellations[c]; }
   // jump bridges: an arc between the two systems (or towards the other region)
   for (const j of jbList()){
