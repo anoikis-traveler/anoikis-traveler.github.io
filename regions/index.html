@@ -378,6 +378,12 @@ body.nf #hint{transform:translateY(-16px)}
 #wWhc{width:420px;max-width:calc(100vw - 16px)}
 .whcwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
 .whctabs{display:flex;flex-wrap:wrap;gap:4px}
+#wBan{width:640px;max-width:calc(100vw - 16px)}
+#banBody img{display:block;width:100%;border-radius:4px;border:1px solid var(--line);margin:4px 0 8px}
+#banBody h4{margin:10px 0 2px;font-size:12.5px;color:var(--dim);font-weight:500}
+.bancode{display:flex;gap:6px;align-items:center;margin:0 0 6px}
+.bancode code{flex:1;min-width:0;font:11.5px var(--mono,monospace);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:4px;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfe3ff}
+.bancode span{font-size:11px;color:var(--dim);width:62px;flex:none}
 #wAct{width:560px;max-width:calc(100vw - 16px)}
 .actt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
 .actt th{font-weight:500;color:var(--dim);text-align:right;padding:2px 5px;font-size:11.5px;white-space:nowrap}
@@ -657,6 +663,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnHubr" class="proxy" type="button" aria-pressed="false">Hub routes</button>
         <button id="btnMine" class="proxy" type="button" aria-pressed="false">My pilots</button>
         <button id="btnWhc" class="proxy" type="button" aria-pressed="false">Holes by pilot</button>
+        <button id="btnBan" class="proxy" type="button" aria-pressed="false" hidden>Forum banner</button>
         <button id="btnAct" class="proxy" type="button" aria-pressed="false" title="The busiest systems of this map, with an estimate of their ESS">Active systems</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
@@ -776,6 +783,11 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="whctabs" id="whcTabs" role="tablist"></div>
       <div id="whcBody"></div>
     </div>
+  </section>
+
+  <section class="widget" id="wBan" data-title="Forum banner" hidden>
+    <header class="wh"><span class="wt">Forum banner</span><span class="wsub dim">site owner</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="banClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb" id="banBody"></div>
   </section>
 
   <section class="widget" id="wAct" data-title="Active systems" hidden>
@@ -2488,6 +2500,19 @@ function renderAct(){
   box.querySelectorAll('[data-adest]').forEach(b => b.onclick = () => sendWaypoint(b.dataset.adest, false));
   box.querySelectorAll('[data-awp]').forEach(b => b.onclick = () => sendWaypoint(b.dataset.awp, true));
 }
+/* ---------- Forum banner (site owner): the signature images and the code to paste at the end of a forum post ---------- */
+function setupBan(){
+  const box = $('#wBan'), btn = $('#btnBan'), SITE = 'https://anoikis-traveler.github.io/', LINK = SITE + 'guide/?lang=en';
+  const V = [['Large · 1200 × 260', 'img/signature.png'], ['Compact · 600 × 130', 'img/signature-small.png']];
+  $('#banBody').innerHTML = V.map(([n, f]) => { const img = SITE + f;
+    const codes = [['Markdown', `[![Anoikis Traveler — We need you](${img})](${LINK})`], ['BBCode', `[url=${LINK}][img]${img}[/img][/url]`], ['HTML', `<a href="${LINK}"><img src="${img}" alt="Anoikis Traveler — We need you"></a>`], ['Image', img]];
+    return `<h4>${n}</h4><img src="../${f}" alt="">` + codes.map(([k, c]) => `<div class="bancode"><span>${k}</span><code title="${esc(c)}">${esc(c)}</code><button type="button" data-bcopy="${esc(c)}">Copy</button></div>`).join(''); }).join('')
+    + `<div class="dim" style="font-size:11.5px;margin-top:6px">EVE forums (Discourse): paste the Markdown line at the end of a post. A click on the banner opens the guide in English.</div>`;
+  $('#banBody').querySelectorAll('[data-bcopy]').forEach(b => b.onclick = async () => { try{ await navigator.clipboard.writeText(b.dataset.bcopy); toast('Copied'); }catch(e){ toast('Copy failed: select the text by hand', true); } });
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ placeWidget(box); box.style.zIndex = ++wz; } };
+  btn.onclick = () => { if (box.hidden && !DEMO && !vaultChars().some(isOwnerChar)){ toast('Forum banner: site owner only', true); return; } show(box.hidden); };
+  $('#banClose').onclick = () => show(false);
+}
 function setupAct(){
   const box = $('#wAct'), btn = $('#btnAct');
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ renderAct(); placeWidget(box); box.style.zIndex = ++wz; } };
@@ -2995,6 +3020,7 @@ function renderChars(){
   // the site owner's own links: shown only when one of the owner's characters is logged in here
   if (!DEMO){ const own = vaultChars().some(isOwnerChar);
     const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own;
+    const bb = $('#btnBan'); if (bb) bb.hidden = !own; if (!own && $('#wBan') && !$('#wBan').hidden) $('#wBan').hidden = true;
     const wb = $('#btnWhc'); if (wb) wb.hidden = !own; if (!own && $('#wWhc') && !$('#wWhc').hidden){ $('#wWhc').hidden = true; if (wb) wb.setAttribute('aria-pressed', 'false'); } if (typeof renderViewMenu === 'function') renderViewMenu(); }
   const box = $('#charsBody'); if (!box) return;
   const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
@@ -4526,7 +4552,7 @@ function defaultPos(id, el){
            wChars:{ x:W0 - w - 12, y:12 }, wWatch:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wChars', 250)) }, wInfo:{ x:W0 - w - 12, y:Math.min(H0 - 200, below('wWatch', 400)) },
            wChain:{ x:Math.max(12, W0 / 2 - w / 2), y:Math.max(12, H0 - 420) },
            wJb:{ x:Math.max(12, W0 / 2 - 190), y:90 },
-           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 }, wHubs:{ x:Math.max(12, W0 / 2 - 260), y:130 }, wMine:{ x:Math.max(12, W0 - 360), y:150 }, wWhc:{ x:Math.max(12, W0 / 2 - 210), y:150 }, wAct:{ x:Math.max(12, W0 / 2 - 280), y:120 },
+           wCols:{ x:Math.max(12, W0 / 2 - 170), y:70 }, wSet:{ x:Math.max(12, W0 / 2 - 230), y:80 }, wStats:{ x:12, y:Math.min(H0 - 420, below('wView', 240)) }, wSigs:{ x:Math.max(12, W0 / 2 - 220), y:90 }, wHold:{ x:Math.max(12, W0 / 2 - 235), y:110 }, wHubs:{ x:Math.max(12, W0 / 2 - 260), y:130 }, wMine:{ x:Math.max(12, W0 - 360), y:150 }, wWhc:{ x:Math.max(12, W0 / 2 - 210), y:150 }, wAct:{ x:Math.max(12, W0 / 2 - 280), y:120 }, wBan:{ x:Math.max(12, W0 / 2 - 320), y:110 },
            wPoch:{ x:Math.max(12, W0 - 760), y:120 },
            wAdmin:{ x:Math.max(12, W0 / 2 - 450), y:60 }, wPay:{ x:Math.max(12, W0 / 2 - 400), y:90 },
            wChains:{ x:12, y:Math.min(H0 - 240, below('wView', 240)) },
@@ -4587,12 +4613,12 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
   ['Maps', [['wChain', 'Chain', '#btnChain'], ['wChains', 'All chains', '#btnAll'], ['wPoch', 'Pochven', '#btnPoch'], ['wStats', 'Statistics', '#btnStats'], ['wAct', 'Active systems', '#btnAct'], ['wMine', 'My pilots', '#btnMine'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
-  ['Site owner', [['wWhc', 'Holes by pilot', '#btnWhc'], ['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
+  ['Site owner', [['wWhc', 'Holes by pilot', '#btnWhc'], ['wBan', 'Forum banner', '#btnBan'], ['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
 function openWin(id, on){
   const el = $('#' + id), w = winOf(id); if (!el) return;
@@ -4618,10 +4644,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; if (el._applySize) el._applySize(); placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; if (el._applySize) el._applySize(); placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -4650,7 +4676,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); setupAct(); setupHover(); loadStandings(); setInterval(loadStandings, 30 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); setupBan(); setupAct(); setupHover(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);
