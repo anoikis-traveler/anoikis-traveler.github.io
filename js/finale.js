@@ -2,23 +2,23 @@
    a fade into a poster (New Eden, the face, "Anoikis Traveler · We need you") held 10 s, then a fade into a new cycle.
    The face and the title only go where the page leaves room (box()): nothing of the page covers them, they cover nothing. */
 window.anoikisFinale = function (o){
-  const HOLD = o.hold || 10000, FADE = 1800, R = o.root || '', v = o.video;
+  const HOLD = o.hold || 10000, FADE = 4500, R = o.root || '', v = o.video;
   if (!document.getElementById('afin-css')){
     const st = document.createElement('style'); st.id = 'afin-css';
     st.textContent = `
 @font-face{font-family:"Exo2T";src:url(${R}fonts/exo2-200.woff2) format("woff2");font-weight:200;font-display:swap}
 @font-face{font-family:"Michroma";src:url(${R}fonts/michroma.woff2) format("woff2");font-display:swap}
-.afin{position:${o.fixed ? 'fixed' : 'absolute'};inset:0;z-index:${o.z == null ? 1 : o.z};pointer-events:none;opacity:0;transition:opacity 1.8s ease;overflow:hidden;
+.afin{position:${o.fixed ? 'fixed' : 'absolute'};inset:0;z-index:${o.z == null ? 1 : o.z};pointer-events:none;opacity:0;transition:opacity 4.5s cubic-bezier(.42,0,.3,1);overflow:hidden;
   background:radial-gradient(ellipse 60% 75% at 60% 40%,rgba(70,35,20,.55),transparent 72%),linear-gradient(120deg,#04050a 0%,#0a0a10 45%,#16120f 100%)}
 .afin.on{opacity:1}
-.afin-map{position:absolute;inset:-4%;background:url(${R}img/neweden.jpg) center/cover no-repeat;mix-blend-mode:screen;opacity:.8;transform:scale(1.06);transition:transform 14s linear}
+.afin-map{position:absolute;inset:-4%;background:url(${R}img/neweden.jpg) center/cover no-repeat;mix-blend-mode:screen;opacity:.8;transform:scale(1.06);transition:transform 18s ease-out}
 .afin.on .afin-map{transform:scale(1.12)}
 .afin-stage{position:absolute}
 .afin-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,7,13,.88) 0%,rgba(5,7,13,.6) 35%,rgba(5,7,13,0) 62%),linear-gradient(0deg,rgba(5,7,13,.7) 0%,rgba(5,7,13,0) 30%)}
 .afin-stage .flare{position:absolute;inset:-25%;mix-blend-mode:screen;background:radial-gradient(circle at 30% 38%,rgba(255,250,235,.85) 0,rgba(255,170,70,.6) 4%,rgba(255,110,30,.3) 14%,rgba(160,40,0,.1) 28%,transparent 42%),radial-gradient(ellipse 34% 40% at 46% 24%,rgba(255,220,170,.25),transparent 70%)}
 .afin.on .flare{animation:afinFlare 10s ease-in-out infinite alternate}
 @keyframes afinFlare{from{opacity:.75}to{opacity:1}}
-.afin-face{position:absolute;left:50%;top:0;height:var(--fh);transform:translateX(-50%) scale(1.02);transform-origin:50% 60%;transition:transform 12s linear;
+.afin-face{position:absolute;left:50%;top:0;height:var(--fh);transform:translateX(-50%) scale(1.02);transform-origin:50% 60%;transition:transform 16s ease-out;
   -webkit-mask:radial-gradient(ellipse 48% 52% at 50% 48%,#000 55%,transparent 100%);mask:radial-gradient(ellipse 48% 52% at 50% 48%,#000 55%,transparent 100%);filter:contrast(1.3) brightness(.58) saturate(.85)}
 .afin.on .afin-face{transform:translateX(-50%) scale(1.07)}
 .afin-t{position:absolute;left:0;right:0;bottom:0;text-align:center;color:#fff;white-space:nowrap}
@@ -26,7 +26,7 @@ window.anoikisFinale = function (o){
 .afin-brand i{display:block;width:4em;height:1px;background:linear-gradient(90deg,transparent,#fff)}
 .afin-brand i:last-child{background:linear-gradient(90deg,#fff,transparent)}
 .afin-big{font:200 var(--ft)/.98 "Exo2T",sans-serif;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 0 30px rgba(0,0,0,.55),0 0 2px rgba(255,255,255,.6)}
-.afin.on .afin-t{animation:afinIn 2.6s ease both .6s}
+.afin.on .afin-t{animation:afinIn 4s cubic-bezier(.42,0,.3,1) both 1.5s}
 @keyframes afinIn{from{opacity:0;filter:blur(6px)}to{opacity:1;filter:none}}`;
     document.head.appendChild(st);
   }
