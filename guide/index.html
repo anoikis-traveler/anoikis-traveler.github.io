@@ -131,11 +131,13 @@ table.sett tr:last-child td{border-bottom:0}
 table.sett th{font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)} table.sett td:first-child{color:var(--accent2);white-space:nowrap;font-size:13px} table.sett td:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
 table.sett td:nth-child(3){color:var(--dim)}
 table.sett code{font-size:12.5px;white-space:normal;color:var(--text)}
-table.prices{width:100%;display:block;overflow-x:auto;border-collapse:collapse;margin:6px 0 10px;font-size:15px}
+table.prices{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:15px}
 table.prices th,table.prices td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
 table.prices th{font-weight:600;opacity:.8}
 table.prices td:nth-child(n+2),table.prices th:nth-child(n+2){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.atc{white-space:nowrap}.atc .atcopy{margin-left:6px;padding:1px 8px;font-size:11.5px;vertical-align:1px}
+.atc{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px}
+table.prices td:first-child,table.prices th:first-child{width:1%;white-space:nowrap;padding-right:16px}.atc code{font-size:12.5px;color:var(--ok);overflow-wrap:anywhere;min-width:0;white-space:normal}.atc .atcopy{padding:1px 8px;font-size:11.5px}
+table.prices td{vertical-align:top}
 /* faq */
 details{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:0 0 10px;transition:border-color .2s}
 details[open]{border-color:var(--line2)}
@@ -461,12 +463,12 @@ footer{border-top:1px solid var(--line);padding:34px 0 48px;margin-top:90px;colo
   <div class="two">
 
     <div class="box rv"><h3 data-i18n="pr_tab_t"></h3>
-      <table class="prices"><thead><tr><th data-i18n="pr_chars"></th><th data-i18n="pr_price"></th><th data-i18n="pr_reason"></th></tr></thead><tbody>
-        <tr><td>1 – 5</td><td data-i18n="pr_free"></td><td>—</td></tr>
-        <tr><td>6 – 10</td><td>50 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-10</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
-        <tr><td>11 – 15</td><td>100 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-15</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
-        <tr><td>16 – 20</td><td>150 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-20</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
-        <tr><td>21 – 25</td><td>200 M ISK <span data-i18n="pr_week"></span></td><td class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-25</code> <button type="button" class="small atcopy" data-i18n="pr_copy"></button></td></tr>
+      <table class="prices" id="prTbl"><thead><tr><th data-i18n="pr_chars"></th><th><span data-i18n="pr_price"></span> · <span data-i18n="pr_reason"></span></th></tr></thead><tbody>
+        <tr><td>1 – 5</td><td data-i18n="pr_free"></td></tr>
+        <tr><td>6 – 10</td><td>50 M ISK <span data-i18n="pr_week"></span><div class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-10</code><button type="button" class="small atcopy" data-i18n="pr_copy"></button></div></td></tr>
+        <tr><td>11 – 15</td><td>100 M ISK <span data-i18n="pr_week"></span><div class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-15</code><button type="button" class="small atcopy" data-i18n="pr_copy"></button></div></td></tr>
+        <tr><td>16 – 20</td><td>150 M ISK <span data-i18n="pr_week"></span><div class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-20</code><button type="button" class="small atcopy" data-i18n="pr_copy"></button></div></td></tr>
+        <tr><td>21 – 25</td><td>200 M ISK <span data-i18n="pr_week"></span><div class="atc"><code>Anoikis-<span class="atname" data-i18n="pr_you"></span>-25</code><button type="button" class="small atcopy" data-i18n="pr_copy"></button></div></td></tr>
       </tbody></table>
       <p class="mini" data-i18n="pr_more"></p></div>
     <div class="box rv"><h3 data-i18n="pr_how_t"></h3><ol data-i18n="pr_how"></ol>
@@ -1037,6 +1039,26 @@ apply(lang);
   }
   b.addEventListener('click', () => { v.dataset.user = v.paused ? '1' : ''; });
 })();
+
+/* the price list grows until its box is as tall as the one beside it */
+function fillPrices(){
+  const tb = document.querySelector('#prTbl tbody'); if (!tb) return;
+  const box = tb.closest('.box'), other = box && box.parentElement.querySelector('.box:not(:first-child)'); if (!other) return;
+  tb.querySelectorAll('tr.more').forEach(r => r.remove());
+  const me = (typeof atName === 'function' && atName()) || T[lang].pr_you;
+  const side = getComputedStyle(box.parentElement).gridTemplateColumns.split(' ').length > 1;
+  box.style.alignSelf = other.style.alignSelf = 'start';          // their own heights, not the stretched row
+  for (let k = tb.rows.length; k < 40; k++){
+    if (side ? box.offsetHeight + 40 > other.offsetHeight : k >= 8) break;
+    const tr = document.createElement('tr'); tr.className = 'more';
+    tr.innerHTML = `<td>${5 * k + 1} – ${5 * k + 5}</td><td>${50 * k} M ISK <span>${T[lang].pr_week}</span><div class="atc"><code>Anoikis-<span class="atname">${me}</span>-${5 * k + 5}</code><button type="button" class="small atcopy">${T[lang].pr_copy}</button></div></td>`;
+    tb.appendChild(tr);
+  }
+  box.style.alignSelf = other.style.alignSelf = '';
+}
+addEventListener('resize', () => { clearTimeout(fillPrices.t); fillPrices.t = setTimeout(fillPrices, 200); });
+document.querySelectorAll('.lang button').forEach(x => x.addEventListener('click', () => setTimeout(fillPrices, 0)));
+setTimeout(fillPrices, 0); addEventListener('load', fillPrices);
 /* the top bar turns to glass after the video; the contents follow the reading */
 (() => {
   const top = $('#top'), onScroll = () => top.classList.toggle('solid', scrollY > innerHeight * 0.6);
