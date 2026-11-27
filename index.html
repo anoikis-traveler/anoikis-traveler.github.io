@@ -7,7 +7,8 @@
    anything else with parameters (?code=…, ?sys=…, #config=…) belongs to the mapper */
 (function(){
   const q = new URLSearchParams(location.search);
-  if (/^rg/.test(q.get('state') || '')) location.replace('regions/' + location.search);              // login started from the map
+  if (/^rv/.test(q.get('state') || '')) location.replace('v2/' + location.search);                    // login started from the new map (v2, being rebuilt)
+  else if (/^rg/.test(q.get('state') || '')) location.replace('regions/' + location.search);              // login started from the map
   else if (/^py/.test(q.get('state') || '')) location.replace('pay/' + location.search);            // the payee linking the wallet
   else if (/^ad/.test(q.get('state') || '')) location.replace('admin/' + location.search);          // the site owner's map list
   else if (/^ml/.test(q.get('state') || '')) location.replace('mail/' + location.search);           // EVE mail
