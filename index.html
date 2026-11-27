@@ -220,7 +220,7 @@ const fin = anoikisFinale({ video:v, root:'', fixed:true, z:1, isPaused:() => pa
 } });
 const mb = document.getElementById('motion');
 var syncBtn = () => { mb.textContent = paused ? T[lang].play : T[lang].pause; mb.setAttribute('aria-pressed', String(paused)); };
-const apply = () => { if (paused) v.pause(); else if (v.ended){ fin.resume(); } else if (fin.holding()){ } else v.play().catch(() => { paused = true; syncBtn(); }); };
+const apply = () => { if (paused) v.pause(); else if (v.ended){ fin.resume(); } else if (fin.holding()){ } else v.play().catch(e => { if (e && e.name === 'AbortError') return; paused = true; syncBtn(); }); };   // AbortError: the poster paused it, not a refusal
 mb.onclick = () => { paused = !paused; syncBtn(); apply(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden) v.pause(); else apply(); });
 syncBtn(); apply();

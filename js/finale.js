@@ -47,24 +47,28 @@ window.anoikisFinale = function (o){
     return true;
   }
   addEventListener('resize', () => { if (on) place(); });
-  let midDone = false, holding = false;
-  const restart = () => { if (o.isPaused && o.isPaused()) return; midDone = false; v.currentTime = 0; v.play().catch(() => {}); };
+  /* rhythm: the poster when the page opens, then every ~20 s of video (a third, two thirds, the end), 10 s each;
+     the one at the end always covers the jump from the last image to the first. Under the poster the video waits. */
+  let next = 0, holding = false;
+  const cues = () => [v.duration / 3, v.duration * 2 / 3];
   const hide = () => { fin.classList.remove('on'); setTimeout(() => on = false, FADE); };
   const show = () => { if (on) return true; if (!place()) return false; on = true; fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on'); return true; };
+  const hold = then => { holding = true; v.pause(); clearTimeout(t);
+    t = setTimeout(() => { holding = false; then(); if (!(o.isPaused && o.isPaused())) v.play().catch(() => {}); hide(); }, HOLD); };
   v.loop = false;
   v.addEventListener('timeupdate', () => {
     if (!v.duration || holding) return;
-    const mid = v.duration / 2, tm = v.currentTime;
-    // halfway through: the poster comes, the video waits 10 s under it, then goes on from where it was
-    if (!midDone && tm >= mid - FADE / 1000 && tm < mid){ if (!on && !show()) midDone = true; }
-    else if (!midDone && tm >= mid){ midDone = true;
-      if (on){ holding = true; v.pause(); clearTimeout(t); t = setTimeout(() => { holding = false; if (!(o.isPaused && o.isPaused())) v.play().catch(() => {}); hide(); }, HOLD); } }
-    // the end: the poster again, then a new cycle
-    else if (midDone && !on && v.duration - tm < FADE / 1000) show();
+    const c = cues(), tm = v.currentTime, lead = FADE / 1000;
+    if (next < c.length){
+      if (tm >= c[next]){ const k = next++; if (on) hold(() => {}); }                       // the poster is in: the video waits under it
+      else if (tm >= c[next] - lead && !on && !show()) next++;                             // fading in while the video slows to it
+    } else if (!on && v.duration - tm < lead) show();                                       // the end of the cycle
   });
   v.addEventListener('ended', () => {
-    if (!show()){ restart(); return; }                                   // no room for the poster on this screen: straight into a new cycle
-    clearTimeout(t); t = setTimeout(() => { if (o.isPaused && o.isPaused()) return; restart(); hide(); }, HOLD);
+    if (!on && !show()){ next = 0; v.currentTime = 0; v.play().catch(() => {}); return; }  // no room for the poster on this screen: straight on
+    hold(() => { next = 0; v.currentTime = 0; });                                            // the loop point happens under the poster
   });
+  // the page opens on the poster; the video comes in when it fades
+  setTimeout(() => { if (show()){ fin.style.transition = 'none'; void fin.offsetWidth; fin.style.transition = ''; v.currentTime = 0; hold(() => {}); } }, 0);
   return { resume(){ if (v.ended) v.dispatchEvent(new Event('ended')); }, holding:() => holding };
 };
