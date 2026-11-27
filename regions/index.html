@@ -247,6 +247,9 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 #pilotBig small{display:block;font-family:var(--body);font-weight:500;letter-spacing:.04em;text-transform:none;color:var(--dim)}
 #pilotBig[hidden]{display:none}
 #regionBig{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:4;pointer-events:none;font:700 34px var(--display);letter-spacing:.1em;text-transform:uppercase;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.9),0 0 24px rgba(143,176,216,.35);opacity:.8;white-space:nowrap;text-align:center;line-height:1.05}
+#regionBig .whcount{display:inline-flex;gap:10px;margin-top:6px;font:600 13px var(--body);letter-spacing:.03em;text-transform:none;color:#d9c3ff;background:rgba(20,12,40,.55);border:1px solid rgba(180,140,255,.35);border-radius:14px;padding:3px 12px;text-shadow:none}
+#regionBig .whcount b{color:#fff}
+#regionBig .whcount i{font-style:normal;color:var(--dim)}
 #regionBig small{display:block;font-family:var(--body);font-weight:500;letter-spacing:.04em;text-transform:none;color:var(--dim)}
 #regionBig[hidden]{display:none}
 .kst{font-size:11.5px;margin:2px 0 4px}
@@ -1024,7 +1027,7 @@ function readMapper(){
   applyEdits();
 }
 const _readMapper = readMapper;
-readMapper = function(){ _readMapper(); whcT = 0; setTimeout(() => { checkNewHoles(); if (typeof renderWhSel === 'function') renderWhSel(); }, 0); };
+readMapper = function(){ _readMapper(); whcT = 0; setTimeout(() => { checkNewHoles(); if (typeof renderWhSel === 'function') renderWhSel(); if (typeof renderNoFollow === 'function') renderNoFollow(); }, 0); };
 /* A wormhole newly opened to a system that was not on the map: zoom on it; in null-sec sovereignty, show who holds it */
 function checkNewHoles(){
   const key = 'whmap.reg.seen.' + (DEMO ? 'demo' : share.owner || 'local');
@@ -1305,6 +1308,12 @@ async function loadScout(){
 }
 nameCache['31000005'] = 'Thera'; nameCache.POCH = 'Pochven';
 /* every active hole: the mapper's chain plus EVE-Scout's Thera/Turnur connections (no duplicates) */
+/* the wormholes on the whole map, every region together: your mapper's holes, its chains, and the Thera / Turnur ones from EVE-Scout */
+function whCountHtml(){
+  const own = whLinks().filter(l => !downOf(l)), ownK = new Set(own.map(l => pairKey(l.a, l.b)));
+  const sc = scout.filter(l => whPhase(l) !== 'dead' && !downOf(l) && !ownK.has(pairKey(l.a, l.b))).length, ch = whChains().length;
+  return `<div><span class="whcount" title="All the wormholes on your map, every region together"><span>◈ <b>${own.length}</b> WH on the map</span>${ch ? `<i>·</i><span><b>${ch}</b> chain${ch > 1 ? 's' : ''}</span>` : ''}${sc ? `<i>·</i><span><b>${sc}</b> Thera / Turnur</span>` : ''}</span></div>`;
+}
 function allHoles(){
   const out = whLinks(), seen = new Set(out.map(l => pairKey(l.a, l.b)));
   for (const l of scout) if (whPhase(l) !== 'dead' && !seen.has(pairKey(l.a, l.b))){ seen.add(pairKey(l.a, l.b)); out.push(l); }
@@ -2872,7 +2881,7 @@ function renderNoFollow(){
     if (show){ const ps = followRemote && typeof remotePilot === 'function' && remotePilot() ? remotePilot().sys : me.sys, hub = ps && ['31000005', '30002086'].includes(String(ps)) ? String(ps) : null;
       rb.style.fontSize = SET.bigName + 'px';
       const ch = R.chain ? whChains().find(x => x.name === R.chain) : null;
-      rb.innerHTML = hub ? `${esc(sysName(hub))}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">map: ${esc(R.region.name)}</small>` : ch ? `◈ ${esc(R.region.name)}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">wormhole chain · ${esc(chainTxt(ch))}</small>` : esc(R.region.name); placeTop(); } }
+      rb.innerHTML = hub ? `${esc(sysName(hub))}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">map: ${esc(R.region.name)}</small>` : ch ? `◈ ${esc(R.region.name)}<small style="font-size:${Math.max(11, Math.round(SET.bigName * 0.42))}px">wormhole chain · ${esc(chainTxt(ch))}</small>` : esc(R.region.name); rb.insertAdjacentHTML('beforeend', whCountHtml()); placeTop(); } }
   if (on) $('#nfTxt').innerHTML = `Not following<small>${esc(tok.charName)}${me.sys ? ` · ${esc(sysName(me.sys))}` : ''} · click to follow</small>`;
 }
 // the part of the screen not hidden by a window
