@@ -47,13 +47,24 @@ window.anoikisFinale = function (o){
     return true;
   }
   addEventListener('resize', () => { if (on) place(); });
-  const restart = () => { if (o.isPaused && o.isPaused()) return; v.currentTime = 0; v.play().catch(() => {}); };
+  let midDone = false, holding = false;
+  const restart = () => { if (o.isPaused && o.isPaused()) return; midDone = false; v.currentTime = 0; v.play().catch(() => {}); };
+  const hide = () => { fin.classList.remove('on'); setTimeout(() => on = false, FADE); };
   const show = () => { if (on) return true; if (!place()) return false; on = true; fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on'); return true; };
   v.loop = false;
-  v.addEventListener('timeupdate', () => { if (!on && v.duration && v.duration - v.currentTime < FADE / 1000) show(); });
+  v.addEventListener('timeupdate', () => {
+    if (!v.duration || holding) return;
+    const mid = v.duration / 2, tm = v.currentTime;
+    // halfway through: the poster comes, the video waits 10 s under it, then goes on from where it was
+    if (!midDone && tm >= mid - FADE / 1000 && tm < mid){ if (!on && !show()) midDone = true; }
+    else if (!midDone && tm >= mid){ midDone = true;
+      if (on){ holding = true; v.pause(); clearTimeout(t); t = setTimeout(() => { holding = false; if (!(o.isPaused && o.isPaused())) v.play().catch(() => {}); hide(); }, HOLD); } }
+    // the end: the poster again, then a new cycle
+    else if (midDone && !on && v.duration - tm < FADE / 1000) show();
+  });
   v.addEventListener('ended', () => {
     if (!show()){ restart(); return; }                                   // no room for the poster on this screen: straight into a new cycle
-    clearTimeout(t); t = setTimeout(() => { if (o.isPaused && o.isPaused()) return; restart(); fin.classList.remove('on'); setTimeout(() => on = false, FADE); }, HOLD);
+    clearTimeout(t); t = setTimeout(() => { if (o.isPaused && o.isPaused()) return; restart(); hide(); }, HOLD);
   });
-  return { resume(){ if (v.ended) v.dispatchEvent(new Event('ended')); } };
+  return { resume(){ if (v.ended) v.dispatchEvent(new Event('ended')); }, holding:() => holding };
 };
