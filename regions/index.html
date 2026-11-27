@@ -687,7 +687,7 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="btns">
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
-        <button id="btnFlat" type="button" aria-pressed="false" title="2D: the systems as cards on a grid, none over another (remembered for the chain maps and for the regional maps)">2D</button>
+        <button id="btnFlat" type="button" aria-pressed="false" title="2D: the chain as cards, like a wormhole mapper" hidden>2D</button>
         <button id="btnSov" type="button" aria-pressed="true" title="Null-sec: the logo of the alliance holding the sovereignty on each system">Alliance logos</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
@@ -1383,7 +1383,6 @@ const SETTINGS = [
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
   { g:'Map', k:'flatChain', label:'Chain maps (Alpha, Beta…) in 2D: systems as cards on a grid', type:'bool', def:1 },
-  { g:'Map', k:'flatRegion', label:'Regional maps in 2D: systems as cards on a grid', type:'bool', def:0 },
   { g:'Map', k:'sysSize', label:'Size of the systems on the map (100 = normal)', unit:'%', def:100, min:40, max:300 },
   { g:'Pilots', k:'bigName', label:'Name of the followed pilot (bottom) and of the region (top): text size (0 = hidden)', unit:'px', def:34, min:0, max:120 },
   { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
@@ -3137,7 +3136,7 @@ function proj(p){
 /* ---------- 2D view: each system a card on a grid, none over another (chain maps open in it; regional maps on demand) ----------
    The cards keep the layout of the map seen from above: each takes the free grid cell nearest to its real place. */
 let norm3 = null, flatCell = null, pitch3 = null, flatTaken = new Set();
-const isFlat = () => !!(R && (R.chain ? SET.flatChain : SET.flatRegion));
+const isFlat = () => !!(R && R.chain && SET.flatChain);   // 2D: the chain maps only
 /* a chain in 2D, like the wormhole mappers (Pathfinder, Wanderer): a tree from its way in, left to right, one card per system */
 function flatTree(){
   const ids = Object.keys(norm3), set = new Set(ids), adjm = {};
@@ -3192,7 +3191,7 @@ const flatPos = store.get('whmap.reg.flatPos', {});     // systems moved by hand
 const flatKey = () => R ? String(R.chain ? 'C:' + R.chain : R.region.id) : '';
 function applyFlat(toggled){
   if (!norm3) return;
-  const b = $('#btnFlat'); if (b) b.setAttribute('aria-pressed', String(isFlat()));
+  const b = $('#btnFlat'); if (b){ b.setAttribute('aria-pressed', String(isFlat())); b.hidden = !(R && R.chain); }
   if (isFlat()){
     if (!R._flat){ R._flat = flatGrid(); const mv = flatPos[flatKey()] || {};
       for (const id in mv){ if (R._flat.norm[id]) R._flat.norm[id] = { x:mv[id].x, y:0, z:mv[id].z }; else if (R._flat.hubAt && R._flat.hubAt[id]) R._flat.hubAt[id] = { x:mv[id].x, y:0, z:mv[id].z }; } }
@@ -4184,7 +4183,7 @@ function setupInput(){
   $('#btnRF').onclick = () => { SET.routeFocus = SET.routeFocus ? 0 : 1; saveSettings(); applySettings('routeFocus'); syncRF(); if (!$('#wSet').hidden) renderSettings(); };
   syncRF();
   $('#btnTop').onclick = () => { if (isFlat()) return; keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
-  $('#btnFlat').onclick = () => { const k = R && R.chain ? 'flatChain' : 'flatRegion'; SET[k] = SET[k] ? 0 : 1; saveSettings(); applyFlat(true); render(); if (!$('#wSet').hidden) renderSettings(); };
+  $('#btnFlat').onclick = () => { if (!R || !R.chain) return; const k = 'flatChain'; SET[k] = SET[k] ? 0 : 1; saveSettings(); applyFlat(true); render(); if (!$('#wSet').hidden) renderSettings(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
     if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
@@ -4348,7 +4347,7 @@ function renderChainSel(){
 let chainView = { k:1, x:0, y:0 };
 /* Classic mapper look: one card per system laid out as a tree from left to right, the hole type on each link */
 const BW = 160, BH = 50, CW = 220, RH = 70, GRID = 10;   // layout units; boxes snap to the grid
-const chainPos = store.get('whmap.reg.chainpos', {});     // systems moved by hand
+const chainPos = store.get('whmap.reg.chainpos2', {});    // systems moved by hand (on the grid layout; the older positions are not used)
 let chainT = null, chainDrag = null, chainSel = null, linkFrom = null;
 const chainPicked = new Set();            // multiple selection (chainSel = the last one clicked)
 function chainSelect(ids, add){
@@ -4360,7 +4359,7 @@ function chainToggle(id){ id = String(id); if (chainPicked.has(id)) chainPicked.
 function chainClear(){ chainPicked.clear(); chainSel = null; linkFrom = null; }
 /* Flat map of a chain, like a regional map seen from above: the systems placed by their links (a force layout,
    the same every time), then set on a grid of cards, one per cell, none on top of another. */
-const CELLX = 200, CELLY = 84;            // a grid cell: a card (BW × BH) and the room for its links
+const CELLX = 250, CELLY = 84;            // a grid cell: a card (BW × BH) and the room for its links
 const flatMemo = {};
 function chainLayout(g){
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
@@ -4392,7 +4391,8 @@ function chainLayout(g){
       let a = 0, b2 = 0, c = 0; for (const id of ids){ const x = P[id][0] - mx, y = P[id][1] - my; a += x * x; b2 += x * y; c += y * y; }
       const th = 0.5 * Math.atan2(2 * b2, a - c), co = Math.cos(-th), si = Math.sin(-th);
       for (const id of ids){ const x = P[id][0] - mx, y = P[id][1] - my; P[id] = [x * co - y * si, x * si + y * co]; } }
-    const sx = 1.0, sy = 0.75 * CELLX / CELLY, taken = new Set(); cells = {};
+    const el2 = edges.map(([a, b]) => Math.hypot(P[a][0] - P[b][0], P[a][1] - P[b][1])).sort((x, y) => x - y), Lm = el2.length ? el2[el2.length >> 1] || 1 : 1;
+    const sx = 1.0 / Lm, sy = 0.75 * CELLX / CELLY / Lm, taken = new Set(); cells = {};   // a link ≈ one cell: no long empty gaps
     const order = ids.slice().sort((a, b) => (a === root ? -1 : b === root ? 1 : 0) || (edges.filter(e => e.includes(b)).length - edges.filter(e => e.includes(a)).length));
     for (const id of order){
       const cx = Math.round(P[id][0] * sx), cy = Math.round(P[id][1] * sy); let best = null;
@@ -4461,7 +4461,7 @@ function renderChain(){
     el('rect', { x:10, y:8, width:bw, height:15, rx:3, fill:isK(id) ? secCol(secOf(id)) : col }, n);
     const tb = el('text', { x:10 + bw / 2, y:19, 'text-anchor':'middle', class:'cbadge' }, n); tb.textContent = badge;
     const tn = el('text', { x:16 + bw, y:20, class:'cname' }, n); tn.textContent = sysName(id);
-    const ts = el('text', { x:10, y:39, class:'csub' }, n); ts.textContent = sysSub(id).slice(0, 30);
+    const ts = el('text', { x:10, y:39, class:'csub' }, n); const sb = sysSub(id); ts.textContent = sb.length > 25 ? sb.slice(0, 24) + '…' : sb; el('title', {}, ts).textContent = sb;
     { // home, ENTER, EXIT: gold, like on the region map
       if (killsAt(id).length){ el('rect', { x:-5, y:-5, width:BW + 10, height:BH + 10, rx:8, class:'killbox' }, n); }
     const golds = (id === homeId ? ['⌂ HOME'] : []).concat(markAt(id).map(k => MARKS[k].label));
@@ -4742,7 +4742,13 @@ function setupChain(){
   svg.addEventListener('pointerup', () => {
     if (chainDrag){
       const d = chainDrag; chainDrag = null;
-      if (d.moved) store.set('whmap.reg.chainpos', chainPos);
+      if (d.moved){   // never dropped on another card: moved down to the next free place on the grid
+        const g = chainGroups[chainPick || 0], { pos } = g ? chainLayout(g) : { pos:{} }, movedIds = Object.keys(d.start);
+        for (const x of movedIds){ let p0 = chainPos[x], guard = 0;
+          const hit = q => Object.entries(pos).some(([o, op]) => o !== x && !(movedIds.includes(o) && o > x) && Math.abs(op.x - q.x) < BW + 8 && Math.abs(op.y - q.y) < BH + 8);
+          while (p0 && hit(p0) && guard++ < 40) p0 = chainPos[x] = { x:p0.x, y:p0.y + CELLY / 2 };
+          if (p0) pos[x] = p0; }
+        store.set('whmap.reg.chainpos2', chainPos); renderChain(); }
       else if (linkFrom && linkFrom !== d.id){ addLink(linkFrom, d.id); linkFrom = null; }
       else if (d.multi){ chainToggle(d.id); linkFrom = null; renderChainAct(); renderChain(); }
       else { if (chainPicked.size === 1 && chainPicked.has(d.id)) chainClear(); else chainSelect([d.id]); linkFrom = null; renderChainAct(); renderChain(); }
@@ -4769,7 +4775,7 @@ function setupChain(){
   $('#cfCancel').onclick = () => { $('#chainForm').hidden = true; };
   $('#chainForm').onsubmit = e => { e.preventDefault(); submitChainForm(); };
   $('#chainRestore').onclick = () => { E().del = []; saveEdits(); readMapper(); afterEdit(); toast('Deleted systems restored'); };
-  $('#chainAuto').onclick = () => { const g = chainGroups[chainPick || 0]; if (g) g.ids.forEach(id => delete chainPos[id]); store.set('whmap.reg.chainpos', chainPos); chainView = { k:1, x:0, y:0 }; renderChain(); };
+  $('#chainAuto').onclick = () => { const g = chainGroups[chainPick || 0]; if (g) g.ids.forEach(id => delete chainPos[id]); store.set('whmap.reg.chainpos2', chainPos); chainView = { k:1, x:0, y:0 }; renderChain(); };
   svg.addEventListener('wheel', e => { e.preventDefault(); chainView.k = Math.max(0.3, Math.min(6, chainView.k * Math.exp(-e.deltaY * 0.0015))); renderChain(); }, { passive:false });
   new ResizeObserver(() => renderChain()).observe(box.querySelector('.chainwb'));
   if (store.get('whmap.reg.chainOpen', false)) show(true);
