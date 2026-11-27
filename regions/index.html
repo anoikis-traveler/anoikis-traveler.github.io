@@ -1024,7 +1024,7 @@ function setupR(id, keepCam){
     store.set('whmap.reg.last', id); }
   if (typeof pollKills === 'function' && !DEMO) setTimeout(pollKills, 300);
   if (typeof statMax === 'function'){ statMaxCache = statMax(); setTimeout(renderStats, 0); }
-  if (!keepCam){ cam.zoom = R.chain ? 0.85 : 1; cam.px = 0; cam.py = 0; }
+  if (!keepCam){ cam.zoom = R.chain ? 0.85 : 1; cam.px = 0; cam.py = 0; if (isFlat()) flatOpenView(); }
   // a chain map (Alpha, Beta…) opens seen from above; the regional maps get back the angle you had
   if (R.chain && !keepCam){ if (cam.pitchBefore == null) cam.pitchBefore = cam.pitch; cam.yaw = 0; cam.pitch = Math.PI / 2; }
   else if (!R.chain && cam.pitchBefore != null){ cam.pitch = cam.pitchBefore; cam.pitchBefore = null; }
@@ -3001,9 +3001,9 @@ function followTo(id, soft){
 const ZOOM_MAX = 12;
 function zoomTo(id){   // a clicked system: glide to the closest zoom, the system in the free middle of the map
   const p = norm[String(id)]; if (!p || !isFinite(p.x) || !isFinite(p.z)) return;
-  const z0 = cam.zoom, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;
+  const z0 = cam.zoom, z1 = isFlat() ? z0 : ZOOM_MAX, q0 = proj(p), t = freeCentre(), t0 = performance.now(), my = ++camAnim;   // 2D: the zoom stays as it is, the card only slides to the middle
   const step = now => { if (my !== camAnim) return; const k = Math.min(1, (now - t0) / 550), e = 1 - Math.pow(1 - k, 3);
-    cam.zoom = z0 + (ZOOM_MAX - z0) * e;
+    cam.zoom = z0 + (z1 - z0) * e;
     const q = proj(p), wx = q0.x + (t.x - q0.x) * e, wy = q0.y + (t.y - q0.y) * e;
     cam.px += wx - q.x; cam.py += wy - q.y; render(); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
@@ -3187,6 +3187,11 @@ function flatFree(id, more){
 // the size of a card on screen: it follows the zoom, up to a readable maximum
 function flatSize(){ const S = Math.min(W, H) * 0.44 * cam.zoom, tree = R && R._flat && R._flat.tree;
   return tree ? { w:Math.min(flatCell.cw * S * 0.92, 190), h:Math.min(flatCell.ch * S * 0.8, 64) } : { w:Math.min(flatCell.cw * S * 0.86, 130), h:Math.min(flatCell.ch * S * 0.66, 30) }; }
+// the zoom a 2D map opens at: halfway in, the cards at their full readable size, not the whole chain shrunk to fit
+function flatZoom(){ if (!flatCell) return 1; const full = 190 / (flatCell.cw * 0.92 * Math.min(W, H) * 0.44);
+  return Math.max(1.2, Math.min(ZOOM_MAX * 0.5, full)); }
+function flatOpenView(){ cam.zoom = flatZoom(); cam.px = 0; cam.py = 0;
+  const at = me && me.sys && norm[String(me.sys)] ? String(me.sys) : null; if (at) centerOn(at); }
 const flatPos = store.get('whmap.reg.flatPos', {});     // systems moved by hand in 2D, per map
 const flatKey = () => R ? String(R.chain ? 'C:' + R.chain : R.region.id) : '';
 function applyFlat(toggled){
@@ -4186,7 +4191,7 @@ function setupInput(){
   $('#btnRF').onclick = () => { SET.routeFocus = SET.routeFocus ? 0 : 1; saveSettings(); applySettings('routeFocus'); syncRF(); if (!$('#wSet').hidden) renderSettings(); };
   syncRF();
   $('#btnTop').onclick = () => { if (isFlat()) return; keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
-  $('#btnFlat').onclick = () => { if (!R || !R.chain) return; const k = 'flatChain'; SET[k] = SET[k] ? 0 : 1; saveSettings(); applyFlat(true); render(); if (!$('#wSet').hidden) renderSettings(); };
+  $('#btnFlat').onclick = () => { if (!R || !R.chain) return; const k = 'flatChain'; SET[k] = SET[k] ? 0 : 1; saveSettings(); applyFlat(true); if (isFlat()) flatOpenView(); else { cam.zoom = 0.85; cam.px = 0; cam.py = 0; } render(); if (!$('#wSet').hidden) renderSettings(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
     if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
