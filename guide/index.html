@@ -32,7 +32,7 @@ nav.links a:hover,nav.links a.on{color:var(--text);background:rgba(255,255,255,.
 .hero{position:relative;min-height:100vh;min-height:100svh;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
 .hero video,.hero .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
 .hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(5,7,13,.55) 0%,rgba(5,7,13,.15) 30%,rgba(5,7,13,.35) 60%,var(--bg) 100%),radial-gradient(ellipse at 20% 80%,rgba(5,7,13,.8),transparent 60%)}
-.hero .wrap{width:100%;padding-bottom:12vh}
+.hero .wrap{width:100%;padding-bottom:12vh;position:relative;z-index:1}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent2);background:rgba(242,167,75,.1);border:1px solid rgba(242,167,75,.35);border-radius:20px;padding:5px 12px;margin-bottom:18px;backdrop-filter:blur(6px)}
 .eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
 @keyframes pulse{50%{opacity:.35}}
@@ -188,7 +188,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 48px;margin-top:90px;colo
 
 <div class="hero">
   <img class="poster" src="../img/hero-poster.jpg" alt="" aria-hidden="true">
-  <video id="sky" muted loop playsinline autoplay preload="auto" poster="../img/hero-poster.jpg" aria-hidden="true"></video>
+  <video id="sky" muted playsinline autoplay preload="auto" poster="../img/hero-poster.jpg" aria-hidden="true"></video>
   <div class="wrap">
     <div class="eyebrow"><i></i>EVE Online · ESI · 2026</div>
     <h1>Anoikis <b>Traveler</b></h1>
@@ -502,6 +502,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 48px;margin-top:90px;colo
 
 <div id="lb"><img alt=""></div>
 <div id="toast"></div>
+<script src="../js/finale.js"></script>
 <script>
 'use strict';
 const RAF = 'b5f2b5a8-f7f6-41a0-a7d1-8d18d73bc63e';
@@ -1029,6 +1030,16 @@ apply(lang);
   const src = `../img/${small ? 'hero-small' : 'hero'}.mp4?v=2`, v = $('#sky'), v2 = $('#sky2'), b = $('#vidCtl');
   const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
   v.src = src; if (!still) v.play().catch(() => {}); else v.pause();
+  /* the end of each cycle: the poster (New Eden, the face, "We need you") in the free part of the screen, 10 s (../js/finale.js) */
+  if (window.anoikisFinale) anoikisFinale({ video:v, root:'../', z:0, veil:true, isPaused:() => v.paused && v.dataset.user === '1', box(){
+    const W = innerWidth, g = 18, hr = document.querySelector('.hero').getBoundingClientRect(), top = $('#top').getBoundingClientRect();
+    const txt = [...document.querySelectorAll('.hero .wrap > *')].map(e => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); });   // the text itself, not its full-width box
+    const low = Math.min(...[...document.querySelectorAll('.hero .vidctl, .hero .cue')].map(e => e.getBoundingClientRect()).filter(r => r.width).map(r => r.top), hr.bottom);
+    const right = { l:Math.max(...txt.map(x => x.right)) + g * 2 - hr.left, t:top.bottom + g - hr.top, r:W - g * 2 - hr.left, b:low - g - hr.top };   // beside the text
+    const above = { l:g, t:top.bottom + g - hr.top, r:W - g - hr.left, b:Math.min(...txt.map(x => x.top)) - g - hr.top };                       // narrow screen: above it
+    const ok = x => x.r - x.l >= 260 && x.b - x.t >= 220;
+    return ok(right) ? right : ok(above) ? above : null;
+  } });
   const label = () => { b.textContent = (v.paused ? T[lang].vid_play : T[lang].vid_pause) || ''; };
   b.addEventListener('click', () => { if (v.paused) v.play().catch(() => {}); else v.pause(); label(); });
   v.addEventListener('play', label); v.addEventListener('pause', label);

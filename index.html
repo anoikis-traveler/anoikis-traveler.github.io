@@ -33,40 +33,6 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--body);font-size:15px}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@font-face{font-family:"Exo2T";src:url(fonts/exo2-200.woff2) format("woff2");font-weight:200;font-display:swap}
-@font-face{font-family:"Michroma";src:url(fonts/michroma.woff2) format("woff2");font-display:swap}
-/* the end of each cycle: a poster, held ten seconds, then the video starts again */
-#finale{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity 1.8s ease;overflow:hidden;
-  background:radial-gradient(ellipse 22% 34% at 57% 30%,rgba(255,244,225,.95),rgba(255,160,70,.6) 30%,rgba(150,50,10,.28) 62%,transparent 82%),radial-gradient(ellipse 60% 75% at 55% 40%,rgba(70,35,20,.55),transparent 72%),linear-gradient(120deg,#04050a 0%,#0a0a10 45%,#16120f 100%)}
-#finale::before{content:"";position:absolute;inset:-5%;background:url(img/hero-poster.jpg) center/cover;filter:blur(18px) saturate(.6) brightness(.4);opacity:.3;mix-blend-mode:screen}
-#finale::after{content:"";position:absolute;inset:0;mix-blend-mode:screen;pointer-events:none;background:radial-gradient(circle at 63% 52%,rgba(255,250,235,.9) 0,rgba(255,170,70,.65) 4%,rgba(255,110,30,.35) 13%,rgba(160,40,0,.12) 26%,transparent 40%),radial-gradient(ellipse 28% 40% at 42% 22%,rgba(255,220,170,.22),transparent 70%)}
-#finale.on::after{animation:flare 10s ease-in-out infinite alternate}
-@keyframes flare{from{opacity:.75}to{opacity:1}}
-#finale.on{opacity:1}
-#constel{position:absolute;inset:0;width:100%;height:100%}
-#constel line{stroke:#f3c47a;stroke-width:.7;opacity:.55;stroke-dasharray:var(--l);stroke-dashoffset:var(--l)}
-#constel circle{fill:#ffe2b0}
-#finale.on #constel line{animation:cdraw 5s ease forwards;animation-delay:var(--d)}
-#finale.on #constel circle{animation:twinkle 2.4s ease-in-out infinite alternate;animation-delay:var(--d)}
-@keyframes cdraw{to{stroke-dashoffset:0}}
-@keyframes twinkle{from{opacity:.25}to{opacity:1}}
-#face{position:absolute;left:50%;top:44%;height:78vh;transform:translate(-50%,-50%) scale(1.03);transition:transform 12s linear;
-  -webkit-mask:radial-gradient(ellipse 48% 52% at 50% 46%,#000 55%,transparent 100%);mask:radial-gradient(ellipse 48% 52% at 50% 46%,#000 55%,transparent 100%);
-  filter:contrast(1.3) brightness(.58) saturate(.85)}
-#finale.on #face{transform:translate(-50%,-50%) scale(1.09)}
-.fin-t{z-index:2;position:absolute;left:50%;top:auto;bottom:6vh;transform:translateX(-50%);text-align:center;color:#fff;white-space:nowrap}
-.fin-brand{display:flex;align-items:center;justify-content:center;gap:14px;font:400 clamp(11px,1.2vw,18px) "Michroma",var(--display);letter-spacing:.28em;text-transform:uppercase;margin-bottom:.6vw;text-shadow:0 0 18px rgba(0,0,0,.8)}
-.fin-brand i{display:block;width:clamp(30px,5vw,90px);height:1px;background:linear-gradient(90deg,transparent,#fff)}
-.fin-brand i:last-child{background:linear-gradient(90deg,#fff,transparent)}
-.fin-big{font:200 clamp(44px,8.2vw,150px)/.95 "Exo2T",var(--display);letter-spacing:.14em;text-transform:uppercase;text-shadow:0 0 30px rgba(0,0,0,.55),0 0 2px rgba(255,255,255,.6)}
-.fin-big + .fin-big{font-size:clamp(52px,10vw,180px)}
-#finale.on .fin-t{animation:finIn 2.6s ease both .6s}
-@keyframes finIn{from{opacity:0;letter-spacing:.4em;filter:blur(6px)}to{opacity:1;filter:none}}
-@media(max-width:820px){#face{height:62vh;top:40%}}
-/* the page steps aside while the poster shows; any move brings it back */
-.wrap,.veil,.hud{transition:opacity 1.8s ease}
-body.fin .wrap,body.fin .veil,body.fin .hud{opacity:0}
-body.fin .wrap{pointer-events:none}
 #sky{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;object-fit:cover;background:#03050b url(img/hero-poster.jpg) center/cover}
 .veil{position:fixed;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(3,5,11,.88) 0%,rgba(3,5,11,.55) 34%,rgba(3,5,11,0) 60%),linear-gradient(0deg,rgba(3,5,11,.9) 0%,rgba(3,5,11,0) 38%)}
 .wrap{position:relative;z-index:2;min-height:100%;display:grid;grid-template-rows:auto 1fr auto;padding:22px clamp(18px,4vw,56px)}
@@ -129,11 +95,6 @@ h1 b{color:var(--accent);display:block}
 </head>
 <body>
 <video id="sky" aria-hidden="true" muted playsinline preload="auto" poster="img/hero-poster.jpg"></video>
-<div id="finale" aria-hidden="true">
-  <svg id="constel" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1600 900"></svg>
-  <img id="face" src="img/finale-face.jpg" alt="" onerror="this.remove()">
-  <div class="fin-t"><div class="fin-brand"><i></i>Anoikis Traveler<i></i></div><div class="fin-big">We need</div><div class="fin-big">you</div></div>
-</div>
 <div class="veil"></div>
 <div class="hud" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="wrap">
@@ -177,6 +138,7 @@ h1 b{color:var(--accent);display:block}
     </div>
   </div>
 </div>
+<script src="js/finale.js"></script>
 <script>
 (() => {
 'use strict';
@@ -246,26 +208,19 @@ const v = document.getElementById('sky');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 v.src = innerWidth > 1100 && !(navigator.connection && navigator.connection.saveData) ? 'img/hero.mp4?v=2' : 'img/hero-small.mp4?v=2';
 let paused = reduce;
-/* one cycle of the video, a fade into the final poster held 10 s, a fade into a new cycle */
-const fin = document.getElementById('finale'), HOLD = 10000, FADE = 1800;
-let finOn = false, finT = 0;
-(() => {   // the constellation, drawn once (same look every time)
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const pts = []; for (let i = 0; pts.length < 80 && i < 2000; i++){ const x = rnd() * 1600, y = rnd() * 900; if (Math.abs(x - 800) < 380) continue; pts.push([x, y]); }   // none over the face and the title
-  let h = '';
-  pts.forEach((p, i) => { const near = pts.map((q, j) => [Math.hypot(q[0] - p[0], q[1] - p[1]), j]).sort((a, b) => a[0] - b[0]).slice(1, 3);
-    for (const [d, j] of near) if (j > i && d < 190 && (p[0] - 800) * (pts[j][0] - 800) > 0) h += `<line x1="${p[0].toFixed(0)}" y1="${p[1].toFixed(0)}" x2="${pts[j][0].toFixed(0)}" y2="${pts[j][1].toFixed(0)}" style="--l:${d.toFixed(0)};--d:${(Math.abs(Math.abs(p[0] - 800) - 380) / 420 * 2.2).toFixed(2)}s"/>`; });
-  pts.forEach(p => h += `<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${(1 + rnd() * 2).toFixed(1)}" style="--d:${(rnd() * 2).toFixed(2)}s"/>`);
-  document.getElementById('constel').innerHTML = h;
-})();
-const finShow = () => { if (finOn) return; finOn = true; fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on'); document.body.classList.add('fin'); };
-const finEnd = () => { clearTimeout(finT); if (!paused){ v.currentTime = 0; v.play().catch(() => {}); } fin.classList.remove('on'); document.body.classList.remove('fin'); setTimeout(() => finOn = false, FADE); };
-['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev => addEventListener(ev, () => { if (finOn && fin.classList.contains('on')) finEnd(); }, { passive:true }));
-v.addEventListener('timeupdate', () => { if (!finOn && v.duration && v.duration - v.currentTime < FADE / 1000) finShow(); });
-v.addEventListener('ended', () => { finShow(); clearTimeout(finT); finT = setTimeout(() => { if (paused) return; v.currentTime = 0; v.play().catch(() => {}); fin.classList.remove('on'); document.body.classList.remove('fin'); setTimeout(() => finOn = false, FADE); }, HOLD); });
+/* one cycle of the video, a fade into the final poster held 10 s, a fade into a new cycle (js/finale.js) */
+const fin = anoikisFinale({ video:v, root:'', fixed:true, z:1, isPaused:() => paused, box(){
+  const W = innerWidth, H = innerHeight, g = 18, r = e => document.querySelector(e).getBoundingClientRect();
+  const top = r('.top'), hero = r('.hero'), tools = r('.tools'), foot = r('.foot');
+  const txt = [...document.querySelectorAll('.hero > *')].map(e => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); });
+  const right = { l:Math.max(...txt.map(x => x.right)) + g * 2, t:top.bottom + g, r:W - g * 2, b:Math.min(tools.top, foot.top, H) - g };   // beside the hero text, above the cards
+  const above = { l:g, t:top.bottom + g, r:W - g, b:Math.min(...txt.map(x => x.top)) - g };                                                    // narrow screen: between the top bar and the text
+  const ok = x => x.r - x.l >= 260 && x.b - x.t >= 220;
+  return ok(right) ? right : ok(above) ? above : null;
+} });
 const mb = document.getElementById('motion');
 var syncBtn = () => { mb.textContent = paused ? T[lang].play : T[lang].pause; mb.setAttribute('aria-pressed', String(paused)); };
-const apply = () => { if (paused) v.pause(); else if (v.ended){ v.dispatchEvent(new Event('ended')); } else v.play().catch(() => { paused = true; syncBtn(); }); };
+const apply = () => { if (paused) v.pause(); else if (v.ended){ fin.resume(); } else v.play().catch(() => { paused = true; syncBtn(); }); };
 mb.onclick = () => { paused = !paused; syncBtn(); apply(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden) v.pause(); else apply(); });
 syncBtn(); apply();
