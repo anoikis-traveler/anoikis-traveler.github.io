@@ -383,9 +383,22 @@ body.nf #hint{transform:translateY(-16px)}
 .whcwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
 .whctabs{display:flex;flex-wrap:wrap;gap:4px}
 /* 2D view: the system cards */
-.fc{fill:#111a2c;stroke:#2c3a58;stroke-width:1}
+.mc{fill:#121a2b;stroke:#2c3a58;stroke-width:1.2;filter:drop-shadow(0 3px 8px rgba(0,0,0,.45))}
+.mc.k{fill:#141b26}
+.sys:hover .mc{stroke:#8b98b0}
+.mc.pil{stroke:#3f8f5e}.mc.gold{stroke:#e8c25a;stroke-width:1.8}.mc.kill{stroke:#ef5a5a;stroke-width:2}.mc.me{stroke:var(--ok);stroke-width:2.4}.mc.sel{stroke:var(--accent);stroke-width:2.6}
+.mcb{font-family:var(--mono);font-weight:700;fill:#0b0f17;pointer-events:none}
+.mcn{font-family:var(--body);font-weight:700;fill:#eef2fa;pointer-events:none}
+.mcs{font-family:var(--mono);fill:#8b98b0;pointer-events:none}
+.mcp{font-family:var(--body);fill:#7fe0a8;pointer-events:none}
+.mcl{stroke-width:2.6!important;fill:none}
+.mcpill{fill:#0b1020;stroke-width:1}
+.mcpt{font-family:var(--mono);font-weight:600;pointer-events:none}
+.fcm{font-family:var(--mono);font-weight:700;fill:#ffd27a;pointer-events:none}
+.fct.ext{fill:#cfd8e8!important}
+.fc{fill:#151e31;stroke:#2c3a58;stroke-width:1.2}
 .sys:hover .fc{stroke:#8b98b0}
-.fc.ext{fill:#0c1220;stroke-dasharray:3 2}
+.fc.ext{fill:#0d1322;stroke-dasharray:3 2}
 .fc.inmap{stroke:#7d63c9}
 .fc.pil{stroke:#4f9d6c}
 .fc.ap{stroke:#5fd68a}
@@ -393,9 +406,10 @@ body.nf #hint{transform:translateY(-16px)}
 .fc.kill{stroke:#ef5a5a;stroke-width:1.8}
 .fc.me{stroke:var(--ok);stroke-width:2.2}
 .fc.sel{stroke:var(--accent);stroke-width:2.4}
-.fct{font-family:var(--body);font-weight:600;fill:#e2e8f3;pointer-events:none}
+.fct{font-family:var(--body);font-weight:600;fill:#e6ecf7;pointer-events:none}
 .fcs{font-family:var(--mono);font-weight:600}
 .fcb{font-family:var(--mono);fill:#9fb0cc;pointer-events:none}
+.fcb.stubch{fill:#c9a8ff;pointer-events:auto;cursor:pointer}
 #map.routing .sys.onr .fc{stroke:#5fd68a;stroke-width:2.4}
 #wBan{width:640px;max-width:calc(100vw - 16px)}
 #banBody img{display:block;width:100%;border-radius:4px;border:1px solid var(--line);margin:4px 0 8px}
@@ -3122,13 +3136,34 @@ function proj(p){
 }
 /* ---------- 2D view: each system a card on a grid, none over another (chain maps open in it; regional maps on demand) ----------
    The cards keep the layout of the map seen from above: each takes the free grid cell nearest to its real place. */
-let norm3 = null, flatCell = null, pitch3 = null;
+let norm3 = null, flatCell = null, pitch3 = null, flatTaken = new Set();
 const isFlat = () => !!(R && (R.chain ? SET.flatChain : SET.flatRegion));
+/* a chain in 2D, like the wormhole mappers (Pathfinder, Wanderer): a tree from its way in, left to right, one card per system */
+function flatTree(){
+  const ids = Object.keys(norm3), set = new Set(ids), adjm = {};
+  for (const h of HUB_LIST) if (!set.has(h) && allHoles().some(l => (String(l.a) === h && set.has(String(l.b))) || (String(l.b) === h && set.has(String(l.a))))){ ids.push(h); set.add(h); }   // Thera & co: a place in the tree too
+  for (const l of allHoles()){ const a = String(l.a), b = String(l.b); if (set.has(a) && set.has(b) && !downOf(l)){ (adjm[a] = adjm[a] || []).push(b); (adjm[b] = adjm[b] || []).push(a); } }
+  const exits = ids.filter(id => !isJ(id) && !HUB_LIST.includes(id)).sort((a, b) => sysName(a).localeCompare(sysName(b))), myReg = me.sys ? regionOf(me.sys) : null;
+  const root = (isHome && ids.find(id => isHome(id))) || exits.find(id => myReg && regionOf(id) === myReg) || exits[0] || ids[0];
+  const kids = {}, seen = new Set([root]), q = [root];
+  while (q.length){ const u = q.shift(); kids[u] = []; for (const v of (adjm[u] || []).slice().sort((x, y) => sysName(x).localeCompare(sysName(y)))) if (!seen.has(v)){ seen.add(v); kids[u].push(v); q.push(v); } }
+  const COL = 1, ROW = 0.42, pos = {}; let row = 0;
+  const place = (u, d) => { const ks = kids[u] || []; if (!ks.length){ pos[u] = { c:d, r:row++ }; return pos[u].r; }
+    const rs = ks.map(k => place(k, d + 1)); pos[u] = { c:d, r:(rs[0] + rs[rs.length - 1]) / 2 }; return pos[u].r; };
+  place(root, 0);
+  for (const id of ids) if (!pos[id]) pos[id] = { c:0, r:row++ };          // not linked: listed under the tree
+  const wid = Math.max(...ids.map(id => pos[id].c)) * COL + 0.8, hei = Math.max(...ids.map(id => pos[id].r)) * ROW + 0.35, f = Math.min(2.9 / wid, 1.9 / hei, 1.2);
+  const cx = (wid - 0.8) / 2, cr = (hei - 0.35) / 2, out = {};
+  for (const id of ids) out[id] = { x:(pos[id].c * COL - cx) * f, y:0, z:-(pos[id].r * ROW - cr) * f };
+  const hubAt = {}; for (const h of HUB_LIST) if (out[h] && !norm3[h]){ hubAt[h] = out[h]; delete out[h]; }
+  return { norm:out, hubAt, cell:{ cw:0.78 * f, ch:0.42 * f }, mx:0, mz:0, taken:new Set(), tree:true };
+}
 function flatGrid(){
+  if (R.chain) return flatTree();
   const ids = Object.keys(norm3), own = ids.filter(id => !byId[id] || !byId[id].ext), n = Math.max(1, ids.length);
   const xs = ids.map(id => norm3[id].x), zs = ids.map(id => norm3[id].z);
   const bw = Math.max(0.3, Math.max(...xs) - Math.min(...xs)), bh = Math.max(0.3, Math.max(...zs) - Math.min(...zs)), A = 2.6;   // a card is 2.6 times wider than tall
-  const ch = Math.sqrt(bw * bh / (3.2 * A * n)), cw = ch * A, mx = (Math.max(...xs) + Math.min(...xs)) / 2, mz = (Math.max(...zs) + Math.min(...zs)) / 2;
+  const ch = Math.sqrt(bw * bh / (4.5 * A * n)), cw = ch * A, mx = (Math.max(...xs) + Math.min(...xs)) / 2, mz = (Math.max(...zs) + Math.min(...zs)) / 2;
   const taken = new Set(), out = {};
   const order = own.slice().sort((a, b) => Math.hypot(norm3[a].x - mx, norm3[a].z - mz) - Math.hypot(norm3[b].x - mx, norm3[b].z - mz)).concat(ids.filter(id => !own.includes(id)));
   for (const id of order){
@@ -3138,7 +3173,7 @@ function flatGrid(){
       const d = (dx * cw) ** 2 + (dz * ch) ** 2; if (!best || d < best.d) best = { k, x:gx + dx, z:gz + dz, d }; }
     taken.add(best.k); out[id] = { x:mx + best.x * cw, y:0, z:mz + best.z * ch };
   }
-  return { norm:out, cell:{ cw, ch }, mx, mz, taken };
+  return { norm:out, hubAt:{}, cell:{ cw, ch }, mx, mz, taken };
 }
 // the free grid cell nearest to a system (for a wormhole end drawn as a card next to it); `more` = cells taken in this drawing
 function flatFree(id, more){
@@ -3151,12 +3186,16 @@ function flatFree(id, more){
   return { x:F.mx + best.x * F.cell.cw, y:0, z:F.mz + best.z * F.cell.ch };
 }
 // the size of a card on screen: it follows the zoom, up to a readable maximum
-function flatSize(){ const S = Math.min(W, H) * 0.44 * cam.zoom; return { w:Math.min(flatCell.cw * S * 0.9, 200), h:Math.min(flatCell.ch * S * 0.74, 54) }; }
+function flatSize(){ const S = Math.min(W, H) * 0.44 * cam.zoom, tree = R && R._flat && R._flat.tree;
+  return tree ? { w:Math.min(flatCell.cw * S * 0.92, 190), h:Math.min(flatCell.ch * S * 0.8, 64) } : { w:Math.min(flatCell.cw * S * 0.86, 130), h:Math.min(flatCell.ch * S * 0.66, 30) }; }
+const flatPos = store.get('whmap.reg.flatPos', {});     // systems moved by hand in 2D, per map
+const flatKey = () => R ? String(R.chain ? 'C:' + R.chain : R.region.id) : '';
 function applyFlat(toggled){
   if (!norm3) return;
   const b = $('#btnFlat'); if (b) b.setAttribute('aria-pressed', String(isFlat()));
   if (isFlat()){
-    if (!R._flat) R._flat = flatGrid();
+    if (!R._flat){ R._flat = flatGrid(); const mv = flatPos[flatKey()] || {};
+      for (const id in mv){ if (R._flat.norm[id]) R._flat.norm[id] = { x:mv[id].x, y:0, z:mv[id].z }; else if (R._flat.hubAt && R._flat.hubAt[id]) R._flat.hubAt[id] = { x:mv[id].x, y:0, z:mv[id].z }; } }
     if (flatCell == null && pitch3 == null && !R.chain) pitch3 = cam.pitch;
     norm = R._flat.norm; flatCell = R._flat.cell; cam.yaw = 0; cam.pitch = Math.PI / 2;
   } else { norm = norm3; flatCell = null; if (pitch3 != null){ cam.pitch = pitch3; pitch3 = null; } }
@@ -3273,6 +3312,9 @@ function placeHubsScreen(P){
   };
   for (const hn of hubNodes){
     if (hn.real){ if (P[hn.h]) taken.push(P[hn.h]); continue; }
+    if (flatCell && hn.exits.length){   // 2D: its own place in the chain tree, or a free grid cell next to its exit
+      const fp = (R._flat.hubAt && R._flat.hubAt[hn.h]) || flatFree(hn.exits[0], flatTaken);
+      if (fp){ const q = proj(fp); P[hn.h] = { x:q.x, y:q.y, d:q.d }; taken.push(q); continue; } }
     const exits = hn.exits.map(id => P[id]).filter(Boolean);
     if (!exits.length) continue;
     const cx = exits.reduce((m, e) => m + e.x, 0) / exits.length, cy = exits.reduce((m, e) => m + e.y, 0) / exits.length;
@@ -3468,6 +3510,7 @@ function draw(){
   placeHubs();
   hubSeen.clear();
   const P = {}; for (const id in norm) P[id] = proj(norm[id]);
+  flatTaken = new Set();
   placeHubsScreen(P);
   hubPts = hubNodes.map(x => P[x.h]).filter(Boolean);
   const apSet = apPairsSet(), apNodes = new Set(ap && ap.path ? ap.path : []);
@@ -3528,6 +3571,18 @@ function draw(){
     const sc = sigClose(l);
     const label = [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', whPhase(l) === 'dying' ? '⚠ expired' : sc ? '⌛ ~' + closeTxt(sc) : ''].filter(Boolean).join(' ');
     if (pa && pb){
+      if (flatCell && R._flat && R._flat.tree){
+        const { w } = flatSize(), L0 = pa.x <= pb.x ? pa : pb, R0 = pa.x <= pb.x ? pb : pa, same = Math.abs(L0.x - R0.x) < 2;
+        const x1 = same ? L0.x : L0.x + w / 2, x2 = same ? R0.x : R0.x - w / 2, xm = (x1 + x2) / 2, d = same ? `M${x1},${L0.y} L${x2},${R0.y}` : `M${x1},${L0.y} C${xm},${L0.y} ${xm},${R0.y} ${x2},${R0.y}`;
+        const hcol = holeCol(a, b), col = /route|ap/.test(cls) ? '' : (l.eol ? 'var(--c-eol)' : l.mass === 'critical' ? 'var(--c-critical)' : l.mass === 'reduced' ? 'var(--c-reduced)' : hcol);
+        el('path', { d, class:'whhalo', style:`stroke:${col || 'var(--c-wh)'}` }, gWh);
+        const path = el('path', { d, class:cls + ' mcl', style:col ? `stroke:${col}` : '' }, gWh);
+        el('title', {}, path).textContent = `${sysName(a)} ↔ ${sysName(b)} ${label}`;
+        if (label && w > 60){ const mx2 = xm, my2 = (L0.y + R0.y) / 2, fs = Math.max(8, Math.min(10.5, w * 0.07)), tw = label.length * fs * 0.62 + 10;
+          el('rect', { x:mx2 - tw / 2, y:my2 - fs * 0.85, width:tw, height:fs * 1.7, rx:fs * 0.85, class:'mcpill', style:`stroke:${col || 'var(--c-wh)'}` }, gWh);
+          const pt = el('text', { x:mx2, y:my2 + fs * 0.35, 'text-anchor':'middle', class:'mcpt', style:`font-size:${fs}px;fill:${col || 'var(--c-wh)'}` }, gWh); pt.textContent = label; }
+        continue;
+      }
       const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - Math.hypot(pb.x - pa.x, pb.y - pa.y) * 0.25;
       const hcol = isHubVirtual(a) ? hubColour(a) : isHubVirtual(b) ? hubColour(b) : holeCol(a, b), coloured = !/route|ap/.test(cls) && (colorMode === 'wh' || isHubVirtual(a) || isHubVirtual(b));
       const dc = coloured ? (isHubVirtual(a) ? HUB_CLASS[a] : isHubVirtual(b) ? HUB_CLASS[b] : (WH_COL[classOf(b)] ? classOf(b) : 'J')) : null, dca = dc ? { 'data-dc':dc } : {};
@@ -3540,7 +3595,7 @@ function draw(){
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
       const br = 9 * zs * SET.sysSize / 100, sk = here + '>' + other, so = stubPos[sk], base = norm[here];
       let ex, ey;
-      const fc = flatCell ? flatFree(here, stubCells) : null;
+      const fc = flatCell && !(R._flat && R._flat.tree) ? flatFree(here, flatTaken) : null;
       if (fc){ const q = proj(fc); ex = q.x; ey = q.y; }
       else if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
       else { const sl = 46 + 16 * zs; ex = p.x + Math.cos(ang) * sl; ey = p.y + Math.sin(ang) * sl; }
@@ -3551,12 +3606,12 @@ function draw(){
       const ch0 = isJ(other) && !HUB_LIST.includes(other) ? chainOfSys(other) : null, node0 = mapper.nodes[other] || {};
       if (fc){   // 2D: the system at the other end is a card in a free cell, its chain written inside; a click opens the chain
         const { w, h } = flatSize(), x0 = ex - w / 2, y0 = ey - h / 2, bg2 = el('g', { class:'stubball sys', 'data-stub':other }, gStub);
-        el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(5, h / 4), class:'fc stubc' + (sel === String(other) ? ' sel' : '') }, bg2);
+        el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(5, h / 4), class:'fc stubc' + (sel === String(other) ? ' sel' : ''), style:`stroke:${WH_COL[classOf(other)] || hc}` }, bg2);
         el('rect', { x:x0, y:y0, width:Math.max(2.5, w * 0.045), height:h, fill:WH_COL[classOf(other)] || hc }, bg2);
         const fs = Math.max(7, Math.min(13, h * 0.34));
         if (w > 44 && h > 12){ const t1 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + (h > 26 ? h * 0.42 : h * 0.62), class:'fct', style:`font-size:${fs}px` }, bg2);
           t1.textContent = sysName(other); const sv = el('tspan', { class:'fcs', style:`fill:${WH_COL[classOf(other)] || hc}` }, t1); sv.textContent = ' ' + (isJ(other) ? (node0.cls ? String(node0.cls).toUpperCase() : classOf(other)) : secR(secOfId(other)).toFixed(1));
-          if (h > 26){ const t2 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + h * 0.8, class:'fcb' + (ch0 ? ' chaingo' : ''), style:`font-size:${Math.max(6.5, fs * 0.78)}px`, ...(ch0 ? { 'data-chaingo':ch0.name, 'data-chainsys':other } : {}) }, bg2);
+          { const t2 = el('text', { x:x0 + w + 4, y:y0 + h * 0.62, class:'fcb stubch' + (ch0 ? ' chaingo' : ''), style:`font-size:${Math.max(6.5, fs * 0.78)}px`, ...(ch0 ? { 'data-chaingo':ch0.name, 'data-chainsys':other } : {}) }, bg2);
             t2.textContent = ch0 ? `◈ ${ch0.name} · ${ch0.n} sys` : label || (regionOf(other) ? '› ' + regionName(regionOf(other)) : ''); } }
         el('title', {}, bg2).textContent = `${sysName(other)} ${classOf(other)}${label ? ' · ' + label : ''}${ch0 ? `\n◈ ${ch0.name} · ${chainTxt(ch0)}` : ''}${chainExits(here, other).map(x => `\n⟿ ${sysName(x.id)} · ${regionName(regionOf(x.id))}`).join('')}\nClick: open its chain`;
         continue;
@@ -3593,6 +3648,15 @@ function draw(){
     el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
     const g = el('g', { class:'sys hub', 'data-id':h, tabindex:'0', role:'button', 'aria-label':`${sysName(h)}: ${total} connections` }, gNodes);
     const hs = SET.sysSize / 100;
+    if (flatCell){   // 2D: a card like the systems
+      const { w, h:hh } = flatSize(), x0 = p.x - w / 2, y0 = p.y - hh / 2, tree = R._flat && R._flat.tree, fs = Math.max(7, Math.min(13, hh * (tree ? 0.22 : 0.46)));
+      el('rect', { x:x0, y:y0, width:w, height:hh, rx:6, class:(tree ? 'mc' : 'fc') + (sel === h ? ' sel' : ''), style:`stroke:${col}` }, g);
+      el('rect', { x:x0, y:y0, width:w, height:Math.max(3, hh * 0.08), rx:2, fill:col }, g);
+      const t = el('text', { x:p.x, y:tree ? y0 + hh * 0.45 : p.y + fs * 0.36, 'text-anchor':'middle', class:tree ? 'mcn' : 'fct', style:`font-size:${fs}px;fill:${col}` }, g); t.textContent = sysName(h);
+      if (tree && hh > 34){ const t2 = el('text', { x:p.x, y:y0 + hh * 0.75, 'text-anchor':'middle', class:'mcs', style:`font-size:${fs * 0.78}px` }, g); t2.textContent = `${conns.length} here · ${total} in New Eden`; }
+      el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} here, ${total} in New Eden`;
+      continue;
+    }
     el('circle', { cx:p.x, cy:p.y, r:34 * hs, fill:`url(#hg${h})` }, g);
     if (sel === h) el('circle', { cx:p.x, cy:p.y, r:20 * hs, class:'halo' }, g);
     el('circle', { cx:p.x, cy:p.y, r:12 * zs * hs, fill:col, class:'dot' }, g);
@@ -3610,24 +3674,38 @@ function draw(){
     const id = String(s.id), p = P[id];
     const g = el('g', { class:'sys' + (s.ext ? ' ext' : '') + (onRoute.has(id) ? ' onr' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
     const r = (s.ext && !R.chain ? 5 : 9) * zs * SET.sysSize / 100;
-    if (flatCell){   // 2D: a card in its grid cell, everything about the system written inside it
-      const { w, h } = flatSize(), x0 = p.x - w / 2, y0 = p.y - h / 2;
+    if (flatCell){   // 2D: a card per system, everything written inside it
+      const { w, h } = flatSize(), x0 = p.x - w / 2, y0 = p.y - h / 2, tree = R._flat && R._flat.tree;
       const pil = pilotsAt(id), kk = killsAt(id), mk = markAt(id), hm = isHome(id), inc = incSys[id], as = assetsAt(id), ally = !s.ext ? sovOf(id) : null;
       const golds = (hm ? ['⌂ HOME'] : []).concat(mk.map(k => MARKS[k].label));
-      const cls = 'fc' + (sel === id ? ' sel' : '') + (me.sys === id ? ' me' : '') + (kk.length ? ' kill' : '') + (golds.length ? ' gold' : '') + (mapper.nodes[id] ? ' inmap' : '') + (s.ext ? ' ext' : '') + (pil.length ? ' pil' : '') + (apNodes.has(id) ? ' ap' : '');
-      el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(5, h / 4), class:cls }, g);
-      el('rect', { x:x0, y:y0, width:Math.max(2.5, w * 0.045), height:h, fill:colourOf(s), class:'fcbar' }, g);
-      if (ally && sovLogos){ const tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:x0 + w - Math.min(6, h / 4), cy:y0 + Math.min(6, h / 4), r:Math.max(2, Math.min(4, h / 7)), fill:THREAT[tl].c, class:'thr' + tl }, g); }
-      const fs = Math.max(7, Math.min(13, h * 0.34));
-      if (w > 44 && h > 12){
-        const t1 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + (h > 26 ? h * 0.42 : h * 0.62), class:'fct', style:`font-size:${fs}px` }, g);
-        t1.textContent = s.n; const sv = el('tspan', { class:'fcs', style:`fill:${isJ(id) ? WH_COL[classOf(id)] || '#aaa' : secCol(s.s)}` }, t1); sv.textContent = ' ' + (isJ(id) ? classOf(id) : secR(s.s).toFixed(1));
-        if (h > 26){
-          const bits = [...golds, pil.length ? `👤${pil.length}` : '', kk.length ? `☠${kk.length}` : '', inc ? '☣' : '', as.length ? `📦${as.reduce((m, a) => m + a.n, 0)}` : '', s.ext ? '› ' + s.ext : ''].filter(Boolean);
-          if (bits.length){ const t2 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + h * 0.8, class:'fcb', style:`font-size:${Math.max(6.5, fs * 0.78)}px` }, g); t2.textContent = bits.join('  '); }
+      const st = (sel === id ? ' sel' : '') + (me.sys === id ? ' me' : '') + (kk.length ? ' kill' : '') + (golds.length ? ' gold' : '') + (pil.length ? ' pil' : '') + (apNodes.has(id) ? ' ap' : '');
+      const tip = `${s.ext ? `${s.n} (${s.ext})` : `${s.n} ${isJ(id) ? classOf(id) : secR(s.s).toFixed(1)}${R.constellations[s.c] ? ' · ' + R.constellations[s.c] : ''}`}${pil.length ? '\nPilots: ' + pil.map(x => x.name || x).join(', ') : ''}${kk.length ? `\n☠ ${kk.length} recent kill${kk.length > 1 ? 's' : ''}` : ''}${golds.length ? '\n' + golds.join(' · ') : ''}`;
+      if (tree){   // a wormhole mapper card: class badge, name, statics / effect or region, pilots
+        const K = !isJ(id), badge = K ? secR(s.s).toFixed(1) : classOf(id), bc = K ? secCol(s.s) : (WH_COL[classOf(id)] || WH_COL.J);
+        el('rect', { x:x0, y:y0, width:w, height:h, rx:6, class:'mc' + st + (K ? ' k' : '') }, g);
+        el('rect', { x:x0, y:y0, width:w, height:Math.max(3, h * 0.07), rx:2, fill:bc, opacity:.9 }, g);
+        const fs = Math.max(7, Math.min(13, h * 0.22)), pad = Math.max(5, w * 0.05);
+        if (w > 50){
+          const bw2 = (badge.length * 0.62 + 0.9) * fs, by = y0 + h * 0.18;
+          el('rect', { x:x0 + pad, y:by, width:bw2, height:fs * 1.3, rx:3, fill:bc }, g);
+          const tb = el('text', { x:x0 + pad + bw2 / 2, y:by + fs * 1.0, 'text-anchor':'middle', class:'mcb', style:`font-size:${fs * 0.85}px` }, g); tb.textContent = badge;
+          const tn = el('text', { x:x0 + pad + bw2 + fs * 0.5, y:by + fs * 1.02, class:'mcn', style:`font-size:${fs}px` }, g); tn.textContent = s.n;
+          if (pil.length) el('circle', { cx:x0 + w - pad - 3, cy:by + fs * 0.65, r:Math.max(2.5, fs * 0.3), fill:'var(--ok)' }, g);
+          if (h > 34){ const sub = K ? (s.ext || regionName(regionOf(id)) || '') : sysSub(id);
+            const t2 = el('text', { x:x0 + pad, y:y0 + h * 0.66, class:'mcs', style:`font-size:${fs * 0.78}px` }, g); t2.textContent = [sub, ...golds, kk.length ? '☠' + kk.length : '', inc ? '☣' : ''].filter(Boolean).join('  ').slice(0, 40); }
+          if (h > 48 && pil.length){ const t3 = el('text', { x:x0 + pad, y:y0 + h * 0.9, class:'mcp', style:`font-size:${fs * 0.78}px` }, g); const nm = pil.map(x => x.name || x).join(', '); t3.textContent = '👤 ' + (nm.length > 30 ? nm.slice(0, 29) + '…' : nm); }
         }
+      } else {     // a regional map in 2D, the classic flat map: boxes filled with the security colour, the name inside
+        const fill = isJ(id) ? (WH_COL[classOf(id)] || WH_COL.J) : secCol(s.s);
+        el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(4, h / 4), class:'fc' + st + (s.ext ? ' ext' : ''), style:st.includes('sel') || st.includes('me') || st.includes('kill') || st.includes('gold') ? '' : `stroke:${fill}` }, g);
+        el('rect', { x:x0, y:y0 + h - Math.max(2, h * 0.12), width:w, height:Math.max(2, h * 0.12), fill, opacity:.85, 'pointer-events':'none' }, g);
+        if (ally && sovLogos){ const tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:x0 + w - 1, cy:y0 + 1, r:Math.max(2.5, Math.min(4.5, h / 6)), fill:THREAT[tl].c, stroke:'#05070d', 'stroke-width':1, class:'thr' + tl }, g); }
+        const fs = Math.max(6.5, Math.min(12, h * 0.46));
+        if (w > 30 && h > 9){ const t1 = el('text', { x:p.x, y:p.y + fs * 0.36, 'text-anchor':'middle', class:'fct' + (s.ext ? ' ext' : ''), style:`font-size:${fs}px` }, g); t1.textContent = s.n; }
+        const mark = [pil.length ? pil.length : '', kk.length ? '☠' : '', golds.length ? '⌂' : '', inc ? '☣' : ''].filter(Boolean).join('');
+        if (mark){ const tm = el('text', { x:x0 + w + 2, y:y0 + fs * 0.8, class:'fcm', style:`font-size:${Math.max(6.5, fs * 0.8)}px` }, g); tm.textContent = mark; }
       }
-      el('title', {}, g).textContent = `${s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`}${pil.length ? '\nPilots: ' + pil.map(x => x.name || x).join(', ') : ''}${kk.length ? `\n☠ ${kk.length} recent kill${kk.length > 1 ? 's' : ''}` : ''}${golds.length ? '\n' + golds.join(' · ') : ''}`;
+      el('title', {}, g).textContent = tip;
       continue;
     }
     if (colorMode === 'wh' && touch[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4, fill:'none', stroke:touch[id], 'stroke-width':2, opacity:.85 }, g);
@@ -4047,6 +4125,11 @@ function setupInput(){
       const sk = start.stub.dataset.stubk, here = sk.split('>')[0], base = norm[here];
       if (base){ const r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, base.y); stubPos[sk] = { dx:w.x - base.x, dz:w.z - base.z }; demoIdle = Date.now(); render(); }
       return; }
+    if (flatCell && start.target && !start.pan && !start.right && (norm[start.target.dataset.id] || hubNodes.some(x => x.h === start.target.dataset.id))){   // 2D: the card follows the mouse
+      const id = start.target.dataset.id, r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, 0);
+      if (isFinite(w.x) && isFinite(w.z)){ const sx = flatCell.cw / 2, sz = flatCell.ch / 2, np = { x:Math.round(w.x / sx) * sx, y:0, z:Math.round(w.z / sz) * sz };
+        if (norm[id]) norm[id] = np; else (R._flat.hubAt = R._flat.hubAt || {})[id] = np; start.movedFlat = id; demoIdle = Date.now(); render(); }
+      return; }
     if (R && R.chain && !isFlat() && start.target && !start.pan && !start.right && norm[start.target.dataset.id]){   // a chain map: its systems can be moved by hand
       const id = start.target.dataset.id, n0 = norm[id], r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, n0.y);
       if (isFinite(w.x) && isFinite(w.z)){ n0.x = w.x; n0.z = w.z; start.movedSys = id; demoIdle = Date.now(); render(); }
@@ -4058,6 +4141,8 @@ function setupInput(){
   });
   const up = e => {
     if (moved && start && start.stub && start.stub.dataset.stubk) store.set('whmap.reg.stubPos', stubPos);
+    if (moved && start && start.movedFlat && flatCell){ const id = start.movedFlat, k = flatKey(), q = norm[id] || R._flat.hubAt[id];
+      (flatPos[k] = flatPos[k] || {})[id] = { x:q.x, z:q.z }; store.set('whmap.reg.flatPos', flatPos); }
     if (moved && start && start.movedSys && R && R.chain){ const id = start.movedSys, n0 = norm[id], S = 1e16;   // kept: in the chain's own space, pinned
       whcPos[id] = [(n0.x * R._rad + R._c.x) / S, (n0.y * R._rad + R._c.y) / S, (n0.z * R._rad + R._c.z) / S].map(v => Math.round(v * 1000) / 1000);
       whcPin[id] = 1; store.set('whmap.reg.whcPos', whcPos); store.set('whmap.reg.whcPin', whcPin);
