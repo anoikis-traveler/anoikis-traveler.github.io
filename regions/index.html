@@ -1337,6 +1337,7 @@ const SETTINGS = [
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
+  { g:'Map', k:'sysSize', label:'Size of the systems on the map (100 = normal)', unit:'%', def:100, min:40, max:300 },
   { g:'Pilots', k:'bigName', label:'Name of the followed pilot (bottom) and of the region (top): text size (0 = hidden)', unit:'px', def:34, min:0, max:120 },
   { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
   { g:'Pilots', k:'show', label:'Show a pilot\'s name on a system for', unit:'min', def:30, min:1, max:1440 },
@@ -1351,6 +1352,7 @@ const SETTINGS = [
 ];
 const SET = Object.fromEntries(SETTINGS.map(x => [x.k, x.def]));
 Object.assign(SET, store.get('whmap.reg.settings', {}));
+if (store.get('whmap.sysSize', null) != null) SET.sysSize = store.get('whmap.sysSize', 100);   // shared with the wormhole mapper page
 if (store.get('whmap.reg.chainX', null) != null && store.get('whmap.reg.settings', {}).chainX == null) SET.chainX = store.get('whmap.reg.chainX', 5);
 // a timer that reads its period from the settings each time
 function every(fn, ms){ const run = async () => { try{ await fn(); }catch(e){} setTimeout(run, Math.max(1000, ms())); }; setTimeout(run, Math.max(1000, ms())); }
@@ -2534,6 +2536,7 @@ function setupStats(){
 }
 function saveSettings(){ store.set('whmap.reg.settings', SET); }
 function applySettings(k){
+  if (k === 'sysSize'){ store.set('whmap.sysSize', SET.sysSize); render(); }
   LIVE_MS = SET.live * 60000; SHOW_MS = SET.show * 60000; KILL_K_MIN = SET.killK; KILL_J_MIN = SET.killJ;
   if (k === 'chainX'){ chainX = SET.chainX; store.set('whmap.reg.chainX', chainX); const x = $('#chainX'); if (x) x.value = chainX; buildChains(); }
   if (k === 'pos'){ clearTimeout(pollT); pollT = setTimeout(poll, 500); }
@@ -3461,7 +3464,7 @@ function draw(){
       const here = pa ? a : b, other = pa ? b : a, p = pa || pb;
       const i = (stubs[here] = (stubs[here] || 0) + 1) - 1;
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
-      const br = 9 * zs, sk = here + '>' + other, so = stubPos[sk], base = norm[here];
+      const br = 9 * zs * SET.sysSize / 100, sk = here + '>' + other, so = stubPos[sk], base = norm[here];
       let ex, ey;
       if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
       else { const sl = 46 + 16 * zs; ex = p.x + Math.cos(ang) * sl; ey = p.y + Math.sin(ang) * sl; }
@@ -3500,13 +3503,14 @@ function draw(){
     const gr = el('radialGradient', { id:'hg' + h }, defs2);
     el('stop', { offset:'0%', 'stop-color':col, 'stop-opacity':'.55' }, gr); el('stop', { offset:'100%', 'stop-color':col, 'stop-opacity':'0' }, gr);
     const g = el('g', { class:'sys hub', 'data-id':h, tabindex:'0', role:'button', 'aria-label':`${sysName(h)}: ${total} connections` }, gNodes);
-    el('circle', { cx:p.x, cy:p.y, r:34, fill:`url(#hg${h})` }, g);
-    if (sel === h) el('circle', { cx:p.x, cy:p.y, r:20, class:'halo' }, g);
-    el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:col, class:'dot' }, g);
-    el('circle', { cx:p.x, cy:p.y, r:12 * zs, fill:'url(#shine)', 'pointer-events':'none' }, g);
+    const hs = SET.sysSize / 100;
+    el('circle', { cx:p.x, cy:p.y, r:34 * hs, fill:`url(#hg${h})` }, g);
+    if (sel === h) el('circle', { cx:p.x, cy:p.y, r:20 * hs, class:'halo' }, g);
+    el('circle', { cx:p.x, cy:p.y, r:12 * zs * hs, fill:col, class:'dot' }, g);
+    el('circle', { cx:p.x, cy:p.y, r:12 * zs * hs, fill:'url(#shine)', 'pointer-events':'none' }, g);
     el('title', {}, g).textContent = `${sysName(h)}: ${conns.length} connection${conns.length > 1 ? 's' : ''} into ${R.region.name}, ${total} in New Eden (${h === 'POCH' ? 'your chain' : 'EVE-Scout'}). Click for the whole network.`;
-    const t = el('text', { x:p.x, y:p.y - 34, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
-    const t2 = el('text', { x:p.x, y:p.y - 21, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
+    const t = el('text', { x:p.x, y:p.y - 22 - 12 * zs * hs, 'text-anchor':'middle', class:'hublbl', style:`fill:${col}` }, gLbl); t.textContent = sysName(h);
+    const t2 = el('text', { x:p.x, y:p.y - 9 - 12 * zs * hs, 'text-anchor':'middle', class:'hubsub' }, gLbl); t2.textContent = `${conns.length} here · ${total} in New Eden`;
     if (showCard) hubCard(h, p, gWh);
   }
   for (const h in hubEls) if (!hubSeen.has(h)){ hubEls[h].remove(); delete hubEls[h]; }
@@ -3516,7 +3520,7 @@ function draw(){
   for (const s of order){
     const id = String(s.id), p = P[id];
     const g = el('g', { class:'sys' + (s.ext ? ' ext' : '') + (onRoute.has(id) ? ' onr' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
-    const r = (s.ext && !R.chain ? 5 : 9) * zs;
+    const r = (s.ext && !R.chain ? 5 : 9) * zs * SET.sysSize / 100;
     if (colorMode === 'wh' && touch[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4, fill:'none', stroke:touch[id], 'stroke-width':2, opacity:.85 }, g);
     else if (mapper.nodes[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4.5, class:'inmap' }, g);
     if (sel === id) el('circle', { cx:p.x, cy:p.y, r:r + 7, class:'halo' }, g);
