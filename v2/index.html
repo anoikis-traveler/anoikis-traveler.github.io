@@ -44,6 +44,9 @@ input,select{background:rgba(3,5,11,.6);border:1px solid var(--line);padding:5px
 .privc p{margin:0 0 6px}
 .privc .row{display:flex;gap:6px;flex-wrap:wrap}
 #wWins{width:max-content;max-width:320px}
+.jfiche{display:grid;gap:4px;margin:6px 0 4px;font-size:12.5px}
+.jfiche .jst{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:1px 2px 1px 0;font-family:var(--mono);font-size:11.5px}
+.hleft{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:14px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 a{color:var(--accent)}
 .mono{font-family:var(--mono)}
@@ -695,7 +698,8 @@ body.nf #hint{transform:translateY(-16px)}
       <select id="whSel" aria-label="Regions with an active wormhole connection" title="Regions with an active wormhole connection"></select>
       <input id="search" list="sysList" placeholder="Find a system…" aria-label="Find a system">
       <datalist id="sysList"></datalist>
-      <div class="marksbar"><button id="btnHome" type="button" class="gbtn">⌂ HOME</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button></div>
+      <div class="marksbar"><button id="btnMe" type="button" class="gbtn" title="Back to your pilot">◎ My position</button><button id="btnHome" type="button" class="gbtn">⌂ HOME</button><button id="btnEnter" type="button" class="gbtn" hidden>ENTER</button><button id="btnExit" type="button" class="gbtn" hidden>EXIT</button><button id="btnNames" type="button" class="namesbtn" aria-pressed="false" title="Show or hide the names of all the systems (hover a system to see its name)">🏷 System names</button></div>
+      <div class="marksbar hubbar"><button type="button" class="gbtn" data-hubmap="31000005" style="color:#e8d25a">Thera</button><button type="button" class="gbtn" data-hubmap="30002086" style="color:#f28c5a">Turnur</button><button type="button" class="gbtn" data-hubmap="POCH" style="color:#d65a9a">Pochven</button><span class="dim" style="font-size:11.5px">their own map</span></div>
     </div>
   </section>
 
@@ -1221,6 +1225,7 @@ function whChains(){
 }
 const chainOfSys = id => whChains().find(c => c.mem.includes(String(id))) || null;
 const chainTxt = c => `${c.n} system${c.n > 1 ? 's' : ''} (${c.mem.length} WH + ${c.exits.size} K-space)`;
+const chainIsolated = c => !!c && !c.exits.size && !(c.hubs && c.hubs.size);
 /* its 3D shape: a force layout, like a region of New Eden; each system keeps its place when the chain changes */
 const whcPos = store.get('whmap.reg.whcPos', {}), whcPin = store.get('whmap.reg.whcPin', {});
 function whcLayout(c, nodes, edges){
@@ -1310,7 +1315,7 @@ function renderWhSel(){
   const lab = l => [l.wh, l.size && l.size !== '?' ? l.size : '', l.eol ? 'EOL' : '', l.src === 'eve-scout' ? 'EvE-Scout' : ''].filter(Boolean).join(' ');
   const chs = whChains();
   sel_.innerHTML = `<option value="">${regs.length || chs.length ? `⟿ WH regions (${regs.length})${chs.length ? ` · ${chs.length} chain${chs.length > 1 ? 's' : ''}` : ''}` : '⟿ No active wormhole'}</option>`
-    + chs.map(c => `<option class="r" value="c:${esc(c.name)}">◈ ${esc(c.name)} · ${esc(chainTxt(c))}</option>`).join('') + regs.map(r =>
+    + chs.map(c => `<option class="r" value="c:${esc(c.name)}">◈ ${esc(c.name)} · ${esc(chainTxt(c))}${chainIsolated(c) ? ' · isolated' : ''}</option>`).join('') + regs.map(r =>
     `<option class="r" value="r:${r}">${esc(regionName(r))} · ${byReg[r].length} WH</option>` +
     byReg[r].sort((a, b) => sysName(a.here).localeCompare(sysName(b.here))).map(c =>
       `<option value="s:${c.here}">\u00a0\u00a0\u00a0${esc(sysName(c.here))} → ${esc(sysName(c.other))}${lab(c.l) ? ' · ' + esc(lab(c.l)) : ''}</option>`).join('')).join('');
@@ -3952,8 +3957,11 @@ function renderPanel(){
     const whs = allHoles().filter(l => inRegion(l.a) || inRegion(l.b));
     const pil = watchList().filter(p => presentAt(p) && inRegion(p.sys));
     const exits = [...new Set(R.systems.filter(x => x.ext).map(x => x.r))];
-    P.innerHTML = `<h2>${esc(R.region.name)}</h2>
-      <div class="dim">${own.length} systems · ${Object.keys(R.constellations).length} constellations</div>
+    const cc = R.chain && !R.hub ? whChains().find(x => x.name === R.chain) : null;
+    P.innerHTML = `<h2>${R.chain && !R.hub ? '◈ ' : ''}${esc(R.region.name)}</h2>
+      <div class="dim">${cc ? esc(chainTxt(cc)) : R.chain ? `${own.length} systems` : `${own.length} systems · ${Object.keys(R.constellations).length} constellations`}</div>
+      ${chainIsolated(cc) ? `<div class="privc"><h4>Isolated chain</h4><p>No exit to known space and no Thera or Turnur: your pilots cannot reach it from New Eden right now.</p><div class="row"><button type="button" class="small" id="isoDel">Remove this chain from your map</button></div></div>` : ''}
+      ${R.chain && !R.hub ? `<div class="row" style="margin-top:6px"><button type="button" class="small" id="impBtn" title="Pathfinder: Map → Settings → Import/Export → Export · Wanderer: map settings → Export">⇪ Import a Pathfinder or Wanderer export</button><input type="file" id="impFile" accept=".json,application/json" hidden></div><div id="impRes" class="dim" style="font-size:12px"></div>` : ''}
       <h3>Neighbouring regions</h3><div>${exits.map(r => `<button class="lk" data-reg="${r}">${esc(regionName(r))}</button>`).join(' · ') || '—'}</div>
       <h3>Wormholes in this region</h3>
       ${whs.length ? `<ul class="plain">${whs.map(l => { const a = inRegion(l.a) ? l.a : l.b, b = a === l.a ? l.b : l.a;
@@ -3962,6 +3970,8 @@ function renderPanel(){
       ${own.some(x => incSys[String(x.id)]) ? `<h3>☣ Incursion</h3><div>${own.filter(x => incSys[String(x.id)]).map(x => `<button class="lk" data-sys="${x.id}">${esc(x.n)}</button>${incSys[String(x.id)].staging ? ' <span class="dim">(staging)</span>' : ''}`).join(' · ')}</div>` : ''}
       <h3>Pilots in this region</h3>
       ${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)} · <button class="lk" data-sys="${p.sys}">${esc(sysName(p.sys))}</button>${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">Nobody shared on the mapper is here.</div>'}`;
+    const iso = $('#isoDel'); if (iso) iso.onclick = () => { if (iso.dataset.sure){ deleteSystems(cc.mem); select(null); return; } iso.dataset.sure = '1'; iso.textContent = 'Click again to confirm'; iso.classList.add('primary'); };
+    wireImport();
   } else {
     const id = String(s.id);
     const nb = adj[id] || [];
@@ -3975,10 +3985,12 @@ function renderPanel(){
     else if (route) rt = `<div><b>${route.ids.length - 1}</b> jump${route.ids.length > 2 ? 's' : ''} from ${esc(sysName(me.sys))}${[...route.edges].some(k => k.startsWith('w:')) ? ' <span class="dim">(uses wormholes)</span>' : ''}${[...route.edges].some(k => k.startsWith('j:')) ? ' <span class="dim">(uses jump bridges)</span>' : ''}</div>
       <div class="dim" style="font-size:12px;margin-top:3px">${route.ids.map(x => esc(sysName(x))).join(' › ')}</div>`;
     else if (me.sys) rt = `<div class="dim">No route from ${esc(sysName(me.sys))} with this region's gates and your mapper's wormholes.</div>`;
-    P.innerHTML = `<h2>${esc(s.n)} <span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span></h2>
+    const jsys = isJ(id) && !s.ext, jc = jsys ? chainOfSys(id) : null;
+    P.innerHTML = `<h2>${esc(s.n)} ${jsys ? `<span style="color:${WH_COL[classOf(id)] || WH_COL.J}">${esc(classOf(id))}</span>` : `<span style="color:${secCol(s.s)}">${secR(s.s).toFixed(1)}</span>`}</h2>
+      ${jsys ? jFicheHtml(id) : ''}
       ${sigsOf(id) ? (() => { const L = Object.values(sigsOf(id).list), u = L.filter(v => !v.type).length; return `<div class="sovline"><a href="#" data-opensigs="1">📡 ${L.length} signature${L.length > 1 ? 's' : ''}${u ? `, ${u} to scan` : ''}</a> <span class="dim">· ${agoTxt(sigsOf(id).t)}</span></div>`; })() : ''}
       ${sovOf(id) ? `<div class="sovline"><img src="https://images.evetech.net/alliances/${sovOf(id)}/logo?size=64" alt="" width="22" height="22"><span>${(() => { const a = sovOf(id), L = sovLvl(a), c = THREAT[L.lvl].c; return `<select class="hlvl" data-sovlvl="${a}" title="${L.auto ? (standReady() ? `From your standings (${L.st > 0 ? '+' : ''}${L.st})` : 'Automatic once standings are read (Characters window option)') : 'Set by hand'}" style="${c ? `color:${c};border-color:${c}` : ''}"><option value="a"${L.auto ? ' selected' : ''}>Auto${standReady() ? ' · ' + THREAT[lvlOfStanding(standOf(a, 'alliance'))].n : ''}</option>${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()} Sovereignty: <a href="${sovNames[sovOf(id)] ? 'https://evemaps.dotlan.net/alliance/' + encodeURIComponent(sovNames[sovOf(id)].replace(/ /g, '_')) : 'https://zkillboard.com/alliance/' + sovOf(id) + '/'}" target="_blank" rel="noopener">${esc(sovNames[sovOf(id)] || 'alliance ' + sovOf(id))}</a></span></div>` : ''}
-      <div class="dim">${s.ext ? `${esc(s.ext)} (neighbouring region)` : `${esc(R.constellations[s.c] || '')} · ${esc(R.region.name)}`}</div>
+      <div class="dim">${s.ext ? `${esc(s.ext)} (neighbouring region)` : jsys ? `${R.hub ? esc(R.region.name) : `◈ ${esc(R.region.name)}`}` : `${esc(R.constellations[s.c] || '')} · ${esc(R.region.name)}`}</div>
       ${tags ? `<div style="margin-top:6px">${tags}</div>` : ''}
       <div style="margin-top:10px">${rt}</div>
       <div class="row">
@@ -3991,13 +4003,14 @@ function renderPanel(){
       </div>
       <div class="row">
         ${s.ext ? `<button id="bReg" type="button">Go to ${esc(s.ext)}</button>` : ''}
-        <a href="https://evemaps.dotlan.net/system/${encodeURIComponent(s.n.replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button">Dotlan</button></a>
+        ${jsys ? `<a href="https://anoik.is/systems/${encodeURIComponent(s.n)}" target="_blank" rel="noopener"><button type="button">anoik.is</button></a>` : `<a href="https://evemaps.dotlan.net/system/${encodeURIComponent(s.n.replace(/ /g, '_'))}" target="_blank" rel="noopener"><button type="button">Dotlan</button></a>`}
         <a href="https://zkillboard.com/system/${id}/" target="_blank" rel="noopener" title="Kills in ${esc(s.n)} on zKillboard"><button type="button">zKillboard${killsAt(id).length ? ` <span style="color:var(--c-kill)">☠ ${killsAt(id).length}</span>` : ''}</button></a>
       </div>
-      <h3>Gates</h3><div>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
+      ${jsys ? '' : `<h3>Gates</h3>`}<div${jsys ? ' hidden' : ''}>${nb.map(n => `<button class="lk" data-sys="${n}">${esc(sysName(n))}</button>${byId[n] && byId[n].ext ? ` <span class="dim">(${esc(byId[n].ext)})</span>` : ''}`).join(' · ') || '<span class="dim">None</span>'}</div>
       ${jbList().some(j => String(j.a) === id || String(j.b) === id) ? `<h3>Jump bridge</h3><div>${jbList().filter(j => String(j.a) === id || String(j.b) === id).map(j => { const o = String(j.a) === id ? j.b : j.a; return `» <button class="lk" data-sys="${o}">${esc(sysName(o))}</button>${regionOf(o) && (!byId[String(o)] || byId[String(o)].ext) ? ` <span class="dim">(${esc(regionName(regionOf(o)))})</span>` : ''}`; }).join('<br>')}</div>` : ''}
       <h3>Wormholes</h3>${whs.length ? `<ul class="plain">${whs.map(l => { const o = String(l.a) === id ? l.b : l.a;
-        return `<li>→ ${regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : esc(sysName(o))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
+        return `<li>→ ${regionOf(o) || byId[String(o)] ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : esc(sysName(o))} <span class="dim">${esc([l.wh, l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : ''].filter(Boolean).join(' · '))}</span>${holeLeftTxt(l) ? `<div class="hleft">${esc(holeLeftTxt(l))}</div>` : ''}</li>`; }).join('')}</ul>` : '<div class="dim">None on your mapper chain.</div>'}
+      ${jc && jc.exits.size ? `<h3>Exits of the chain</h3><div>${[...jc.exits].sort((a, b) => sysName(a).localeCompare(sysName(b))).map(x => `<button class="lk" data-sys="${x}">${esc(sysName(x))}</button> <span style="color:${secCol(secOfId(x))}">${secOfId(x) != null ? secR(secOfId(x)).toFixed(1) : ''}</span> <span class="dim">${esc(regionName(regionOf(x)) || '')}</span>`).join('<br>')}</div>` : ''}
       ${assetsOn && assetsAt(id).length ? `<h3>Your assets here</h3><ul class="plain">${assetsAt(id).map(a => `<li>${esc(a.name)} · <b>${a.n}</b> item${a.n > 1 ? 's' : ''} (ships, containers, stacks)</li>`).join('')}</ul><div class="row"><button type="button" class="lk" data-openassets="${id}">Show the list</button></div>` : ''}
       <h3>Pilots here</h3>${pil.length ? `<ul class="plain">${pil.map(p => `<li>${esc(p.name)}${p.ship ? ` <span class="dim">${esc(p.ship)}</span>` : ''}</li>`).join('')}</ul>` : '<div class="dim">—</div>'}
       <div class="row" style="margin-top:14px"><button id="bClose" type="button">Back to region</button></div>`;
@@ -4243,6 +4256,8 @@ function setupInput(){
   }, { passive:false });
   const zoomBy = f => zoomAround(f, 0, 0);
   $('#zIn').onclick = () => zoomBy(1.3); $('#zOut').onclick = () => zoomBy(1 / 1.3);
+  $('#btnMe').onclick = () => { if (!tok || !me.sys){ toast('No pilot followed yet: log in from the Characters window', true); return; } setFollow(true); backToPilot(); };
+  document.querySelectorAll('[data-hubmap]').forEach(b => b.onclick = () => { lookAway(); openHub(b.dataset.hubmap); });
   $('#btnHome').onclick = () => { const h = homeOf(); if (!h){ toast('Right-click a system → "⌂ Set as HOME"', true); return; } goMark(h.id); };
   $('#btnEnter').onclick = () => { if (mapper.enter) goMark(mapper.enter.id); };
   $('#btnExit').onclick = () => { if (mapper.exit) goMark(mapper.exit.id); };
@@ -4478,6 +4493,87 @@ function chainLayout(g){
   const pos = {};
   for (const id of ids) pos[id] = chainPos[id] ? { ...chainPos[id] } : { x:cells[id].x * CELLX, y:cells[id].y * CELLY };
   return { pos, root };
+}
+// what is left of a hole, as the mapper says it: time (EVE-Scout end, EOL, or its type's lifetime) and mass (type total minus the jumps logged)
+const fmtDur = min => { min = Math.max(0, Math.round(min)); const h = Math.floor(min / 60), m = min % 60; return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`; };
+function holeLeft(l){
+  const now = Date.now(), t = l.wh && whTypes()[String(l.wh).toUpperCase()], out = {};
+  if (l.src === 'eve-scout' && l.expires) out.life = (l.expires - now) / 60000;
+  else if (l.eol) out.life = 240 - (now - (l.eolAt || now)) / 60000;
+  else if (sigClose(l)) out.life = (sigClose(l) - now) / 60000;
+  else if (t && t.life && l.created) out.life = t.life * 60 - (now - l.created) / 60000;
+  if (t && t.total){
+    const used = (l.passes || []).reduce((m, p) => m + (Number(p.mass) || 0), 0), tMin = t.total * 0.9, tMax = t.total * 1.1;
+    const st = { fresh:[0.5, 1], reduced:[0.1, 0.5], critical:[0, 0.1] }[l.mass] || [0, 1];
+    let a = Math.max(tMin - used, st[0] * tMin), b = Math.min(tMax - used, st[1] * tMax); if (a > b){ a = st[0] * tMin; b = st[1] * tMax; }
+    out.mass = [Math.max(0, a), Math.max(0, b)]; out.jump = t.jump || null; }
+  return out;
+}
+const massTxt = kg => kg >= 1e9 ? (Math.round(kg / 1e8) / 10) + ' B kg' : Math.round(kg / 1e6) + ' M kg';
+const holeLeftTxt = l => { const x = holeLeft(l); return [x.life != null ? `⌛ ≤ ${fmtDur(x.life)}` : '', x.mass ? `⚖ ${massTxt(x.mass[0])}–${massTxt(x.mass[1])}` : ''].filter(Boolean).join(' · '); };
+// the J-space card of a system: class, statics (where they lead, their lifetime and mass), effect
+function jFicheHtml(id){
+  const d = store.get('whmap.data2', null), ws = d && d.systems && d.systems[id], T = (d && d.types) || {};
+  const st = ((ws && ws.st) || []).map(x => { const t = T[x] || {}, dest = t.dest && t.dest.length ? String(t.dest[0]).toUpperCase() : '?';
+    return `<span class="jst" style="border-color:${WH_COL[dest] || 'var(--line)'}"><b>${esc(x)}</b> → <span style="color:${WH_COL[dest] || 'var(--text)'}">${esc(dest)}</span>${t.life ? ` · ${t.life} h` : ''}${t.total ? ` · ${massTxt(t.total)}` : ''}</span>`; }).join(' ');
+  const cls = classOf(id);
+  return `<div class="jfiche"><div><span class="dim">Class</span> <b style="color:${WH_COL[cls] || WH_COL.J}">${esc(cls)}</b></div>
+    <div><span class="dim">Statics</span> ${st || '<span class="dim">unknown</span>'}</div>
+    <div><span class="dim">Effect</span> ${ws && ws.eff ? esc(ws.eff) : '<span class="dim">None</span>'}</div></div>`;
+}
+/* Import from another mapper: a Pathfinder or Wanderer export, added to your map (shared when you have one) */
+function parseMapperExport(j){
+  const sysOut = [], linkOut = [];
+  const pf = j && (j.data && Array.isArray(j.data.systems) ? j.data : null);
+  if (pf && pf.systems.length && pf.systems[0].systemId != null){
+    const byInternal = {};
+    for (const x of pf.systems){ const id = Number(x.systemId); if (!id) continue; byInternal[x.id] = id; sysOut.push(id); }
+    for (const c of (pf.connections || [])){ const a = byInternal[c.source], b = byInternal[c.target]; if (!a || !b) continue; const t = Array.isArray(c.type) ? c.type : [];
+      linkOut.push({ a, b, gate:c.scope === 'stargate' || c.scope === 'jumpbridge', mass:t.includes('wh_critical') ? 'critical' : t.includes('wh_reduced') ? 'reduced' : 'fresh', eol:t.includes('wh_eol'),
+        size:t.includes('wh_jump_mass_s') || t.includes('frigate') ? 'S' : t.includes('wh_jump_mass_m') ? 'M' : t.includes('wh_jump_mass_l') ? 'L' : t.includes('wh_jump_mass_xl') ? 'XL' : '?', wh:'' }); }
+    return { format:'Pathfinder', systems:sysOut, links:linkOut };
+  }
+  if (j && Array.isArray(j.systems) && Array.isArray(j.connections)){
+    for (const x of j.systems){ const id = Number(x.solar_system_id != null ? x.solar_system_id : x.id); if (id) sysOut.push(id); }
+    const SIZE = ['S', 'M', 'L', 'XL', 'XL'];
+    for (const c of j.connections){ const a = Number(c.source), b = Number(c.target); if (!a || !b) continue;
+      linkOut.push({ a, b, gate:Number(c.type) === 1 || Number(c.type) === 2, mass:Number(c.mass_status) === 2 ? 'critical' : Number(c.mass_status) === 1 ? 'reduced' : 'fresh',
+        eol:Number(c.time_status) === 1 || Number(c.time_status) === 2, size:SIZE[Number(c.ship_size_type)] || '?', wh:c.wormhole_type && c.wormhole_type !== 'K162' ? String(c.wormhole_type) : '' }); }
+    return { format:'Wanderer', systems:sysOut, links:linkOut };
+  }
+  return null;
+}
+async function importExport(d){
+  const res = $('#impRes'), have = allHoles();
+  const exists = (a, b) => have.some(l => (String(l.a) === String(a) && String(l.b) === String(b)) || (String(l.a) === String(b) && String(l.b) === String(a)));
+  const links = d.links.filter(l => !l.gate && !exists(l.a, l.b));
+  if (res) res.textContent = `${d.format}: ${d.systems.length} systems, ${d.links.length} connections · adding ${links.length} wormholes…`;
+  for (const id of d.systems) await lookupName(String(id));
+  let shared = 0, local = 0;
+  for (const l of links){
+    const id = 'imp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const link = { id, a:Number(l.a), b:Number(l.b), type:'wh', wh:l.wh || '', size:l.size || '?', mass:l.mass, eol:!!l.eol, eolAt:l.eol ? Date.now() : null, created:Date.now(), passes:[], by:'import ' + d.format };
+    const node = x => ({ id:Number(x), name:sysName(x), cls:classOf(x) || '?' });
+    let ok = false;
+    if (share.owner && share.ws){ try{
+      const nodes = ((share.map && share.map.data) || {}).nodes || {};
+      for (const x of [l.a, l.b]) if (!nodes[x]) await shareSend({ op:'put', path:`maps/${share.owner}/data/nodes/${x}`, data:node(x) });
+      await shareSend({ op:'put', path:`maps/${share.owner}/data/links/${id}`, data:link }); ok = true; shared++; }catch(e){} }
+    if (!ok){ for (const x of [l.a, l.b]) if (!mapper.nodes[x]) E().nodes[x] = { ...node(x), local:true }; E().links[id] = { ...link, local:true }; local++; }
+  }
+  if (local) saveEdits();
+  readMapper(); afterEdit();
+  const msg = `${d.format}: ${links.length} wormhole${links.length > 1 ? 's' : ''} added${shared ? ` (${shared} for your whole map)` : ''}${d.links.length - links.length ? ` · ${d.links.length - links.length} already known or gates` : ''}`;
+  if ($('#impRes')) $('#impRes').textContent = msg; toast(msg);
+}
+function wireImport(){
+  const b = $('#impBtn'), f = $('#impFile'); if (!b || !f) return;
+  b.onclick = () => f.click();
+  f.onchange = async () => { const file = f.files && f.files[0]; if (!file) return;
+    let j = null; try{ j = JSON.parse(await file.text()); }catch(e){}
+    const d = j && parseMapperExport(j);
+    if (!d){ toast('Not a Pathfinder or Wanderer export (a .json file from their Export button)', true); return; }
+    importExport(d); };
 }
 function sysSub(id){
   if (isK(id)) return regionName(regionOf(id));
@@ -4979,7 +5075,7 @@ function setupWidgets(){
   if (qs){ lookAway(); }   // a system link is a deliberate look elsewhere
   await loadRegion(reg);
   const qc = q.get('c'); if (qc && hubOfName(qc)) await openHub(hubOfName(qc)); else if (qc && whChains().some(c => c.name === qc)) await openChain(qc);
-  if (DEMO) window.__v2 = { openHub, openChain, loadRegion };   // demo only: lets the tests open a map directly
+  if (DEMO) window.__v2 = { openHub, openChain, loadRegion, select };   // demo only: lets the tests open a map directly
   setInterval(checkChainView, 3000);   // a chain on view follows its holes: grows, shrinks, is cut and renamed
   if (DEMO){ demoStep(); pickChar(); demoTrip();
     setTimeout(() => { demoNewWh = Date.now(); demoNews('New wormhole from J000901 into <b>1DQ1-A</b> (Delve)'); readMapper(); render(); }, 9000);
