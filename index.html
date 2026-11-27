@@ -12,7 +12,7 @@
   else if (/^ad/.test(q.get('state') || '')) location.replace('admin/' + location.search);          // the site owner's map list
   else if (/^ml/.test(q.get('state') || '')) location.replace('mail/' + location.search);           // EVE mail
   else if (q.has('demo') && [...q.keys()].length === 1) location.replace('regions/?demo');          // the demo is the map's
-  else if (location.search || /^#(config|a)=/.test(location.hash)) location.replace('map/' + location.search + location.hash);
+  else if ((location.search && !(q.has('lang') && [...q.keys()].length === 1)) || /^#(config|a)=/.test(location.hash)) location.replace('map/' + location.search + location.hash);
 })();
 </script>
 
@@ -43,6 +43,9 @@ a{color:inherit}
 .status{font-family:var(--mono);font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:4px 9px;background:rgba(3,5,11,.5);white-space:nowrap}
 .status i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:1px}
 .status.on i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.lang{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:3px;padding:2px;background:rgba(3,5,11,.5)}
+.lang button{font:600 11.5px var(--mono);background:none;border:0;color:var(--dim);padding:3px 7px;border-radius:2px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--accent,#f2a74b);color:#1b1206}
 .toplink{font-size:13px;color:var(--dim);text-decoration:none;border:1px solid var(--line);padding:5px 11px;border-radius:3px;background:rgba(3,5,11,.5)}
 .toplink:hover{color:var(--text);border-color:var(--dim)}
 .hero{align-self:center;max-width:620px;padding:40px 0}
@@ -99,17 +102,18 @@ h1 b{color:var(--accent);display:block}
     <a class="brand" href="./">Anoikis <b>Traveler</b></a>
     <span class="grow"></span>
     <span class="status" id="tq" title="Tranquility server status"><i></i>Tranquility…</span>
-    <a class="toplink" href="guide/">Guide</a>
-    <a class="toplink" href="dons/">Support us</a>
+    <a class="toplink" href="guide/" data-t="guide">Guide</a>
+    <a class="toplink" href="dons/" data-t="support">Support us</a>
+    <span class="lang" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="fr">FR</button><button type="button" data-lang="de">DE</button><button type="button" data-lang="es">ES</button></span>
   </div>
 
   <section class="hero">
-    <div class="kicker">EVE Online · wormhole multitool</div>
-    <h1 class="title"><span>Anoikis</span><span>Traveler</span><small>Map · Scan · Fit · Appraise</small></h1>
-    <p class="lead">3D maps of New Eden with your characters live, the wormholes and the Thera and Turnur network, a fitting tool and a market appraisal. One site, one look, one EVE login.</p>
+    <div class="kicker" data-t="kicker">EVE Online · wormhole multitool</div>
+    <h1 class="title"><span>Anoikis</span><span>Traveler</span><small data-t="small">Map · Scan · Fit · Appraise</small></h1>
+    <p class="lead" data-t="lead">3D maps of New Eden with your characters live, the wormholes and the Thera and Turnur network, a fitting tool and a market appraisal. One site, one look, one EVE login.</p>
     <div class="cta">
-      <a class="btn primary" href="regions/">Open the map</a>
-      <a class="btn" href="regions/?demo">Try the demo</a>
+      <a class="btn primary" href="regions/" data-t="open">Open the map</a>
+      <a class="btn" href="regions/?demo" data-t="demo">Try the demo</a>
     </div>
   </section>
 
@@ -117,19 +121,19 @@ h1 b{color:var(--accent);display:block}
     <nav class="tools" aria-label="Tools">
       <a class="tool" href="regions/">
         <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><g fill="none" stroke="#8fb0ff" stroke-width="1.4"><path d="M6 24 14 10l9 6 6-9"/><path d="M14 10 12 27l11-11"/></g><g fill="#f2a74b"><circle cx="6" cy="24" r="2.4"/><circle cx="14" cy="10" r="2.4"/><circle cx="23" cy="16" r="2.4"/><circle cx="29" cy="7" r="2.4"/><circle cx="12" cy="27" r="2.4"/></g></svg>
-        <h2>Map</h2><p>Every region in 3D at its real coordinates: your characters live, wormholes, Thera and Turnur, the route to fly.</p><span class="go">Open →</span></a>
+        <h2 data-t="t_map">Map</h2><p data-t="p_map">Every region in 3D at its real coordinates: your characters live, wormholes, Thera and Turnur, the route to fly.</p><span class="go" data-t="go">Open →</span></a>
       <a class="tool" href="fitting/">
         <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 4 27 10v14L17 30 7 24V10z" fill="none" stroke="#8fb0ff" stroke-width="1.5"/><path d="M17 11v12M11 14l6 3 6-3" fill="none" stroke="#f2a74b" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <h2>Fitting</h2><p>Build and check fits with the real EVE engine: DPS, tank, capacitor, with your own skills.</p><span class="go">Open →</span></a>
+        <h2>Fitting</h2><p data-t="p_fit">Build and check fits with the real EVE engine: DPS, tank, capacitor, with your own skills.</p><span class="go" data-t="go">Open →</span></a>
       <a class="tool" href="appraisal/">
         <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><path d="M6 27h22" stroke="#8fb0ff" stroke-width="1.5"/><path d="M9 23v-6M15 23V11M21 23v-9M27 23V7" stroke="#f2a74b" stroke-width="3" stroke-linecap="round"/></svg>
-        <h2>Appraisal</h2><p>Paste any item list and get its real value in Jita, Amarr, Dodixie, Rens or Hek.</p><span class="go">Open →</span></a>
+        <h2>Appraisal</h2><p data-t="p_appr">Paste any item list and get its real value in Jita, Amarr, Dodixie, Rens or Hek.</p><span class="go" data-t="go">Open →</span></a>
       <a class="tool" href="mail/">
         <svg class="ic" viewBox="0 0 34 34" aria-hidden="true"><rect x="5" y="9" width="24" height="17" rx="2" fill="none" stroke="#8fb0ff" stroke-width="1.5"/><path d="M6 11l11 8 11-8" fill="none" stroke="#f2a74b" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <h2>Mail</h2><p>Read and send your EVE mail outside the game, for all your characters, with labels and mailing lists.</p><span class="go">Open →</span></a>
+        <h2>Mail</h2><p data-t="p_mail">Read and send your EVE mail outside the game, for all your characters, with labels and mailing lists.</p><span class="go" data-t="go">Open →</span></a>
     </nav>
     <div class="foot">
-      <span>Free up to 5 characters, no ads. Beyond that, 50 M ISK a week per block of 5 characters. Not affiliated with CCP Games. EVE Online © CCP hf.</span>
+      <span data-t="foot">Free up to 5 characters, no ads. Beyond that, 50 M ISK a week per block of 5 characters. Not affiliated with CCP Games. EVE Online © CCP hf.</span>
       <button class="motion" id="motion" type="button" aria-pressed="false">Pause video</button>
     </div>
   </div>
@@ -138,9 +142,65 @@ h1 b{color:var(--accent);display:block}
 (() => {
 'use strict';
 /* ---------- Tranquility status ---------- */
+
+/* ---------- Languages: the same choice as the guide (EN, FR, DE, ES) ---------- */
+const T = {
+ en:{ guide:'Guide', support:'Support us', kicker:'EVE Online · wormhole multitool', small:'Map · Scan · Fit · Appraise',
+  lead:'3D maps of New Eden with your characters live, the wormholes and the Thera and Turnur network, a fitting tool and a market appraisal. One site, one look, one EVE login.',
+  open:'Open the map', demo:'Try the demo', t_map:'Map', go:'Open →',
+  p_map:'Every region in 3D at its real coordinates: your characters live, wormholes, Thera and Turnur, the route to fly.',
+  p_fit:'Build and check fits with the real EVE engine: DPS, tank, capacitor, with your own skills.',
+  p_appr:'Paste any item list and get its real value in Jita, Amarr, Dodixie, Rens or Hek.',
+  p_mail:'Read and send your EVE mail outside the game, for all your characters, with labels and mailing lists.',
+  foot:'Free up to 5 characters, no ads. Beyond that, 50 M ISK a week per block of 5 characters. Not affiliated with CCP Games. EVE Online © CCP hf.',
+  pause:'Pause video', play:'Play video', pilots:'pilots', offline:'offline' },
+ fr:{ guide:'Guide', support:'Soutenir', kicker:'EVE Online · multitool wormhole', small:'Carte · Scan · Fit · Appraisal',
+  lead:'Les cartes 3D de New Eden avec vos personnages en direct, les wormholes et le réseau de Thera et Turnur, un outil de fitting et un appraisal de marché. Un site, un style, une seule connexion EVE.',
+  open:'Ouvrir la carte', demo:'Essayer la démo', t_map:'Carte', go:'Ouvrir →',
+  p_map:'Chaque région en 3D à ses vraies coordonnées : vos personnages en direct, les wormholes, Thera et Turnur, la route à suivre.',
+  p_fit:'Construisez et vérifiez vos fits avec le vrai moteur d\'EVE : DPS, tank, capaciteur, avec vos propres skills.',
+  p_appr:'Collez une liste d\'objets et obtenez sa vraie valeur à Jita, Amarr, Dodixie, Rens ou Hek.',
+  p_mail:'Lisez et envoyez vos mails EVE hors du jeu, pour tous vos personnages, avec labels et mailing lists.',
+  foot:'Gratuit jusqu\'à 5 personnages, sans publicité. Au-delà, 50 M ISK par semaine par tranche de 5 personnages. Non affilié à CCP Games. EVE Online © CCP hf.',
+  pause:'Mettre la vidéo en pause', play:'Lire la vidéo', pilots:'pilotes', offline:'hors ligne' },
+ de:{ guide:'Anleitung', support:'Unterstützen', kicker:'EVE Online · Wurmloch-Multitool', small:'Karte · Scan · Fit · Schätzung',
+  lead:'3D-Karten von New Eden mit deinen Charakteren live, den Wurmlöchern und dem Netz von Thera und Turnur, ein Fitting-Werkzeug und eine Marktschätzung. Eine Seite, ein Stil, ein EVE-Login.',
+  open:'Karte öffnen', demo:'Demo ausprobieren', t_map:'Karte', go:'Öffnen →',
+  p_map:'Jede Region in 3D an ihren echten Koordinaten: deine Charaktere live, Wurmlöcher, Thera und Turnur, die zu fliegende Route.',
+  p_fit:'Fits mit der echten EVE-Engine bauen und prüfen: DPS, Tank, Kondensator, mit deinen eigenen Skills.',
+  p_appr:'Füge eine beliebige Itemliste ein und erhalte ihren echten Wert in Jita, Amarr, Dodixie, Rens oder Hek.',
+  p_mail:'Lies und sende deine EVE-Mails außerhalb des Spiels, für alle deine Charaktere, mit Labels und Mailinglisten.',
+  foot:'Kostenlos bis 5 Charaktere, ohne Werbung. Darüber 50 M ISK pro Woche je 5 Charaktere. Nicht mit CCP Games verbunden. EVE Online © CCP hf.',
+  pause:'Video anhalten', play:'Video abspielen', pilots:'Piloten', offline:'offline' },
+ es:{ guide:'Guía', support:'Apoyar', kicker:'EVE Online · multiherramienta de agujeros', small:'Mapa · Scan · Fit · Tasación',
+  lead:'Mapas 3D de New Eden con tus personajes en directo, los agujeros de gusano y la red de Thera y Turnur, una herramienta de fitting y una tasación de mercado. Un sitio, un estilo, un solo inicio de sesión de EVE.',
+  open:'Abrir el mapa', demo:'Probar la demo', t_map:'Mapa', go:'Abrir →',
+  p_map:'Cada región en 3D en sus coordenadas reales: tus personajes en directo, agujeros, Thera y Turnur, la ruta a seguir.',
+  p_fit:'Crea y comprueba fits con el motor real de EVE: DPS, tanque, condensador, con tus propias skills.',
+  p_appr:'Pega cualquier lista de objetos y obtén su valor real en Jita, Amarr, Dodixie, Rens o Hek.',
+  p_mail:'Lee y envía tu correo de EVE fuera del juego, para todos tus personajes, con etiquetas y listas de correo.',
+  foot:'Gratis hasta 5 personajes, sin publicidad. Más allá, 50 M ISK por semana por cada bloque de 5 personajes. Sin relación con CCP Games. EVE Online © CCP hf.',
+  pause:'Pausar el vídeo', play:'Reproducir el vídeo', pilots:'pilotos', offline:'desconectado' } };
+const LANGS = Object.keys(T);
+let lang = (() => {
+  const q = new URLSearchParams(location.search).get('lang'); if (LANGS.includes(q)) return q;
+  try{ const s = localStorage.getItem('at.lang'); if (LANGS.includes(s)) return s; }catch(e){}
+  for (const l of navigator.languages || [navigator.language || 'en']){ const c = String(l).slice(0, 2).toLowerCase(); if (LANGS.includes(c)) return c; }
+  return 'en'; })();
+let tqPlayers = null, tqOff = false;
+const tq = () => { const e = document.getElementById('tq'); if (tqPlayers != null) e.lastChild.textContent = `Tranquility · ${tqPlayers.toLocaleString(lang)} ${T[lang].pilots}`; else if (tqOff) e.lastChild.textContent = `Tranquility · ${T[lang].offline}`; };
+function setLang(l){
+  lang = l; document.documentElement.lang = l;
+  try{ localStorage.setItem('at.lang', l); }catch(e){}
+  document.querySelectorAll('[data-t]').forEach(e => { const v = T[l][e.dataset.t]; if (v != null) e.textContent = v; });
+  document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === l)));
+  document.querySelectorAll('a[href^="guide/"]').forEach(a => a.href = `guide/?lang=${l}`);
+  tq(); if (typeof syncBtn === 'function') syncBtn();
+}
+document.querySelectorAll('.lang button').forEach(b => b.onclick = () => setLang(b.dataset.lang));
 fetch('https://esi.evetech.net/latest/status/?datasource=tranquility').then(r => r.ok ? r.json() : Promise.reject())
-  .then(s => { const e = document.getElementById('tq'); e.classList.add('on'); e.lastChild.textContent = `Tranquility · ${s.players.toLocaleString('en-US')} pilots`; })
-  .catch(() => { document.getElementById('tq').lastChild.textContent = 'Tranquility · offline'; });
+  .then(s => { document.getElementById('tq').classList.add('on'); tqPlayers = s.players; tq(); })
+  .catch(() => { tqOff = true; tq(); });
 
 /* ---------- Background: in-game footage (a ship in a wormhole nebula), muted, looping ---------- */
 const v = document.getElementById('sky');
@@ -148,11 +208,12 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 v.src = innerWidth > 1100 && !(navigator.connection && navigator.connection.saveData) ? 'img/hero.mp4?v=2' : 'img/hero-small.mp4?v=2';
 let paused = reduce;
 const mb = document.getElementById('motion');
-const syncBtn = () => { mb.textContent = paused ? 'Play video' : 'Pause video'; mb.setAttribute('aria-pressed', String(paused)); };
+var syncBtn = () => { mb.textContent = paused ? T[lang].play : T[lang].pause; mb.setAttribute('aria-pressed', String(paused)); };
 const apply = () => { if (paused) v.pause(); else v.play().catch(() => { paused = true; syncBtn(); }); };
 mb.onclick = () => { paused = !paused; syncBtn(); apply(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden) v.pause(); else apply(); });
 syncBtn(); apply();
+setLang(lang);
 })();
 </script>
 </body>
