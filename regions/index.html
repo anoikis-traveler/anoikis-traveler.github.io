@@ -3472,7 +3472,7 @@ function drawBg(){
 // hovering a system shows its name (names are mostly hidden on the map)
 function setupHover(){
   const svg = $('#map'), hl = $('#hovLbl');
-  svg.addEventListener('pointerover', e => { const g = e.target.closest('.sys,.stubball'); if (!g){ hl.hidden = true; return; }
+  svg.addEventListener('pointerover', e => { const g = e.target.closest('.sys,.stubball'); if (!g || flatCell){ hl.hidden = true; return; }   // 2D: the card already says it
     const id = g.dataset.id || g.dataset.stub, s = byId[id], r = g.getBoundingClientRect();
     const sec = s ? secR(s.s) : secOfId(id) != null ? secR(secOfId(id)) : null;
     hl.innerHTML = `${esc(s ? s.n : sysName(id))}${sec != null ? ` <span style="color:${secCol(s ? s.s : secOfId(id))}">${sec.toFixed(1)}</span>` : ` <span style="color:var(--eol)">${esc(classOf(id) || '')}</span>`}${s && s.ext ? `<small>${esc(s.ext)}</small>` : s ? `<small>${esc(R.constellations[s.c] || '')}</small>` : ''}`;
@@ -3688,11 +3688,14 @@ function draw(){
           const bw2 = (badge.length * 0.62 + 0.9) * fs, by = y0 + h * 0.18;
           el('rect', { x:x0 + pad, y:by, width:bw2, height:fs * 1.3, rx:3, fill:bc }, g);
           const tb = el('text', { x:x0 + pad + bw2 / 2, y:by + fs * 1.0, 'text-anchor':'middle', class:'mcb', style:`font-size:${fs * 0.85}px` }, g); tb.textContent = badge;
-          const tn = el('text', { x:x0 + pad + bw2 + fs * 0.5, y:by + fs * 1.02, class:'mcn', style:`font-size:${fs}px` }, g); tn.textContent = s.n;
+          const tn = el('text', { x:x0 + pad + bw2 + fs * 0.5, y:by + fs * 1.02, class:'mcn', style:`font-size:${fs}px` }, g); const nmax = Math.max(3, Math.floor((w - pad * 2 - bw2 - fs * 1.6) / (fs * 0.6))); tn.textContent = s.n.length > nmax ? s.n.slice(0, nmax - 1) + '…' : s.n;
           if (pil.length) el('circle', { cx:x0 + w - pad - 3, cy:by + fs * 0.65, r:Math.max(2.5, fs * 0.3), fill:'var(--ok)' }, g);
-          if (h > 34){ const sub = K ? (s.ext || regionName(regionOf(id)) || '') : sysSub(id);
-            const t2 = el('text', { x:x0 + pad, y:y0 + h * 0.66, class:'mcs', style:`font-size:${fs * 0.78}px` }, g); t2.textContent = [sub, ...golds, kk.length ? '☠' + kk.length : '', inc ? '☣' : ''].filter(Boolean).join('  ').slice(0, 40); }
-          if (h > 48 && pil.length){ const t3 = el('text', { x:x0 + pad, y:y0 + h * 0.9, class:'mcp', style:`font-size:${fs * 0.78}px` }, g); const nm = pil.map(x => x.name || x).join(', '); t3.textContent = '👤 ' + (nm.length > 30 ? nm.slice(0, 29) + '…' : nm); }
+          // every line cut to the width of its card (monospace: about 0.6 em a character)
+          const fit = (txt, size) => { const n = Math.max(4, Math.floor((w - pad * 2) / (size * 0.62))); return txt.length > n ? txt.slice(0, n - 1) + '…' : txt; };
+          const [stat, eff] = K ? [s.ext || regionName(regionOf(id)) || '', ''] : sysSub(id).split(' · ');
+          const l2 = [stat, ...golds, kk.length ? '☠' + kk.length : '', inc ? '☣' : ''].filter(Boolean).join('  '), l3 = pil.length ? '👤 ' + pil.map(x => x.name || x).join(', ') : eff || '';
+          if (h > 34 && l2){ const t2 = el('text', { x:x0 + pad, y:y0 + h * 0.64, class:'mcs', style:`font-size:${fs * 0.78}px` }, g); t2.textContent = fit(l2, fs * 0.78); }
+          if (h > 48 && l3){ const t3 = el('text', { x:x0 + pad, y:y0 + h * 0.88, class:pil.length ? 'mcp' : 'mcs', style:`font-size:${fs * 0.78}px` }, g); t3.textContent = fit(l3, fs * 0.78); }
         }
       } else {     // a regional map in 2D, the classic flat map: boxes filled with the security colour, the name inside
         const fill = isJ(id) ? (WH_COL[classOf(id)] || WH_COL.J) : secCol(s.s);
