@@ -4174,21 +4174,53 @@ function chainSelect(ids, add){
 }
 function chainToggle(id){ id = String(id); if (chainPicked.has(id)) chainPicked.delete(id); else chainPicked.add(id); chainSel = chainPicked.size ? (chainPicked.has(id) ? id : [...chainPicked].pop()) : null; }
 function chainClear(){ chainPicked.clear(); chainSel = null; linkFrom = null; }
+/* Flat map of a chain, like a regional map seen from above: the systems placed by their links (a force layout,
+   the same every time), then set on a grid of cards, one per cell, none on top of another. */
+const CELLX = 200, CELLY = 84;            // a grid cell: a card (BW × BH) and the room for its links
+const flatMemo = {};
 function chainLayout(g){
   const homeId = String((store.get('whmap.cfg', {}).home || {}).id || '');
   const root = g.set.has(homeId) ? homeId : (me.sys && g.set.has(me.sys) ? me.sys : g.ids.find(isJ) || g.ids[0]);
-  const adjm = {}; const add = (a, b) => { (adjm[a] = adjm[a] || []).push(b); (adjm[b] = adjm[b] || []).push(a); };
+  const edges = [], seenE = new Set(), add = (a, b) => { const k = a < b ? a + '|' + b : b + '|' + a; if (a !== b && !seenE.has(k)){ seenE.add(k); edges.push([a, b]); } };
   for (const l of chainLinks().concat(g.extra || [])){ const a = String(l.a), b = String(l.b); if (g.set.has(a) && g.set.has(b)) add(a, b); }
   for (const br of g.bridges) add(br.a, br.b);
-  // tree: each system under the first one that reaches it; leaves stacked, parents centred on their children
-  const kids = {}, seen = new Set([root]), q = [root];
-  while (q.length){ const u = q.shift(); kids[u] = []; for (const v of (adjm[u] || []).slice().sort((x, y) => sysName(x).localeCompare(sysName(y)))) if (!seen.has(v)){ seen.add(v); kids[u].push(v); q.push(v); } }
-  const pos = {}; let row = 0;
-  const place = (u, d) => { const ks = kids[u] || []; if (!ks.length){ pos[u] = { x:d * CW, y:row++ * RH }; return pos[u].y; }
-    const ys = ks.map(k => place(k, d + 1)); pos[u] = { x:d * CW, y:(ys[0] + ys[ys.length - 1]) / 2 }; return pos[u].y; };
-  place(root, 0);
-  for (const id of g.ids) if (!pos[id]){ pos[id] = { x:0, y:row++ * RH }; }      // not reachable: listed under the tree
-  for (const id of g.ids) if (chainPos[id]) pos[id] = { ...chainPos[id] };
+  const ids = g.ids.map(String), key = ids.slice().sort().join(',') + '#' + edges.map(e => e.join('-')).sort().join(',');
+  let cells = flatMemo[key];
+  if (!cells){
+    // 1. a force layout in 2D, seeded from the names: the same picture every time
+    const hash = t => { let h = 2166136261; for (const ch of String(t)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return ((h >>> 0) % 10000) / 10000; };
+    const P = {}; ids.forEach((id, i) => { const u = hash(id) * 6.283, r = 1 + hash(id + 'r') * 2; P[id] = [Math.cos(u) * r, Math.sin(u) * r]; });
+    if (P[root]) P[root] = [0, 0];
+    const IT = 400;
+    for (let k = 0; k < IT; k++){
+      const t = 0.1 * (1 - k / IT) + 0.005, F = {}; for (const id of ids) F[id] = [0, 0];
+      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++){ const a = P[ids[i]], b = P[ids[j]];
+        const dx = a[0] - b[0], dy = a[1] - b[1], d2 = dx * dx + dy * dy + 0.01, f = 1.2 / d2;
+        F[ids[i]][0] += dx * f; F[ids[i]][1] += dy * f; F[ids[j]][0] -= dx * f; F[ids[j]][1] -= dy * f; }
+      for (const [a0, b0] of edges){ const a = P[a0], b = P[b0], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 0.01, f = (d - 1) * 0.8 / d;
+        F[a0][0] += dx * f; F[a0][1] += dy * f; F[b0][0] -= dx * f; F[b0][1] -= dy * f; }
+      for (const id of ids){ const p = P[id], f = F[id]; f[0] -= p[0] * 0.02; f[1] -= p[1] * 0.02;
+        const m = Math.hypot(f[0], f[1]), sc = m > 1 ? 1 / m : 1; p[0] += f[0] * t * sc * 4; p[1] += f[1] * t * sc * 4; }
+    }
+    // 2. turned so that its longest side lies across the window (the windows are wide), then onto the grid:
+    //    one link ≈ one cell; each system takes the free cell nearest to its place
+    { const mx = ids.reduce((s2, id) => s2 + P[id][0], 0) / ids.length, my = ids.reduce((s2, id) => s2 + P[id][1], 0) / ids.length;
+      let a = 0, b2 = 0, c = 0; for (const id of ids){ const x = P[id][0] - mx, y = P[id][1] - my; a += x * x; b2 += x * y; c += y * y; }
+      const th = 0.5 * Math.atan2(2 * b2, a - c), co = Math.cos(-th), si = Math.sin(-th);
+      for (const id of ids){ const x = P[id][0] - mx, y = P[id][1] - my; P[id] = [x * co - y * si, x * si + y * co]; } }
+    const sx = 1.0, sy = 0.75 * CELLX / CELLY, taken = new Set(); cells = {};
+    const order = ids.slice().sort((a, b) => (a === root ? -1 : b === root ? 1 : 0) || (edges.filter(e => e.includes(b)).length - edges.filter(e => e.includes(a)).length));
+    for (const id of order){
+      const cx = Math.round(P[id][0] * sx), cy = Math.round(P[id][1] * sy); let best = null;
+      for (let r = 0; r < 30 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++){
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; const c = (cx + dx) + ',' + (cy + dy);
+        if (taken.has(c)) continue; const d = dx * dx + dy * dy * 1.5; if (!best || d < best.d) best = { c, x:cx + dx, y:cy + dy, d }; }
+      taken.add(best.c); cells[id] = { x:best.x, y:best.y };
+    }
+    flatMemo[key] = cells;
+  }
+  const pos = {};
+  for (const id of ids) pos[id] = chainPos[id] ? { ...chainPos[id] } : { x:cells[id].x * CELLX, y:cells[id].y * CELLY };
   return { pos, root };
 }
 function sysSub(id){
@@ -4214,14 +4246,13 @@ function renderChain(){
   }
   const { k, ox, oy } = chainT;
   // grid: a dot every two steps, in layout units so it moves and zooms with the boxes
-  const defsG = el('defs', {}, svg), pat = el('pattern', { id:'cgrid', width:GRID * 2 * k, height:GRID * 2 * k, patternUnits:'userSpaceOnUse', x:ox, y:oy }, defsG);
-  el('circle', { cx:1, cy:1, r:1, fill:'#26324c' }, pat);
+  const defsG = el('defs', {}, svg), pat = el('pattern', { id:'cgrid', width:CELLX * k / 2, height:CELLY * k / 2, patternUnits:'userSpaceOnUse', x:ox - (CELLX - BW) / 2 * k, y:oy - (CELLY - BH) / 2 * k }, defsG);
+  el('path', { d:`M${CELLX * k / 2},0 L0,0 0,${CELLY * k / 2}`, fill:'none', stroke:'#1a2338', 'stroke-width':1 }, pat);
   el('rect', { width:W2, height:H2, fill:'url(#cgrid)' }, svg);
   const root_ = el('g', { transform:`translate(${ox} ${oy}) scale(${k})` }, svg);
   const gE = el('g', {}, root_), gL = el('g', {}, root_), gN = el('g', {}, root_);
-  const L = (a, b) => { const pa = pos[a], pb = pos[b]; const left = pa.x <= pb.x ? [pa, pb] : [pb, pa];
-    const x1 = left[0].x + (left[0].x === left[1].x ? BW / 2 : BW), y1 = left[0].y + (left[0].x === left[1].x ? BH : BH / 2), x2 = left[1].x + (left[0].x === left[1].x ? BW / 2 : 0), y2 = left[1].y + (left[0].x === left[1].x ? 0 : BH / 2);
-    const mx = (x1 + x2) / 2; return { d:left[0].x === left[1].x ? `M${x1},${y1} L${x2},${y2}` : `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`, mx, my:(y1 + y2) / 2 }; };
+  const L = (a, b) => { const x1 = pos[a].x + BW / 2, y1 = pos[a].y + BH / 2, x2 = pos[b].x + BW / 2, y2 = pos[b].y + BH / 2;
+    return { d:`M${x1},${y1} L${x2},${y2}`, mx:(x1 + x2) / 2, my:(y1 + y2) / 2 }; };
   const pill = (x, y, txt, col) => { const w = txt.length * 6.2 + 10; el('rect', { x:x - w / 2, y:y - 8, width:w, height:16, rx:8, fill:'#0b1020', stroke:col, 'stroke-width':1 }, gL); const t = el('text', { x, y:y + 3.5, 'text-anchor':'middle', class:'cpill', style:`fill:${col}` }, gL); t.textContent = txt; };
   for (const l of chainLinks().concat(g.extra || [])){
     const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b) || !pos[a] || !pos[b]) continue;
@@ -4275,7 +4306,7 @@ function renderAllChains(){
     svg.setAttribute('viewBox', `0 0 ${Wc} ${Hc}`);
     const { pos } = chainLayout(g), xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs) + BW, minY = Math.min(...ys), maxY = Math.max(...ys) + BH;
-    const k = Math.min((Wc - 16) / Math.max(1, maxX - minX), (Hc - 16) / Math.max(1, maxY - minY), 0.85);
+    const k = Math.min((Wc - 16) / Math.max(1, maxX - minX), (Hc - 16) / Math.max(1, maxY - minY), 0.6);
     const ox = 8 - minX * k + Math.max(0, (Wc - 16 - (maxX - minX) * k) / 2), oy = 8 - minY * k + Math.max(0, (Hc - 16 - (maxY - minY) * k) / 2);
     const P = id => ({ x:ox + (pos[id].x + BW / 2) * k, y:oy + (pos[id].y + BH / 2) * k });
     for (const l of chainLinks().concat(g.extra || [])){ const a = String(l.a), b = String(l.b); if (!g.set.has(a) || !g.set.has(b) || !pos[a] || !pos[b]) continue;
@@ -4285,10 +4316,12 @@ function renderAllChains(){
     const mine = new Set(Object.values(chars).map(c => c.sys).concat(me.sys ? [me.sys] : []));
     const showNames = g.ids.length <= 14;
     for (const id of g.ids){ if (!pos[id]) continue; const q = P(id), cl = classOf(id), col = isK(id) ? secCol(secOf(id)) : (WH_COL[cl] || WH_COL.J);
-      if (mine.has(id)) el('circle', { cx:q.x, cy:q.y, r:7.5, fill:'none', stroke:'var(--ok)', 'stroke-width':1.6 }, svg);
-      el('circle', { cx:q.x, cy:q.y, r:4.5, fill:col, stroke:'#05080f', 'stroke-width':1 }, svg);
+      const cw = Math.max(10, BW * k), chh = Math.max(6, BH * k);
+      el('rect', { x:q.x - cw / 2, y:q.y - chh / 2, width:cw, height:chh, rx:Math.min(4, chh / 3), fill:'#111a2c', stroke:mine.has(id) ? 'var(--ok)' : '#2c3a58', 'stroke-width':mine.has(id) ? 1.6 : 1 }, svg);
+      el('rect', { x:q.x - cw / 2, y:q.y - chh / 2, width:Math.max(2, 4 * k), height:chh, fill:col }, svg);
+      if (showNames && cw > 44){ const tn = el('text', { x:q.x + 2 * k, y:q.y + 3.5, 'text-anchor':'middle', class:'an', style:`font-size:${Math.max(8, Math.min(11, chh * .42))}px` }, svg); tn.textContent = sysName(id); }
       const mk = markAt(id); if (mk.length || isHome(id)){ const t = el('text', { x:q.x, y:q.y - 8, 'text-anchor':'middle', class:'an', style:'fill:#e8c25a' }, svg); t.textContent = [isHome(id) ? '⌂' : '', ...mk.map(x => MARKS[x].label)].filter(Boolean).join(' '); }
-      if (showNames){ const t = el('text', { x:q.x, y:q.y + 14, 'text-anchor':'middle', class:'an' }, svg); t.textContent = sysName(id); }
+      if (showNames && BW * k <= 44){ const t = el('text', { x:q.x, y:q.y + BH * k / 2 + 10, 'text-anchor':'middle', class:'an' }, svg); t.textContent = sysName(id); }
       el('title', {}, svg.lastChild).textContent = sysName(id); }
     card.onclick = () => { chainPick = i; chainKey = keyOf(g); chainView = { k:1, x:0, y:0 };
       if ($('#wChain').hidden) $('#btnChain').click(); else { renderChainSel(); renderChain(); } renderAllChains(); };
@@ -4514,8 +4547,8 @@ function setupChain(){
       const dx = e.clientX - chainDrag.x, dy = e.clientY - chainDrag.y;
       if (!chainDrag.moved && Math.hypot(dx, dy) < 4) return;
       chainDrag.moved = true;
-      const snap = v => Math.round(v / GRID) * GRID;
-      for (const [x, p0] of Object.entries(chainDrag.start)) chainPos[x] = { x:snap(p0.x + dx / chainT.k), y:snap(p0.y + dy / chainT.k) };
+      const snapX = v => Math.round(v / (CELLX / 2)) * (CELLX / 2), snapY = v => Math.round(v / (CELLY / 2)) * (CELLY / 2);   // on the grid, like the cards placed by the layout
+      for (const [x, p0] of Object.entries(chainDrag.start)) chainPos[x] = { x:snapX(p0.x + dx / chainT.k), y:snapY(p0.y + dy / chainT.k) };
       renderChain(); return;
     }
     if (band){ const r = svg.getBoundingClientRect(); band.x1 = e.clientX - r.left; band.y1 = e.clientY - r.top; drawBand(); return; }
