@@ -990,6 +990,9 @@ function setupR(id, keepCam){
   if (typeof pollKills === 'function' && !DEMO) setTimeout(pollKills, 300);
   if (typeof statMax === 'function'){ statMaxCache = statMax(); setTimeout(renderStats, 0); }
   if (!keepCam){ cam.zoom = R.chain ? 0.85 : 1; cam.px = 0; cam.py = 0; }
+  // a chain map (Alpha, Beta…) opens seen from above; the regional maps get back the angle you had
+  if (R.chain && !keepCam){ if (cam.pitchBefore == null) cam.pitchBefore = cam.pitch; cam.yaw = 0; cam.pitch = Math.PI / 2; }
+  else if (!R.chain && cam.pitchBefore != null){ cam.pitch = cam.pitchBefore; cam.pitchBefore = null; }
   if (sel && !byId[sel]) sel = null;
   computeRoute(); render(); renderPanel(); if (typeof renderAct === 'function') renderAct();
 }
