@@ -229,6 +229,7 @@ ul.plain li{padding:3px 0;border-bottom:1px solid rgba(36,49,76,.5);font-size:13
 .wgrip:hover,.widget.resizing .wgrip{opacity:1}
 .widget.folded .wgrip{display:none}
 .widget.sized .wb{max-height:none!important;flex:1 1 auto}
+.widget.sized .chainwb{width:auto;height:auto;resize:none}   /* the Chain map fills its window when you resize it */
 .widget.sized{max-width:calc(100vw - 8px)!important;min-width:0!important}
 .widget.sized > *:not(.wh):not(.wgrip){max-height:none}
 .widget.resizing{user-select:none}
@@ -381,6 +382,21 @@ body.nf #hint{transform:translateY(-16px)}
 #wWhc{width:420px;max-width:calc(100vw - 16px)}
 .whcwb{display:flex;flex-direction:column;gap:7px;max-height:min(600px,calc(100vh - 120px));overflow:auto}
 .whctabs{display:flex;flex-wrap:wrap;gap:4px}
+/* 2D view: the system cards */
+.fc{fill:#111a2c;stroke:#2c3a58;stroke-width:1}
+.sys:hover .fc{stroke:#8b98b0}
+.fc.ext{fill:#0c1220;stroke-dasharray:3 2}
+.fc.inmap{stroke:#7d63c9}
+.fc.pil{stroke:#4f9d6c}
+.fc.ap{stroke:#5fd68a}
+.fc.gold{stroke:#e8c25a;stroke-width:1.6}
+.fc.kill{stroke:#ef5a5a;stroke-width:1.8}
+.fc.me{stroke:var(--ok);stroke-width:2.2}
+.fc.sel{stroke:var(--accent);stroke-width:2.4}
+.fct{font-family:var(--body);font-weight:600;fill:#e2e8f3;pointer-events:none}
+.fcs{font-family:var(--mono);font-weight:600}
+.fcb{font-family:var(--mono);fill:#9fb0cc;pointer-events:none}
+#map.routing .sys.onr .fc{stroke:#5fd68a;stroke-width:2.4}
 #wBan{width:640px;max-width:calc(100vw - 16px)}
 #banBody img{display:block;width:100%;border-radius:4px;border:1px solid var(--line);margin:4px 0 8px}
 #banBody h4{margin:10px 0 2px;font-size:12.5px;color:var(--dim);font-weight:500}
@@ -657,6 +673,7 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="btns">
         <button id="btnFollow" type="button" aria-pressed="true" title="Switch region and recenter automatically when your character jumps">Follow me</button>
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
+        <button id="btnFlat" type="button" aria-pressed="false" title="2D: the systems as cards on a grid, none over another (remembered for the chain maps and for the regional maps)">2D</button>
         <button id="btnSov" type="button" aria-pressed="true" title="Null-sec: the logo of the alliance holding the sovereignty on each system">Alliance logos</button>
         <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
@@ -983,6 +1000,7 @@ function setupR(id, keepCam){
   let rad = 1; for (const s of own) rad = Math.max(rad, Math.hypot(s.x - c.x, s.z - c.z, s.y - c.y));
   R._c = c; R._rad = rad;
   norm = {}; for (const s of R.systems) norm[String(s.id)] = { x:(s.x - c.x) / rad, y:(s.y - c.y) / rad, z:(s.z - c.z) / rad };
+  norm3 = norm; R._flat = null; applyFlat();
   $('#regSel').value = R.chain ? '' : String(id);
   document.title = `${R.region.name} · Anoikis Traveler`;
   if (typeof renderNoFollow === 'function') renderNoFollow();      // the region name at the top
@@ -996,6 +1014,7 @@ function setupR(id, keepCam){
   // a chain map (Alpha, Beta…) opens seen from above; the regional maps get back the angle you had
   if (R.chain && !keepCam){ if (cam.pitchBefore == null) cam.pitchBefore = cam.pitch; cam.yaw = 0; cam.pitch = Math.PI / 2; }
   else if (!R.chain && cam.pitchBefore != null){ cam.pitch = cam.pitchBefore; cam.pitchBefore = null; }
+  if (isFlat()){ cam.yaw = 0; cam.pitch = Math.PI / 2; }
   if (sel && !byId[sel]) sel = null;
   computeRoute(); render(); renderPanel(); if (typeof renderAct === 'function') renderAct();
 }
@@ -1349,6 +1368,8 @@ const SETTINGS = [
   { g:'Kills (zKillboard)', k:'killK', label:'Halo on a known-space system after a kill', unit:'min', def:10, min:1, max:120 },
   { g:'Kills (zKillboard)', k:'killJ', label:'Halo on a wormhole system after a kill', unit:'min', def:30, min:1, max:240 },
   { g:'Kills (zKillboard)', k:'killPoll', label:'Ask zKillboard every', unit:'s', def:60, min:30, max:900 },
+  { g:'Map', k:'flatChain', label:'Chain maps (Alpha, Beta…) in 2D: systems as cards on a grid', type:'bool', def:1 },
+  { g:'Map', k:'flatRegion', label:'Regional maps in 2D: systems as cards on a grid', type:'bool', def:0 },
   { g:'Map', k:'sysSize', label:'Size of the systems on the map (100 = normal)', unit:'%', def:100, min:40, max:300 },
   { g:'Pilots', k:'bigName', label:'Name of the followed pilot (bottom) and of the region (top): text size (0 = hidden)', unit:'px', def:34, min:0, max:120 },
   { g:'Pilots', k:'live', label:'A pilot counts as "map open" if heard from within', unit:'min', def:3, min:1, max:60 },
@@ -1456,7 +1477,7 @@ function demoSpin(){
   let last = performance.now();
   const tick = t => {
     const dt = Math.min(100, t - last); last = t;
-    if (SET.spin && !cam.fly && !document.hidden && Date.now() - demoIdle > SET.spinIdle * 1000 && R && !document.body.classList.contains('splashing') && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
+    if (SET.spin && !cam.fly && !isFlat() && !document.hidden && Date.now() - demoIdle > SET.spinIdle * 1000 && R && !document.body.classList.contains('splashing') && $('#chainMenu').hidden && !$('#map').classList.contains('pdim')){
       keepPivot(() => { cam.yaw += dt * SET.spinSpeed * Math.PI / 180000; }); render();   // turns around the selected system
     }
     requestAnimationFrame(tick);
@@ -2901,7 +2922,7 @@ let camAnim = 0;
 function tunnelFly(a, b, done){
   a = String(a); b = String(b);
   const pa = norm[a], pb = norm[b], ov = $('#tunnel');
-  if (!SET.tunnel || !pa || !pb || !ov || !isFinite(pa.x) || !isFinite(pb.x)){ done && done(); return false; }
+  if (!SET.tunnel || isFlat() || !pa || !pb || !ov || !isFinite(pa.x) || !isFinite(pb.x)){ done && done(); return false; }
   const wh = !(adj[a] || []).includes(b), col = wh ? '#c58bff' : '#7fd4ff', glow = wh ? 'rgba(197,139,255,' : 'rgba(127,212,255,';
   const hx = cam.hx, A = { x:pa.x, y:pa.y * hx, z:pa.z }, B = { x:pb.x, y:pb.y * hx, z:pb.z };
   const D = { x:B.x - A.x, y:B.y - A.y, z:B.z - A.z }, L = Math.hypot(D.x, D.y, D.z) || 1e-3, f0 = { x:D.x / L, y:D.y / L, z:D.z / L };
@@ -3098,6 +3119,47 @@ let W = 800, H = 600;
 function proj(p){
   if (cam.fly) return cam.fly(p);
   return projFlat(p);
+}
+/* ---------- 2D view: each system a card on a grid, none over another (chain maps open in it; regional maps on demand) ----------
+   The cards keep the layout of the map seen from above: each takes the free grid cell nearest to its real place. */
+let norm3 = null, flatCell = null, pitch3 = null;
+const isFlat = () => !!(R && (R.chain ? SET.flatChain : SET.flatRegion));
+function flatGrid(){
+  const ids = Object.keys(norm3), own = ids.filter(id => !byId[id] || !byId[id].ext), n = Math.max(1, ids.length);
+  const xs = ids.map(id => norm3[id].x), zs = ids.map(id => norm3[id].z);
+  const bw = Math.max(0.3, Math.max(...xs) - Math.min(...xs)), bh = Math.max(0.3, Math.max(...zs) - Math.min(...zs)), A = 2.6;   // a card is 2.6 times wider than tall
+  const ch = Math.sqrt(bw * bh / (3.2 * A * n)), cw = ch * A, mx = (Math.max(...xs) + Math.min(...xs)) / 2, mz = (Math.max(...zs) + Math.min(...zs)) / 2;
+  const taken = new Set(), out = {};
+  const order = own.slice().sort((a, b) => Math.hypot(norm3[a].x - mx, norm3[a].z - mz) - Math.hypot(norm3[b].x - mx, norm3[b].z - mz)).concat(ids.filter(id => !own.includes(id)));
+  for (const id of order){
+    const gx = Math.round((norm3[id].x - mx) / cw), gz = Math.round((norm3[id].z - mz) / ch); let best = null;
+    for (let r = 0; r < 60 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++){
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const k = (gx + dx) + ',' + (gz + dz); if (taken.has(k)) continue;
+      const d = (dx * cw) ** 2 + (dz * ch) ** 2; if (!best || d < best.d) best = { k, x:gx + dx, z:gz + dz, d }; }
+    taken.add(best.k); out[id] = { x:mx + best.x * cw, y:0, z:mz + best.z * ch };
+  }
+  return { norm:out, cell:{ cw, ch }, mx, mz, taken };
+}
+// the free grid cell nearest to a system (for a wormhole end drawn as a card next to it); `more` = cells taken in this drawing
+function flatFree(id, more){
+  const F = R._flat, b = norm[id]; if (!F || !b) return null;
+  const gx = Math.round((b.x - F.mx) / F.cell.cw), gz = Math.round((b.z - F.mz) / F.cell.ch); let best = null;
+  for (let r = 1; r < 12 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++){
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const k = (gx + dx) + ',' + (gz + dz); if (F.taken.has(k) || more.has(k)) continue;
+    const d = (dx * F.cell.cw) ** 2 + (dz * F.cell.ch) ** 2 + (dz > 0 ? 1e-6 : 0); if (!best || d < best.d) best = { k, x:gx + dx, z:gz + dz, d }; }
+  if (!best) return null; more.add(best.k);
+  return { x:F.mx + best.x * F.cell.cw, y:0, z:F.mz + best.z * F.cell.ch };
+}
+// the size of a card on screen: it follows the zoom, up to a readable maximum
+function flatSize(){ const S = Math.min(W, H) * 0.44 * cam.zoom; return { w:Math.min(flatCell.cw * S * 0.9, 200), h:Math.min(flatCell.ch * S * 0.74, 54) }; }
+function applyFlat(toggled){
+  if (!norm3) return;
+  const b = $('#btnFlat'); if (b) b.setAttribute('aria-pressed', String(isFlat()));
+  if (isFlat()){
+    if (!R._flat) R._flat = flatGrid();
+    if (flatCell == null && pitch3 == null && !R.chain) pitch3 = cam.pitch;
+    norm = R._flat.norm; flatCell = R._flat.cell; cam.yaw = 0; cam.pitch = Math.PI / 2;
+  } else { norm = norm3; flatCell = null; if (pitch3 != null){ cam.pitch = pitch3; pitch3 = null; } }
 }
 function projFlat(p){
   const c = Math.cos(cam.yaw), s = Math.sin(cam.yaw);
@@ -3458,7 +3520,7 @@ function draw(){
     }
   }
   // wormholes: the mapper's chain and the Thera/Turnur network
-  const stubs = {};
+  const stubs = {}, stubCells = new Set();   // stubCells: grid cells taken by wormhole ends in 2D
   for (const l of drawHoles()){
     const a = String(l.a), b = String(l.b), pa = P[a], pb = P[b];
     if ((isHubVirtual(a) || isHubVirtual(b)) && !(pa && pb)) continue;
@@ -3478,12 +3540,27 @@ function draw(){
       const ang = -Math.PI / 2 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.55;
       const br = 9 * zs * SET.sysSize / 100, sk = here + '>' + other, so = stubPos[sk], base = norm[here];
       let ex, ey;
-      if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
+      const fc = flatCell ? flatFree(here, stubCells) : null;
+      if (fc){ const q = proj(fc); ex = q.x; ey = q.y; }
+      else if (so && base){ const q = proj({ x:base.x + so.dx, y:base.y, z:base.z + so.dz }); ex = q.x; ey = q.y; }   // placed by you: a point of the region, it turns with the map
       else { const sl = 46 + 16 * zs; ex = p.x + Math.cos(ang) * sl; ey = p.y + Math.sin(ang) * sl; }
       const hc = holeCol(here, other);
       const dl = Math.hypot(ex - p.x, ey - p.y) || 1, cmx = (p.x + ex) / 2 + (ey - p.y) / dl * dl * 0.3, cmy = (p.y + ey) / 2 - (ex - p.x) / dl * dl * 0.3, dq = `M${p.x},${p.y} Q${cmx},${cmy} ${ex},${ey}`;   // curved like Thera and Turnur
       el('path', { d:dq, class:'whhalo', style:`stroke:${colorMode === 'wh' ? hc : 'var(--c-wh)'}` }, gWh);
       el('path', { d:dq, class:cls, style:colorMode === 'wh' && !/route|ap/.test(cls) ? `stroke:${hc}` : '' }, gWh);
+      const ch0 = isJ(other) && !HUB_LIST.includes(other) ? chainOfSys(other) : null, node0 = mapper.nodes[other] || {};
+      if (fc){   // 2D: the system at the other end is a card in a free cell, its chain written inside; a click opens the chain
+        const { w, h } = flatSize(), x0 = ex - w / 2, y0 = ey - h / 2, bg2 = el('g', { class:'stubball sys', 'data-stub':other }, gStub);
+        el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(5, h / 4), class:'fc stubc' + (sel === String(other) ? ' sel' : '') }, bg2);
+        el('rect', { x:x0, y:y0, width:Math.max(2.5, w * 0.045), height:h, fill:WH_COL[classOf(other)] || hc }, bg2);
+        const fs = Math.max(7, Math.min(13, h * 0.34));
+        if (w > 44 && h > 12){ const t1 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + (h > 26 ? h * 0.42 : h * 0.62), class:'fct', style:`font-size:${fs}px` }, bg2);
+          t1.textContent = sysName(other); const sv = el('tspan', { class:'fcs', style:`fill:${WH_COL[classOf(other)] || hc}` }, t1); sv.textContent = ' ' + (isJ(other) ? (node0.cls ? String(node0.cls).toUpperCase() : classOf(other)) : secR(secOfId(other)).toFixed(1));
+          if (h > 26){ const t2 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + h * 0.8, class:'fcb' + (ch0 ? ' chaingo' : ''), style:`font-size:${Math.max(6.5, fs * 0.78)}px`, ...(ch0 ? { 'data-chaingo':ch0.name, 'data-chainsys':other } : {}) }, bg2);
+            t2.textContent = ch0 ? `◈ ${ch0.name} · ${ch0.n} sys` : label || (regionOf(other) ? '› ' + regionName(regionOf(other)) : ''); } }
+        el('title', {}, bg2).textContent = `${sysName(other)} ${classOf(other)}${label ? ' · ' + label : ''}${ch0 ? `\n◈ ${ch0.name} · ${chainTxt(ch0)}` : ''}${chainExits(here, other).map(x => `\n⟿ ${sysName(x.id)} · ${regionName(regionOf(x.id))}`).join('')}\nClick: open its chain`;
+        continue;
+      }
       // the system at the other end: a ball of its class colour, like a system of the map
       const bg = el('g', { class:'stubball', 'data-stub':other, 'data-stubk':sk }, gStub);
       if (sel === String(other)) el('circle', { cx:ex, cy:ey, r:br + 5, class:'halo' }, bg);
@@ -3533,6 +3610,26 @@ function draw(){
     const id = String(s.id), p = P[id];
     const g = el('g', { class:'sys' + (s.ext ? ' ext' : '') + (onRoute.has(id) ? ' onr' : ''), 'data-id':id, tabindex:'0', role:'button', 'aria-label':`${s.n} ${secR(s.s).toFixed(1)}` }, gNodes);
     const r = (s.ext && !R.chain ? 5 : 9) * zs * SET.sysSize / 100;
+    if (flatCell){   // 2D: a card in its grid cell, everything about the system written inside it
+      const { w, h } = flatSize(), x0 = p.x - w / 2, y0 = p.y - h / 2;
+      const pil = pilotsAt(id), kk = killsAt(id), mk = markAt(id), hm = isHome(id), inc = incSys[id], as = assetsAt(id), ally = !s.ext ? sovOf(id) : null;
+      const golds = (hm ? ['⌂ HOME'] : []).concat(mk.map(k => MARKS[k].label));
+      const cls = 'fc' + (sel === id ? ' sel' : '') + (me.sys === id ? ' me' : '') + (kk.length ? ' kill' : '') + (golds.length ? ' gold' : '') + (mapper.nodes[id] ? ' inmap' : '') + (s.ext ? ' ext' : '') + (pil.length ? ' pil' : '') + (apNodes.has(id) ? ' ap' : '');
+      el('rect', { x:x0, y:y0, width:w, height:h, rx:Math.min(5, h / 4), class:cls }, g);
+      el('rect', { x:x0, y:y0, width:Math.max(2.5, w * 0.045), height:h, fill:colourOf(s), class:'fcbar' }, g);
+      if (ally && sovLogos){ const tl = sovLvl(ally).lvl; if (tl) el('circle', { cx:x0 + w - Math.min(6, h / 4), cy:y0 + Math.min(6, h / 4), r:Math.max(2, Math.min(4, h / 7)), fill:THREAT[tl].c, class:'thr' + tl }, g); }
+      const fs = Math.max(7, Math.min(13, h * 0.34));
+      if (w > 44 && h > 12){
+        const t1 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + (h > 26 ? h * 0.42 : h * 0.62), class:'fct', style:`font-size:${fs}px` }, g);
+        t1.textContent = s.n; const sv = el('tspan', { class:'fcs', style:`fill:${isJ(id) ? WH_COL[classOf(id)] || '#aaa' : secCol(s.s)}` }, t1); sv.textContent = ' ' + (isJ(id) ? classOf(id) : secR(s.s).toFixed(1));
+        if (h > 26){
+          const bits = [...golds, pil.length ? `👤${pil.length}` : '', kk.length ? `☠${kk.length}` : '', inc ? '☣' : '', as.length ? `📦${as.reduce((m, a) => m + a.n, 0)}` : '', s.ext ? '› ' + s.ext : ''].filter(Boolean);
+          if (bits.length){ const t2 = el('text', { x:x0 + Math.max(5, w * 0.08), y:y0 + h * 0.8, class:'fcb', style:`font-size:${Math.max(6.5, fs * 0.78)}px` }, g); t2.textContent = bits.join('  '); }
+        }
+      }
+      el('title', {}, g).textContent = `${s.ext ? `${s.n} (${s.ext})` : `${s.n} ${secR(s.s).toFixed(1)} · ${R.constellations[s.c] || ''}`}${pil.length ? '\nPilots: ' + pil.map(x => x.name || x).join(', ') : ''}${kk.length ? `\n☠ ${kk.length} recent kill${kk.length > 1 ? 's' : ''}` : ''}${golds.length ? '\n' + golds.join(' · ') : ''}`;
+      continue;
+    }
     if (colorMode === 'wh' && touch[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4, fill:'none', stroke:touch[id], 'stroke-width':2, opacity:.85 }, g);
     else if (mapper.nodes[id]) el('circle', { cx:p.x, cy:p.y, r:r + 4.5, class:'inmap' }, g);
     if (sel === id) el('circle', { cx:p.x, cy:p.y, r:r + 7, class:'halo' }, g);
@@ -3629,7 +3726,7 @@ function placePilPop(){
 function showHovName(g){
   const box = $('#hovName'); if (!box) return;
   const id = g && g.dataset.id, s = id && (byId[id] || (sysName(id) && sysName(id) !== String(id) ? { n:sysName(id), s:secOf(id) } : null));
-  if (!s || pilHover){ box.hidden = true; return; }
+  if (!s || pilHover || flatCell){ box.hidden = true; return; }   // 2D: the name is already written on the card
   const dot = g.querySelector('.dot') || g, r = dot.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), sv = secR(s.s), wh = s.s == null || isNaN(s.s) || isJ(id);
   box.innerHTML = `${esc(s.n)}${wh ? '' : `<span class="hs" style="color:${secCol(s.s)}">${sv.toFixed(1)}</span>`}${wh && isJ(id) ? `<span class="hr">${esc(classOf(id))}</span>` : ''}${s.ext ? `<span class="hr">› ${esc(s.ext)}</span>` : ''}`;
   box.style.left = (r.right - st.left + 8) + 'px'; box.style.top = (r.top + r.height / 2 - st.top) + 'px'; box.hidden = false;
@@ -3950,11 +4047,12 @@ function setupInput(){
       const sk = start.stub.dataset.stubk, here = sk.split('>')[0], base = norm[here];
       if (base){ const r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, base.y); stubPos[sk] = { dx:w.x - base.x, dz:w.z - base.z }; demoIdle = Date.now(); render(); }
       return; }
-    if (R && R.chain && start.target && !start.pan && !start.right && norm[start.target.dataset.id]){   // a chain map: its systems can be moved by hand
+    if (R && R.chain && !isFlat() && start.target && !start.pan && !start.right && norm[start.target.dataset.id]){   // a chain map: its systems can be moved by hand
       const id = start.target.dataset.id, n0 = norm[id], r0 = svg.getBoundingClientRect(), w = unproj(e.clientX - r0.left, e.clientY - r0.top, n0.y);
       if (isFinite(w.x) && isFinite(w.z)){ n0.x = w.x; n0.z = w.z; start.movedSys = id; demoIdle = Date.now(); render(); }
       return; }
     if (start.pan){ cam.px += dx; cam.py += dy; }
+    else if (isFlat()){ cam.px += dx; cam.py += dy; }   // 2D: a flat sheet, dragging moves it
     else keepPivot(() => { cam.yaw += dx * 0.008; cam.pitch = Math.max(0.05, Math.min(Math.PI / 2, cam.pitch - dy * 0.008)); });
     render();
   });
@@ -4000,7 +4098,8 @@ function setupInput(){
   const syncRF = () => { const b = $('#btnRF'); if (b){ b.setAttribute('aria-pressed', SET.routeFocus ? 'true' : 'false'); b.textContent = SET.routeFocus ? '✦ Focus on' : '✦ Focus off'; } };
   $('#btnRF').onclick = () => { SET.routeFocus = SET.routeFocus ? 0 : 1; saveSettings(); applySettings('routeFocus'); syncRF(); if (!$('#wSet').hidden) renderSettings(); };
   syncRF();
-  $('#btnTop').onclick = () => { keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
+  $('#btnTop').onclick = () => { if (isFlat()) return; keepPivot(() => { cam.yaw = 0; cam.pitch = Math.PI / 2; }); render(); };
+  $('#btnFlat').onclick = () => { const k = R && R.chain ? 'flatChain' : 'flatRegion'; SET[k] = SET[k] ? 0 : 1; saveSettings(); applyFlat(true); render(); if (!$('#wSet').hidden) renderSettings(); };
   const ab = $('#btnAssets'); ab.setAttribute('aria-pressed', String(assetsOn));
   ab.onclick = async () => { assetsOn = !assetsOn; store.set('whmap.reg.assets', assetsOn); ab.setAttribute('aria-pressed', String(assetsOn)); render(); renderPanel();
     if (assetsOn){ await loadAssets(); const miss = vaultChars().filter(c => assetData[c.charId] && assetData[c.charId].err === 'scope').map(c => c.charName);
