@@ -1141,7 +1141,7 @@ async function newSystem(id){
 async function regionSplash(id, r, why = 'new wormhole into'){   // no alliance holds it: the region itself, same look (with its empire / pirate faction when there is one)
   if (!factions){ try{ const x = await fetch(`${ESI}/universe/factions/`); factions = x.ok ? await x.json() : []; }catch(e){ factions = []; } }
   const fid = facMap[String(id)], fac = fid && factions.find(f => f.faction_id === fid), s = byId[String(id)];
-  const sec = s ? secR(s.s) : null, fl = fid && standReady() && stand.map[fid] != null ? lvlOfStanding(stand.map[fid]) : 0;   // a faction in your contacts frames it too
+  const sec = s ? secR(s.s) : null, fl = fid && standReady() && standCur().map[fid] != null ? lvlOfStanding(standCur().map[fid]) : 0;   // a faction in your contacts frames it too
   splash(`${fac && fac.corporation_id ? `<img src="https://images.evetech.net/corporations/${fac.corporation_id}/logo?size=256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(regionName(r).split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
     <div class="sn">${esc(regionName(r))}</div>
     <div class="ss">${esc(why)} <b>${esc(sysName(id))}</b>${sec != null ? ` <span style="color:${secCol(s.s)}">${sec.toFixed(1)}</span>` : ''} · ${fac ? esc(fac.name) + ' space' : 'no sovereignty'}${fl ? ` · <b style="color:${THREAT[fl].c}">${THREAT[fl].n}</b> <span class="dim">(standings)</span>` : ''}</div>`, fl);
@@ -2303,13 +2303,21 @@ function setupSigs(){
 }
 /* Standings: your contacts, your corporation's and your alliance's (personal first, like in game); your own corp and alliance count +10 */
 let stand = store.get('whmap.reg.stand', { map:{}, own:[], t:0, who:'' }), allyOfCorp = store.get('whmap.reg.allyOfCorp', {});
-const standReady = () => stand.t > 0;
+// each character has its own: its contacts, its corporation's and its alliance's; the map uses those of the active (or followed) character
+function standCur(){
+  const by = stand.by || {}; let id = tok && tok.charId;
+  if (typeof followRemote !== 'undefined' && followRemote){ const c = vaultChars().find(x => String(x.charName).toLowerCase() === String(followRemote).toLowerCase()); id = c ? c.charId : null; }
+  return id != null ? by[id] || null : null;
+}
+const standReady = () => stand.t > 0 && !!standCur();
 async function loadStandings(){
-  if (DEMO){ if (!stand.t) stand = { map:{ 1900696668:-10, 99003581:-5, 1354830081:4 }, own:[98000001], t:Date.now(), who:'Demo' }; return; }
+  if (DEMO){ if (!stand.t || !stand.by){ const d = { map:{ 1900696668:-10, 99003581:-5, 1354830081:4 }, own:[98000001] }, by = {}; for (const c of vaultChars()) by[c.charId] = d; if (tok) by[tok.charId] = d; stand = { by, t:Date.now(), who:'Demo' }; } return; }
   const list = vaultChars().filter(c => scopesOf(c).some(x => /read_contacts/.test(x))); if (!list.length) return;
-  const map = {}, own = new Set(), pri = {};
-  const put = (id, v, p) => { if (pri[id] == null || p < pri[id]){ map[id] = v; pri[id] = p; } };
+  const by = {};
   for (const c of list){
+    const map = {}, own = new Set(), pri = {};
+    const put = (id, v, p) => { if (pri[id] == null || p < pri[id]){ map[id] = v; pri[id] = p; } };
+    by[c.charId] = { map, own:[] };
     try{
       const f = await freshTok(c), H = { Authorization:'Bearer ' + f.access_token };
       const pub = await (await fetch(`${ESI}/characters/${c.charId}/`)).json();
@@ -2319,8 +2327,9 @@ async function loadStandings(){
       if (scopesOf(f).includes('esi-corporations.read_contacts.v1')) for (const x of await pages(`/corporations/${pub.corporation_id}/contacts/`)) put(x.contact_id, x.standing, 1);
       if (pub.alliance_id && scopesOf(f).includes('esi-alliances.read_contacts.v1')) for (const x of await pages(`/alliances/${pub.alliance_id}/contacts/`)) put(x.contact_id, x.standing, 2);
     }catch(e){}
+    by[c.charId].own = [...own];
   }
-  stand = { map, own:[...own], t:Date.now(), who:list.map(c => c.charName).join(', ') }; store.set('whmap.reg.stand', stand);
+  stand = { by, t:Date.now(), who:list.map(c => c.charName).join(', ') }; store.set('whmap.reg.stand', stand);
   render(); renderPanel(); if (typeof renderHold === 'function') renderHold();
 }
 async function corpAlly(id){   // the alliance of a corporation (public), remembered
@@ -2330,9 +2339,10 @@ async function corpAlly(id){   // the alliance of a corporation (public), rememb
 }
 function standOf(id, kind){
   if (!standReady() || !id) return null;
-  if (stand.own.includes(Number(id))) return 10;
-  if (Number(id) in stand.map) return stand.map[id];
-  if (kind === 'corporation' && allyOfCorp[id]){ const a = allyOfCorp[id]; if (stand.own.includes(a)) return 10; if (a in stand.map) return stand.map[a]; }
+  const S0 = standCur(); if (!S0) return null;
+  if (S0.own.includes(Number(id))) return 10;
+  if (Number(id) in S0.map) return S0.map[id];
+  if (kind === 'corporation' && allyOfCorp[id]){ const a = allyOfCorp[id]; if (S0.own.includes(a)) return 10; if (a in S0.map) return S0.map[a]; }
   return 0;   // neutral
 }
 const lvlOfStanding = st => st == null ? 0 : st > 0 ? 1 : st <= -10 ? 5 : st <= -5 ? 4 : st < 0 ? 3 : 2;   // blue · neutral = low · red: medium, high, extreme
