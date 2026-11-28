@@ -303,7 +303,7 @@ async function freshTok(t){
 async function sendWp(dest, add, label){
   const all = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) all.push(t); } } }catch(e){}
   const ok = all.filter(t => { const sc = jwt(t.access_token || '').scp || []; return (Array.isArray(sc) ? sc : [sc]).includes('esi-ui.write_waypoint.v1'); });
-  const t0 = (CH && ok.find(t => t.charId === CH.id)) || ok[0];
+  const t0 = ok.find(t => t.charId === rtChar()) || (CH && ok.find(t => t.charId === CH.id)) || ok[0];
   if (!t0){ toast('No character can receive destinations: on the map, log in with the "Set destination" option ticked', true); return; }
   const t = await freshTok(t0); if (!t){ toast(`${t0.charName}: login expired, log in again on the map`, true); return; }
   try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:String(dest) });
@@ -384,7 +384,7 @@ window.addEventListener('storage', async e => {
   if (!e.key || !e.key.startsWith('whmap.reg.ap.')) return;
   const id = Number(e.key.slice(13)), a = mapAp(id);
   if (!a || !a.dests.length){ if (RT && RT.charId === id && !a){ RT = null; store.set('appr.route', null); routeShow(); } return; }
-  if (RT && RT.charId !== id) return;
+  if (id !== rtChar()) return;
   await sysInfo();
   const keep = new Map((RT ? RT.stops : []).map(x => [x.sys, x]));
   const stops = a.dests.map(d => keep.get(Number(d)) || { dest:Number(d), sys:Number(d), label:sysNm(Number(d)) });
@@ -427,6 +427,27 @@ async function analyseHere(scope){
   await pickStation(st, true);   // picks the station you are docked in, else the first that can reprocess
   S.scope = scope; saveS(); syncControls();
   $('#goBr').click(); setTimeout(() => { const g = $('#brGo'); if (g) g.click(); }, 150);
+}
+// whose route: the character chosen at the top left (when it is logged in on the map), else the map's last active character
+function rtChar(){
+  const ids = chars().map(t => t.charId);
+  if (S.char && ids.includes(Number(S.char))) return Number(S.char);
+  const last = Number(store.get('whmap.lastChar', 0)); if (ids.includes(last)) return last;
+  return ids[0] || null;
+}
+async function routeFor(id){
+  clearInterval(rtTimer); rtTimer = 0; rtHere = null; rtDock = null;
+  if (!id){ RT = null; routeShow(); return; }
+  await sysInfo();
+  const mine = store.get('appr.route', null), a = mapAp(id), tk = store.get('whmap.tok.' + id, null);
+  if (a && a.dests.length){
+    const keep = new Map((mine && mine.charId === id ? mine.stops : []).map(x => [x.sys, x]));
+    RT = { charId:id, char:(tk && tk.charName) || '', stops:a.dests.map(d => keep.get(Number(d)) || { dest:Number(d), sys:Number(d), label:sysNm(Number(d)) }), path:[], min:!!(mine && mine.min) };
+  } else if (mine && mine.charId === id && mine.stops && mine.stops.length) RT = mine;
+  else { RT = null; routeShow(); return; }
+  const loc = await whereIs(id); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; }
+  await routeBuild(rtHere || (a && a.path && Number(a.path[0])) || (RT.path && RT.path[0]) || RT.stops[0].sys);
+  routeShow(); routePoll();
 }
 async function dockedHubs(){
   const out = [], toks = [];
@@ -637,7 +658,7 @@ function setupChar(back){
   const sel = $('#char');
   sel.innerHTML = '<option value="">None: my own yields and taxes</option>' + cs.map(t => `<option value="${t.charId}">${esc(t.charName)}</option>`).join('');
   const want = back || S.char || ''; sel.value = cs.some(t => String(t.charId) === String(want)) ? String(want) : '';
-  sel.onchange = () => { S.char = sel.value; saveS(); loadChar(sel.value); };
+  sel.onchange = () => { S.char = sel.value; saveS(); loadChar(sel.value); routeFor(rtChar()); };
   if (!cs.length) $('#charSt').innerHTML = 'Log in on the <a href="../">map</a> first: your characters then show here.';
   loadChar(sel.value);
 }
@@ -1406,10 +1427,7 @@ function setup(){
   setupChar(await charCallback());
   checkHubsRep();
   loadRegions();
-  if (!RT) sysInfo().then(async () => { for (const t of chars()){ const a = mapAp(t.charId); if (a && a.dests.length){ RT = { charId:t.charId, char:t.charName, stops:a.dests.map(d => ({ dest:Number(d), sys:Number(d), label:sysNm(Number(d)) })), path:[], min:false };
-    const loc = await whereIs(t.charId); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; }
-    await routeBuild(rtHere || (a.path && Number(a.path[0])) || RT.stops[0].sys); routeShow(); routePoll(); break; } } });
-  if (RT && RT.path && RT.path.length) sysInfo().then(async () => { const loc = await whereIs(RT.charId); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; } routeShow(); routePoll(); });
+  routeFor(rtChar());
   const hs = location.hash;
   let m;
   if ((m = hs.match(/^#a=([\w-]+)/))) openCode(m[1]);
