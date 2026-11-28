@@ -162,6 +162,10 @@ tr.detail td{background:var(--bg);padding:10px 14px}
       <h2>Paste items</h2>
       <textarea id="paste" spellcheck="false" placeholder="Paste from your inventory, a container, a contract, a cargo scan, an EFT fit, a killmail, a multibuy list…&#10;&#10;Tritanium	12,000&#10;Hammerhead II x5&#10;3 Large Shield Extender II"></textarea>
       <div class="opts">
+        <label style="grid-column:1/-1">Character
+          <select id="char"></select>
+          <span id="charSt" class="dim" style="font-size:11.5px"></span>
+        </label>
         <label>Market
           <select id="hub"></select>
         </label>
@@ -286,6 +290,81 @@ async function addDocked(){
   if (!HUBS.some(h => h.k === S.hub && !h.disabled)) S.hub = 'jita';
   $('#hub').value = S.hub;
   const ok = d.filter(h => !h.disabled); if (ok.length) toast(`Your station added to the markets: ${ok.map(h => h.short).join(', ')}`);
+}
+
+/* ---------- The character the appraisal is for: its skills and implants set the reprocessing yields, the sales tax and the broker fee ---------- */
+const SK = { rep:3385, eff:3389, scrap:12196, acc:16622, broker:3446 };
+const ORE_SKILL = { Veldspar:60377, Scordite:60377, Pyroxeres:60377, Plagioclase:60377, Mordunium:60377,
+  Omber:60378, Kernite:60378, Jaspet:60378, Hemorphite:60378, Hedbergite:60378, Ytirium:60378,
+  Gneiss:60379, 'Dark Ochre':60379, Crokite:60379, Eifyrium:60379, Spodumain:60380, Bistot:60380, Arkonor:60380, Ducinium:60380,
+  Talassonite:60381, Rakovene:60381, Bezdnacine:60381, Mercoxit:12189, Ice:18025,
+  'Ubiquitous Moon Asteroids':46152, 'Common Moon Asteroids':46153, 'Uncommon Moon Asteroids':46154, 'Rare Moon Asteroids':46155, 'Exceptional Moon Asteroids':46156 };
+const IMPLANT_BONUS = { 27175:1, 27169:2, 27174:4 };   // Zainou 'Beancounter' Reprocessing RX-801 / 802 / 804
+const NEED = ['esi-skills.read_skills.v1', 'esi-clones.read_implants.v1'];
+let CH = null;   // { id, name, sk:{ skill id: level }, imp:% }
+S.base = S.base || 50; S.baseTax = S.baseTax || 7.5;
+const lvl = id => (CH && CH.sk[id]) || 0;
+function yieldFor(id){
+  if (!CH) return isOreCat(id) ? S.yieldOre : S.yieldScrap;
+  const it = id > 0 ? T.byId.get(id) : null;
+  if (!it || !isOreCat(id)) return S.base * (1 + 0.02 * lvl(SK.scrap));                     // modules, ships, anything else: scrapmetal
+  const spec = ORE_SKILL[grpOf(it)];
+  return S.base * (1 + 0.03 * lvl(SK.rep)) * (1 + 0.02 * lvl(SK.eff)) * (1 + 0.02 * (spec ? lvl(spec) : 0)) * (1 + (CH.imp || 0) / 100);
+}
+const yieldOreDefault = () => S.base * (1 + 0.03 * lvl(SK.rep)) * (1 + 0.02 * lvl(SK.eff)) * (1 + (CH && CH.imp || 0) / 100);
+const chTax = () => +(S.baseTax * (1 - 0.11 * lvl(SK.acc))).toFixed(2), chBroker = () => +Math.max(0, 3 - 0.3 * lvl(SK.broker)).toFixed(2);
+function chYieldTxt(){
+  return `<b>${esc(CH.name)}</b>: Reprocessing ${lvl(SK.rep)}, Reprocessing Efficiency ${lvl(SK.eff)}, Scrapmetal Processing ${lvl(SK.scrap)}${CH.imp ? `, implant +${CH.imp} %` : ''}; the ore processing skill of each ore is applied too.
+    <br>Base yield of the place you reprocess at <input id="yBase" type="number" step="0.5" min="0" max="100" value="${S.base}" style="width:70px"> % <span class="dim">(NPC station 50; a structure with rigs more)</span>
+    <br>Ore without its own skill: <b>${yieldOreDefault().toFixed(1)} %</b> · other items (scrapmetal): <b>${yieldFor(-1).toFixed(1)} %</b>`;
+}
+function chars(){ const out = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) out.push(t); } } }catch(e){} return out.sort((a, b) => String(a.charName).localeCompare(String(b.charName))); }
+const scopesOf = t => { const s = jwt((t && t.access_token) || '').scp || []; return Array.isArray(s) ? s : [s]; };
+async function loadChar(id){
+  const st = $('#charSt'); CH = null;
+  if (!id){ st.textContent = 'Manual yields and taxes (Reprocess tab, Buy to reprocess).'; afterChar(); return; }
+  const t0 = chars().find(t => String(t.charId) === String(id)); if (!t0){ st.textContent = ''; afterChar(); return; }
+  if (!NEED.every(x => scopesOf(t0).includes(x))){ st.innerHTML = `<span class="bad">EVE has not given this site ${esc(t0.charName)}'s skills yet.</span> <button type="button" class="small" id="charLog">Allow skills and implants</button>`; $('#charLog').onclick = () => charLogin(t0); afterChar(); return; }
+  st.textContent = 'Reading skills…';
+  const t = await freshTok(t0); if (!t){ st.innerHTML = `<span class="bad">${esc(t0.charName)}: EVE session expired.</span> <button type="button" class="small" id="charLog">Log in again</button>`; $('#charLog').onclick = () => charLogin(t0); afterChar(); return; }
+  try{
+    const h = { headers:{ Authorization:'Bearer ' + t.access_token } };
+    const sk = await (await fetch(`${ESI}/characters/${t.charId}/skills/`, h)).json();
+    let imp = 0; try{ const im = await (await fetch(`${ESI}/characters/${t.charId}/implants/`, h)).json(); for (const x of im || []) imp = Math.max(imp, IMPLANT_BONUS[x] || 0); }catch(e){}
+    CH = { id:t.charId, name:t.charName, sk:Object.fromEntries((sk.skills || []).map(x => [x.skill_id, x.active_skill_level])), imp };
+    st.innerHTML = `Skills applied: ore yield up to <b>${yieldOreDefault().toFixed(1)} %</b>, scrapmetal <b>${yieldFor(-1).toFixed(1)} %</b>, sales tax <b>${chTax()} %</b> (Accounting ${lvl(SK.acc)}), broker fee <b>${chBroker()} %</b> (Broker Relations ${lvl(SK.broker)}, without standings).`;
+    BR.tax = chTax(); BR.broker = chBroker(); store.set('appr.buyrep', BR);
+  }catch(e){ st.innerHTML = '<span class="bad">Could not read the skills.</span>'; }
+  afterChar();
+}
+function afterChar(){ RP.key = ''; if (A && A.rows.length) render(A); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }
+// log in again with the skills and implants added to what the character already allows (the map keeps working)
+async function charLogin(t){
+  const cid = await clientIdOf(); if (!cid){ toast('No EVE application set for the site', true); return; }
+  const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const verifier = b64(crypto.getRandomValues(new Uint8Array(32))), challenge = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = 'ap' + b64(crypto.getRandomValues(new Uint8Array(12)));                       // "ap": the site root sends the answer back here
+  sessionStorage.setItem('appr.pkce', JSON.stringify({ verifier, state }));
+  const scope = [...new Set([...scopesOf(t), ...NEED, 'esi-location.read_location.v1'])].join(' ');
+  const root = location.origin + location.pathname.replace(/v2\/appraisal\/(index\.html)?$/, '');
+  location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:root, client_id:cid, scope, code_challenge:challenge, code_challenge_method:'S256', state });
+}
+async function charCallback(){
+  const q = new URLSearchParams(location.search); if (!q.has('code')) return null;
+  history.replaceState(null, '', location.pathname);
+  const saved = JSON.parse(sessionStorage.getItem('appr.pkce') || 'null'); if (!saved || saved.state !== q.get('state')) return null;
+  try{ const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'authorization_code', code:q.get('code'), client_id:await clientIdOf(), code_verifier:saved.verifier }) });
+    if (!r.ok) throw new Error(); const j = await r.json(), c = jwt(j.access_token), id = Number(String(c.sub || '').split(':').pop());
+    store.set('whmap.tok.' + id, { access_token:j.access_token, refresh_token:j.refresh_token, exp:(c.exp || 0) * 1000, charId:id, charName:c.name || '' }); return id; }
+  catch(e){ toast('EVE refused the login', true); return null; }
+}
+function setupChar(back){
+  const sel = $('#char'), cs = chars();
+  sel.innerHTML = '<option value="">None: my own yields and taxes</option>' + cs.map(t => `<option value="${t.charId}">${esc(t.charName)}</option>`).join('');
+  const want = back || S.char || ''; sel.value = cs.some(t => String(t.charId) === String(want)) ? String(want) : '';
+  sel.onchange = () => { S.char = sel.value; saveS(); loadChar(sel.value); };
+  if (!cs.length) $('#charSt').innerHTML = 'Log in on the <a href="../">map</a> first: your characters then show here.';
+  loadChar(sel.value);
 }
 
 /* ---------- Parsing: one pass, any EVE copy format ---------- */
@@ -549,7 +628,7 @@ function renderTab(){
 let RP = { key:'', by:new Map(), busy:false };
 async function reprocValues(){
   if (!A || !A.rows.length) return;
-  const hub = HUBS.find(h => h.k === A.hub) || HUBS[0], key = A.t + ':' + hub.k + ':' + S.basis + ':' + S.yieldOre + ':' + S.yieldScrap;
+  const hub = HUBS.find(h => h.k === A.hub) || HUBS[0], key = A.t + ':' + hub.k + ':' + S.basis + ':' + S.yieldOre + ':' + S.yieldScrap + ':' + (CH ? CH.id + ':' + S.base : '');
   if (RP.key === key || RP.busy) return; RP.busy = true;
   try{
     await loadMats();
@@ -557,7 +636,7 @@ async function reprocValues(){
     const missing = [...need].filter(id => !books.has(hub.k + ':' + id)); if (missing.length) await loadBooks(hub, missing, 'Loading mineral prices…');
     const unit = id => { const v = value(bookOf(hub, id), 1, false); return S.basis === 'buy' ? v.buyU : S.basis === 'sell' ? v.sellU : (v.buyU + v.sellU) / 2; };
     const by = new Map();
-    for (const r of on){ const it = T.byId.get(r.id), y = (isOreCat(r.id) ? S.yieldOre : S.yieldScrap) / 100, por = it.por || 1, b = Math.floor(r.q / por);
+    for (const r of on){ const it = T.byId.get(r.id), y = yieldFor(r.id) / 100, por = it.por || 1, b = Math.floor(r.q / por);
       let v = (r.q - b * por) * basisU(r); for (const [m, qn] of MATS[r.id]) v += Math.floor(b * qn * y) * unit(m);
       by.set(r.id, { rep:v, raw:basisU(r) * r.q }); }
     RP = { key, by, busy:false };
@@ -566,7 +645,7 @@ async function reprocValues(){
 }
 const reprocBadge = r => { const x = RP.by.get(r.id); if (!x || !(x.rep > x.raw * 1.005)) return '';
   const pct = x.raw > 0 ? Math.round((x.rep / x.raw - 1) * 100) : null;
-  return `<span class="flag rp" title="Reprocessed (your yield ${isOreCat(r.id) ? S.yieldOre : S.yieldScrap} %): ${fmt(x.rep)} ISK instead of ${fmt(x.raw)}">♻ reprocess${pct != null ? ' +' + pct + ' %' : ''}</span>`; };
+  return `<span class="flag rp" title="Reprocessed (your yield ${yieldFor(r.id).toFixed(1)} %): ${fmt(x.rep)} ISK instead of ${fmt(x.raw)}">♻ reprocess${pct != null ? ' +' + pct + ' %' : ''}</span>`; };
 
 /* --- Items --- */
 function tabItems(box){
@@ -659,7 +738,7 @@ async function tabReproc(box){
   if (missing.length) await loadBooks(hub, missing, 'Loading mineral and compressed prices…');
   const unit = id => { const v = value(bookOf(hub, id), 1, false); return S.basis === 'buy' ? v.buyU : S.basis === 'sell' ? v.sellU : (v.buyU + v.sellU) / 2; };
   const lines = on.map(r => {
-    const it = T.byId.get(r.id), ore = isOreCat(r.id), y = (ore ? S.yieldOre : S.yieldScrap) / 100;
+    const it = T.byId.get(r.id), ore = isOreCat(r.id), y = yieldFor(r.id) / 100;
     const batches = Math.floor(r.q / (it.por || 1)), left = r.q - batches * (it.por || 1);
     const raw = basisU(r) * r.q;
     let rep = left * basisU(r); const out = [];
@@ -672,8 +751,8 @@ async function tabReproc(box){
   const rawT = sum(l => l.raw), bestT = sum(l => l.best);
   box.innerHTML = `<div class="panel">
     <div class="formrow">
-      <label>Ore, ice &amp; moon yield (%) <input id="yOre" type="number" step="0.1" min="0" max="100" value="${S.yieldOre}"></label>
-      <label>Scrapmetal yield, other items (%) <input id="yScrap" type="number" step="0.1" min="0" max="100" value="${S.yieldScrap}"></label>
+      ${CH ? `<div style="font-size:12.5px">${chYieldTxt()}</div>` : `<label>Ore, ice &amp; moon yield (%) <input id="yOre" type="number" step="0.1" min="0" max="100" value="${S.yieldOre}"></label>
+      <label>Scrapmetal yield, other items (%) <input id="yScrap" type="number" step="0.1" min="0" max="100" value="${S.yieldScrap}"></label>`}
       <span class="dim" style="font-size:12px;max-width:380px">Your own yield after skills, implant, structure and rigs. Prices: ${esc(hub.short)} ${S.basis}.</span>
     </div>
     <table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Sell as is</th><th class="r">Compressed</th><th class="r">Reprocessed</th><th>Gives</th></tr></thead><tbody>
@@ -686,7 +765,8 @@ async function tabReproc(box){
     </tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="r num"><b>${fmt(rawT)}</b></td><td></td><td></td><td><b class="best">Best of each line: ${fmt(bestT)}</b> <span class="dim">(${bestT >= rawT ? '+' : ''}${short(bestT - rawT)})</span></td></tr></tfoot></table>
     <p class="hint">Compression keeps the same reprocessing output and divides the volume (ore by 100, ice by 10). Leftover units below one batch are counted as is.</p></div>`;
   const upd = () => { S.yieldOre = Number($('#yOre').value) || 0; S.yieldScrap = Number($('#yScrap').value) || 0; saveS(); clearTimeout(upd._t); upd._t = setTimeout(() => tabReproc(box), 350); };
-  $('#yOre').oninput = upd; $('#yScrap').oninput = upd;
+  if ($('#yOre')){ $('#yOre').oninput = upd; $('#yScrap').oninput = upd; }
+  if ($('#yBase')) $('#yBase').oninput = () => { S.base = Number($('#yBase').value) || 50; saveS(); clearTimeout(upd._b); upd._b = setTimeout(() => { RP.key = ''; tabReproc(box); }, 350); };
 }
 
 /* --- Buy to reprocess: items on sale below what their minerals bring, after taxes --- */
@@ -710,7 +790,7 @@ async function bulkPreselect(hub, cand, say){
     const keepRate = 1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0);
     const rows = [];
     for (const id of cand){ const p = ip[id]; if (!p || !p.sell) continue;
-      const it = T.byId.get(id), por = it.por || 1, y = (isOreCat(id) ? S.yieldOre : S.yieldScrap) / 100;
+      const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
       let per = 0; for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(por * qn * y) * (BR.sellTo === 'sell' ? mm.sell : mm.buy || 0); }
       const net = per / por * keepRate, profit = (net - p.sell) / p.sell * 100;
       if (profit >= BR.min) rows.push({ id, score:(net - p.sell) * Math.min(p.sellVol, 1e6) }); }
@@ -724,7 +804,7 @@ function tabBuyRep(box){
   const cats = MATS ? [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort() : [];
   if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
   box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
-    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)} whose reprocessed minerals sell for more, taxes included. Uses your yields (Reprocess tab): ore ${S.yieldOre} %, other items ${S.yieldScrap} %.</p>
+    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
     <div class="formrow">
       <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
@@ -760,7 +840,7 @@ function tabBuyRep(box){
     await pool(cand, 8, async id => {
       if (run !== brRun) return;
       const b = await getBook(hub, id); if (!b.sell.length) return;
-      const it = T.byId.get(id), por = it.por || 1, y = (isOreCat(id) ? S.yieldOre : S.yieldScrap) / 100;
+      const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
       let per = 0; for (const [m, qn] of MATS[id]) per += Math.floor(por * qn * y) * minU(m);   // one batch
       const net = per / por * keepRate, price = b.sell[0][0], profit = (net - price) / price * 100;
       if (profit >= BR.min){ let units = 0; for (const [p, v] of b.sell){ if ((net - p) / p * 100 < BR.min) break; units += v; }
@@ -886,6 +966,7 @@ function setup(){
   try{ await loadTypes(); }catch(e){ $('#sdeVer').textContent = 'item list unavailable'; toast(e.message, true); return; }
   renderBB();
   addDocked();
+  setupChar(await charCallback());
   const hs = location.hash;
   let m;
   if ((m = hs.match(/^#a=([\w-]+)/))) openCode(m[1]);
