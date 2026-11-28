@@ -236,7 +236,7 @@ const fmtM3 = v => v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toLocale
 
 /* ---------- Settings ---------- */
 const S = Object.assign({ hub:'jita', basis:'buy', pct:100, depth:true, merge:true, mode:'flat', bb:{ name:'', rates:{} }, tab:'items',
-  yieldOre:90.6, yieldScrap:55, freight:{ rate:1000, coll:1, collOn:'sell', min:0, max:0 } }, store.get('appr.cfg', {}));
+  yieldOre:50, yieldScrap:50, freight:{ rate:1000, coll:1, collOn:'sell', min:0, max:0 } }, store.get('appr.cfg', {}));
 const saveS = () => store.set('appr.cfg', S);
 
 /* ---------- Items (CCP static data, built into data/types.json) ---------- */
@@ -304,6 +304,7 @@ const IMPLANT_BONUS = { 27175:1, 27169:2, 27174:4 };   // Zainou 'Beancounter' R
 const NEED = ['esi-skills.read_skills.v1', 'esi-clones.read_implants.v1'];
 let CH = null;   // { id, name, sk:{ skill id: level }, imp:% }
 S.base = S.base || 50; S.baseTax = S.baseTax || 7.5;
+if (!S.yieldsV2){ if (S.yieldOre === 90.6) S.yieldOre = 50; if (S.yieldScrap === 55) S.yieldScrap = 50; S.yieldsV2 = 1; saveS(); }   // the old default (90.6 %) made most things look profitable
 const lvl = id => (CH && CH.sk[id]) || 0;
 function yieldFor(id){
   if (!CH) return isOreCat(id) ? S.yieldOre : S.yieldScrap;
@@ -806,6 +807,7 @@ function tabBuyRep(box){
   const cats = MATS ? [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort() : [];
   if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
   box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
+    ${CH ? '' : `<div class="warnbox" style="margin:0 0 8px">⚠ No character chosen: the yields are your own figures (Reprocess tab: ore ${S.yieldOre} %, other items ${S.yieldScrap} %). Choose your character at the top left so its skills set them.</div>`}
     <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
     <div class="formrow">
       <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
