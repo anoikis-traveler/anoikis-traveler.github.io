@@ -544,7 +544,9 @@ async function getBook(hub, id){
   const at = sc === 'region' ? orders : sc === 'system' ? orders.filter(o => o.system_id === sys) : orders.filter(o => o.location_id === hub.station);
   const b = { t:Date.now(),
     buy:at.filter(o => o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => y[0] - x[0]),
-    sell:at.filter(o => !o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => x[0] - y[0]) };
+    sell:at.filter(o => !o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => x[0] - y[0]), sellBy:new Map() };
+  for (const o of at) if (!o.is_buy_order){ let l = b.sellBy.get(o.location_id); if (!l) b.sellBy.set(o.location_id, l = []); l.push([o.price, o.volume_remain]); }
+  for (const l of b.sellBy.values()) l.sort((x, y) => x[0] - y[0]);
   books.set(key, b);
   return b;
 }
@@ -966,31 +968,37 @@ function tabBuyRep(box){
       if (run !== brRun) return;
       const b = await getBook(hub, id); if (!b.sell.length) return;
       const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
-      // buy more and more of the cheapest sell orders; keep the lot with the best gain that still pays the minimum
-      let units = 0, cost = 0, best = null;
-      for (const [p, v] of b.sell){
-        const steps = Math.min(v, Math.max(por, Math.ceil(v / 4)));
-        for (let got = 0; got < v; got += steps){
-          const take = Math.min(steps, v - got); units += take; cost += take * p;
-          const batches = Math.floor(units / por); if (!batches) continue;
-          let gross = 0; for (const [m, qn] of MATS[id]) gross += sellMin(m, batches * Math.floor(qn * y));
-          const used = batches * por, paid = cost * used / units;
-          const net = gross * (1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0)) - gross * BR.rtax / 100;
-          const profit = (net - paid) / paid * 100;
-          if (profit >= BR.min && (!best || net - paid > best.gain)) best = { units:used, paid, net, profit, gain:net - paid };
-          if (profit < BR.min && best) break;
+      // the lot is bought in ONE station: each station of the area is tried, the best one is kept
+      const groups = b.sellBy && b.sellBy.size ? [...b.sellBy.entries()] : [[hub.station || hub.structure, b.sell]];
+      let best = null;
+      for (const [loc, levels] of groups){
+        let units = 0, cost = 0, top = null;
+        for (const [p, v] of levels){
+          const steps = Math.min(v, Math.max(por, Math.ceil(v / 4)));
+          for (let got = 0; got < v; got += steps){
+            const take = Math.min(steps, v - got); units += take; cost += take * p;
+            const batches = Math.floor(units / por); if (!batches) continue;
+            let gross = 0; for (const [m, qn] of MATS[id]) gross += sellMin(m, batches * Math.floor(qn * y));
+            const used = batches * por, paid = cost * used / units;
+            const net = gross * (1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0)) - gross * BR.rtax / 100;
+            const profit = (net - paid) / paid * 100;
+            if (profit >= BR.min && (!top || net - paid > top.gain)) top = { units:used, paid, net, profit, gain:net - paid, loc };
+            if (profit < BR.min && top) break;
+          }
+          if (top && (top.net / top.units - p) / p * 100 < BR.min) break;
+          if (units > 2e6) break;
         }
-        if (best && (best.net / best.units - p) / p * 100 < BR.min) break;
-        if (units > 2e6) break;
+        if (top && (!best || top.gain > best.gain)) best = top;
       }
-      if (best) found.push({ id, it, price:best.paid / best.units, net:best.net / best.units, profit:best.profit, units:best.units, gain:best.gain });
+      if (best) found.push({ id, it, price:best.paid / best.units, net:best.net / best.units, profit:best.profit, units:best.units, gain:best.gain, loc:best.loc });
     }, (d, n) => { if (run === brRun) $('#brSt').textContent = `${d} / ${n} checked · ${found.length} found`; });
     if (run !== brRun) return;
     found.sort((a, b) => b.gain - a.gain);
+    const locName = {}; await Promise.all([...new Set(found.map(f => f.loc))].map(async l => { if (!l) return; try{ const r = await fetch(`${ESI}/universe/stations/${l}/`); locName[l] = r.ok ? (await r.json()).name : 'a structure'; }catch(e){ locName[l] = 'station ' + l; } }));
     run.html = found.length ? `<table><thead><tr><th>Item</th><th class="r">Units to buy</th><th class="r">Average price</th><th class="r">Minerals, net / u</th><th class="r">Profit</th><th class="r">Gain</th></tr></thead><tbody>
-      ${found.map(f => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}</small></span></div></td>
+      ${found.map(f => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small></span></div></td>
         <td class="r num">${fmt(f.units)}</td><td class="r num">${fmtU(f.price)}</td><td class="r num">${fmtU(f.net)}</td><td class="r num best">+${f.profit.toFixed(1)} %</td><td class="r num"><b>${fmt(f.gain)}</b></td></tr>`).join('')}</tbody></table>
-      <p class="hint">Computed on the whole lot, from the order books: the units you buy walk up the sell orders; their minerals walk down the buy orders${BR.sellTo === 'sell' ? ' (listed at the lowest sell price instead)' : ''}. Taken off: ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax. Yield: ${CH ? esc(CH.name) + "'s skills" : 'your figures in the Reprocess tab'}. ${scopeOf(hub) !== 'station' ? `Orders from the ${scopeOf(hub)}: some items sit in other stations, haul them to where you reprocess; buy orders far away may not reach your station (their range). ` : ''}Try a small lot first.</p>`
+      <p class="hint">Computed on the whole lot, from the order books: the units you buy walk up the sell orders of one station (the best of the area); their minerals walk down the buy orders${BR.sellTo === 'sell' ? ' (listed at the lowest sell price instead)' : ''}. Taken off: ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax. Yield: ${CH ? esc(CH.name) + "'s skills" : 'your figures in the Reprocess tab'}. ${scopeOf(hub) !== 'station' ? `Orders from the ${scopeOf(hub)}: some items sit in other stations, haul them to where you reprocess; buy orders far away may not reach your station (their range). ` : ''}Try a small lot first.</p>`
       : `<p class="dim">No item of this kind pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`;
     $('#brRes').innerHTML = run.html; $('#brSt').textContent = `${cand.length} checked · ${found.length} found`;
   };
