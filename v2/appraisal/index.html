@@ -60,6 +60,7 @@ main{max-width:1320px;margin:0 auto;padding:16px;display:grid;grid-template-colu
 .pct input{width:100%}
 .chk{display:flex!important;flex-direction:row!important;align-items:center;gap:7px;color:var(--text)!important;font-size:13px!important;grid-column:1/-1}
 .go{display:flex;gap:8px;margin-top:12px}
+.go.tools{margin-top:8px} .go.tools button{flex:1;padding:8px} #go{flex:1;padding:9px;font-size:15px}
 .go .primary{flex:1;padding:9px;font-size:15px}
 .hint{font-size:12px;color:var(--dim);margin:8px 0 0}
 #progress{height:3px;background:var(--line);border-radius:2px;margin-top:10px;overflow:hidden}
@@ -224,9 +225,10 @@ tr.detail td{background:var(--bg);padding:10px 14px}
         <label class="chk"><input id="merge" type="checkbox"> Merge identical items</label>
       </div>
       <div class="go">
-        <button type="button" class="primary" id="go">Appraise</button><button type="button" id="goBr" title="Items on sale below what their minerals bring, after taxes">♻ Buy to reprocess</button>
+        <button type="button" class="primary" id="go">Appraise</button>
         <button type="button" id="clear" class="ghost" title="Clear the list">Clear</button>
       </div>
+      <div class="go tools"><button type="button" id="goBr" title="Items on sale below what their minerals bring, after taxes">♻ Buy to reprocess</button><button type="button" id="goMax" title="Every reprocessable item of the market: the highest price to pay for it to make your margin, minerals sold in Jita or Amarr">💰 Max buy prices</button></div>
       <div id="progress" hidden><i></i></div>
       <p class="hint">Ctrl + Enter to appraise. Prices: live EVE market (ESI), station orders only.</p>
       <div id="progBanner" class="prog" hidden></div>
@@ -538,7 +540,7 @@ async function useDock(t){
     if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: reading its market needs the permissions <code>esi-markets.structure_markets.v1</code> and <code>esi-universe.read_structures.v1</code> on the site's EVE application (developers.eveonline.com). The market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.`; $('#hub').value = S.hub; return; }
     S.hub = h.k; saveS(); $('#hub').value = h.k;
     st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.${h.noRep ? ' <span class="warn">⚠ This station has no reprocessing plant: type the system of one below.</span>' : ''}`;
-    if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
+    if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab();
   }catch(e){ st.innerHTML = `<span class="warn">⚠ Could not read where ${esc(t.charName)} is docked (log it in again on the <a href="../" target="_blank" rel="noopener">map</a>), or type the station's system below.</span>`; }
 }
 // stations: has it a reprocessing plant? (EVE's services list, asked once per station)
@@ -571,7 +573,7 @@ async function pickStation(prefer, auto){
       const i = HUBS.findIndex(x => x.k === h.k); if (i < 0) HUBS.unshift(h);
       fillHubs();
       S.hub = h.k; saveS(); $('#hub').value = h.k; out.innerHTML = `Market: <b>${esc(st.name)}</b>`; $('#stIn').value = '';
-      if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+      if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); };
     if (auto){ use(list.find(x => x.id === prefer) || list.find(x => x.rep) || list[0]); return true; }
     if (list.length === 1){ use(list[0]); return; }
     out.innerHTML = list.map((x, i) => `<button type="button" class="small" data-sti="${i}" style="margin:2px">${esc(x.name)}${x.rep ? '' : ' · no reprocessing'}</button>`).join('');
@@ -591,7 +593,7 @@ async function loadRegions(){
     const h = regionHub(x.id, x.name); if (!HUBS.some(y => y.k === h.k)) HUBS.unshift(h);
     S.hub = h.k; S.regName = x.name; saveS(); fillHubs(); syncControls(); sel.value = '';
     $('#stPick').innerHTML = `Market: <b>every station of ${esc(x.name)}</b>`;
-    if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+    if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); };
 }
 async function addDocked(){
   const d = await dockedHubs(); if (!d.length) return;
@@ -662,7 +664,7 @@ async function loadChar(id){
   }catch(e){ st.innerHTML = '<span class="bad">Could not read the skills.</span>'; }
   afterChar();
 }
-function afterChar(){ RP.key = ''; if (A && A.rows.length) render(A); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }
+function afterChar(){ RP.key = ''; if (A && A.rows.length) render(A); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); }
 // log in again with the skills and implants added to what the character already allows (the map keeps working)
 async function charLogin(t, extra){
   const cid = await clientIdOf(); if (!cid){ toast('No EVE application set for the site', true); return; }
@@ -1000,11 +1002,12 @@ function render(a){
   renderTab();
 }
 // the main button is the one of the tool in use: Appraise, or Buy to reprocess
-function syncGo(){ const br = S.tab === 'buyrep' && !!$('#tabBody'); $('#go').classList.toggle('primary', !br); $('#goBr').classList.toggle('primary', br);
-  $('#go').setAttribute('aria-pressed', String(!br)); $('#goBr').setAttribute('aria-pressed', String(br)); }
+function syncGo(){ const tb = !!$('#tabBody'), br = S.tab === 'buyrep' && tb, mx = S.tab === 'maxbuy' && tb;
+  [['#go', !br && !mx], ['#goBr', br], ['#goMax', mx]].forEach(([k, on]) => { $(k).classList.toggle('primary', on); $(k).setAttribute('aria-pressed', String(on)); }); }
 function renderTab(){
   const box = $('#tabBody'); syncGo(); if (!box) return;
   if (S.tab === 'buyrep'){ tabBuyRep(box); return; }
+  if (S.tab === 'maxbuy'){ tabMaxBuy(box); return; }
   if (!A) return;
   ({ items:tabItems, hubs:tabHubs, reproc:tabReproc, freight:tabFreight }[S.tab] || tabItems)(box);
   if (S.tab === 'items') reprocValues();
@@ -1192,6 +1195,78 @@ async function bulkPreselect(hub, cand, say){
       if (profit >= BR.min) rows.push({ id, score:(net - p.sell) * Math.min(p.sellVol, 1e6) }); }
     return rows.sort((a, b) => b.score - a.score).map(x => x.id);
   }catch(e){ return null; }
+}
+/* Max buy prices: for every reprocessable item of the market, the most you can pay per unit and still make your margin
+   once it is reprocessed and its minerals are sold in Jita 4-4 or Amarr VIII (taxes, reprocessing tax and your yields included) */
+const MX = Object.assign({ margin:10, cat:'*', q:'', min:0, sort:'best', cmp:false, n:200 }, store.get('appr.maxbuy', {}));
+let mxData = null;   // { key, mp:{ jita:{}, amarr:{} }, here:{} }
+async function mxPrices(say){
+  const mins = [...new Set(Object.values(MATS).flatMap(l => l.map(m => m[0])))];
+  const key = mins.length + ':' + Math.floor(Date.now() / 900000);
+  if (mxData && mxData.key === key) return mxData;
+  say('Mineral prices in Jita…'); const jita = await bulkPrices({ k:'xj', only:true, station:60003760, region:10000002 }, mins);
+  say('Mineral prices in Amarr…'); const amarr = await bulkPrices({ k:'xa', only:true, station:60008494, region:10000043 }, mins);
+  return mxData = { key, mp:{ jita, amarr }, here:null, hereKey:'', at:Date.now() };
+}
+function mxRows(){
+  const keepRate = 1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0) - BR.rtax / 100, q = MX.q.toLowerCase(), out = [];
+  for (const k of Object.keys(MATS)){ const id = Number(k), it = T.byId.get(id); if (!it || (MX.cat !== '*' && catOf(it) !== MX.cat) || (q && !it.name.toLowerCase().includes(q))) continue;
+    const por = it.por || 1, y = yieldFor(id) / 100, v = {};
+    for (const d of ['jita', 'amarr']){ const mp = mxData.mp[d]; let per = 0;
+      for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(qn * y) * ((BR.sellTo === 'sell' ? mm.sell : mm.buy) || 0); }
+      v[d] = per / por * keepRate / (1 + MX.margin / 100); }   // net per unit, then the price that leaves the margin
+    const best = Math.max(v.jita, v.amarr); if (!(best > 0) || best < MX.min) continue;
+    const here = mxData.here && mxData.here[id] ? mxData.here[id].sell : 0;
+    out.push({ id, it, jita:v.jita, amarr:v.amarr, best, at:v.jita >= v.amarr ? 'Jita' : 'Amarr', here, ok:here > 0 && here <= best }); }
+  const sorters = { best:(a, b) => b.best - a.best, name:(a, b) => a.it.name.localeCompare(b.it.name), jita:(a, b) => b.jita - a.jita, amarr:(a, b) => b.amarr - a.amarr, here:(a, b) => (b.ok - a.ok) || ((b.best - b.here) / (b.here || 1) - (a.best - a.here) / (a.here || 1)) };
+  return out.sort(sorters[MX.sort] || sorters.best);
+}
+function tabMaxBuy(box){
+  if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabMaxBuy(box)); return; }
+  const hub = HUBS.find(h => h.k === S.hub && !h.disabled) || HUBS.find(h => !h.disabled);
+  const cats = [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort();
+  box.innerHTML = `<div class="panel"><h3>Max buy prices</h3>
+    ${CH ? '' : `<div class="warnbox" style="margin:0 0 8px">⚠ No character chosen: the yields are your own figures (ore ${S.yieldOre} %, other items ${S.yieldScrap} %). Choose your character at the top left so its skills set them.</div>`}
+    <p class="dim" style="margin:0 0 8px">For every reprocessable item of the market: the most you can pay per unit to keep your margin once it is reprocessed ${CH ? `with the skills of <b>${esc(CH.name)}</b>` : ''} and its minerals sold in Jita 4-4 or Amarr VIII (${BR.sellTo === 'sell' ? 'with sell orders' : 'to buy orders'}), after ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax (settings of Buy to reprocess). Mineral prices: the first 5 % of each order book; hauling not counted.</p>
+    <div class="formrow">
+      <label>Margin wanted (%) <input id="mxM" type="number" step="1" min="0" value="${MX.margin}"></label>
+      <label>Kind of item <select id="mxCat"><option value="*">Every item</option>${cats.map(c => `<option${c === MX.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label>Name contains <input id="mxQ" value="${esc(MX.q)}" placeholder="optional"></label>
+      <label title="Hide items worth less than this per unit">Max price at least (ISK) <input id="mxMin" type="number" step="1" min="0" value="${MX.min}"></label>
+    </div>
+    <label class="dim" style="display:inline-flex;gap:6px;align-items:center;margin:4px 0"><input type="checkbox" id="mxCmp"${MX.cmp ? ' checked' : ''}> Compare with the sell prices of ${esc(hub.short || hub.name)}${hub.whole || scopeOf(hub) !== 'station' ? ` (${hub.whole ? 'whole region' : scopeOf(hub) === 'jumps' ? jumpsN() + ' jumps' : 'its ' + scopeOf(hub)})` : ''}</label>
+    <div class="go"><span class="dim" id="mxSt"></span></div>
+    <div id="mxRes"></div></div>`;
+  const st = m => { const e = $('#mxSt'); if (e) e.textContent = m; };
+  const draw = () => {
+    const rows = mxRows(), shown = rows.slice(0, MX.n), H = (k, l, cls = 'r') => `<th class="${cls}" data-mxs="${k}" style="cursor:pointer" aria-sort="${MX.sort === k ? 'descending' : 'none'}">${l}${MX.sort === k ? ' ▾' : ''}</th>`;
+    const upd = new Date(mxData.at || Date.now()), hm = d => d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    $('#mxRes').innerHTML = rows.length ? `<p class="dim" style="margin:6px 0">Prices of ${hm(upd)} · updated every 15 min (next ${hm(new Date(upd.getTime() + 900000))}) · ${rows.length} items${rows.length > shown.length ? `, ${shown.length} shown` : ''}${mxData.here ? ` · <b style="color:var(--ok)">${rows.filter(r => r.ok).length}</b> on sale at or below their max price` : ''} <button type="button" class="small" id="mxCsv">Copy CSV</button></p>
+      <table><thead><tr>${H('name', 'Item', '')}${H('jita', 'Max · Jita')}${H('amarr', 'Max · Amarr')}${H('best', 'Max buy price')}${mxData.here ? H('here', 'Sell price here') : ''}</tr></thead><tbody>
+      ${shown.map(r => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${r.id}/icon?size=32"><span>${esc(r.it.name)}<small>${esc(grpOf(r.it))}</small></span></div></td>
+        <td class="r num"${r.at === 'Jita' ? ' style="color:var(--ok)"' : ''}>${fmtU(r.jita)}</td><td class="r num"${r.at === 'Amarr' ? ' style="color:var(--ok)"' : ''}>${fmtU(r.amarr)}</td>
+        <td class="r num"><b>${fmtU(r.best)}</b><small style="display:block;color:var(--dim)">minerals → ${r.at}</small></td>
+        ${mxData.here ? `<td class="r num" style="${r.here ? `color:${r.ok ? 'var(--ok)' : 'var(--bad)'}` : 'color:var(--dim)'}">${r.here ? fmtU(r.here) + `<small style="display:block">${r.ok ? '+' : ''}${((r.best - r.here) / r.here * 100).toFixed(1)} % room</small>` : '—'}</td>` : ''}</tr>`).join('')}</tbody></table>
+      ${rows.length > shown.length ? `<p><button type="button" class="small" id="mxMore">Show ${Math.min(200, rows.length - shown.length)} more</button></p>` : ''}`
+      : '<p class="dim">No item matches.</p>';
+    $('#mxRes').querySelectorAll('[data-mxs]').forEach(h => h.onclick = () => { MX.sort = h.dataset.mxs; store.set('appr.maxbuy', MX); draw(); });
+    const more = $('#mxMore'); if (more) more.onclick = () => { MX.n += 200; draw(); };
+    const csv = $('#mxCsv'); if (csv) csv.onclick = async () => { const L = [['Item', 'Max Jita', 'Max Amarr', 'Max buy price', 'Sell price here'].join(',')].concat(rows.map(r => [`"${r.it.name.replace(/"/g, '""')}"`, r.jita.toFixed(2), r.amarr.toFixed(2), r.best.toFixed(2), r.here ? r.here.toFixed(2) : ''].join(',')));
+      try{ await navigator.clipboard.writeText(L.join('\n')); toast(`${rows.length} lines copied`); }catch(e){ toast('Copy refused by the browser', true); } };
+  };
+  const keep = () => { MX.margin = Math.max(0, Number($('#mxM').value) || 0); MX.cat = $('#mxCat').value; MX.q = $('#mxQ').value.trim(); MX.min = Math.max(0, Number($('#mxMin').value) || 0); MX.cmp = $('#mxCmp').checked; MX.n = 200; store.set('appr.maxbuy', MX); };
+  const go = async () => { keep();
+    try{ await mxPrices(st);
+      if (MX.cmp){ const hk2 = hk(hub) + ':' + mxData.key;
+        if (mxData.hereKey !== hk2){ const ids = Object.keys(MATS).map(Number).filter(id => T.byId.get(id)); mxData.here = await bulkPrices(hub, ids, (d, n) => st(`Prices here: ${d} / ${n}`)); mxData.hereKey = hk2; } }
+      else { mxData.here = null; mxData.hereKey = ''; }
+      st(''); draw(); }
+    catch(e){ st('Prices unavailable (' + e.message + '), try again.'); } };
+  box.querySelectorAll('input,select').forEach(i => i.onchange = go);
+  clearInterval(tabMaxBuy.timer);   // fresh prices every 15 minutes while this view is open
+  tabMaxBuy.timer = setInterval(() => { if (S.tab !== 'maxbuy' || !$('#mxRes')){ clearInterval(tabMaxBuy.timer); return; } mxData = null; go(); }, 900000);
+  $('#mxQ').oninput = () => { clearTimeout(tabMaxBuy.t); tabMaxBuy.t = setTimeout(go, 350); };
+  go();
 }
 const BR = Object.assign({ cat:'*', min:5, tax:3.6, broker:1.5, rtax:5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
 let brRun = null;
@@ -1434,16 +1509,17 @@ function setup(){
   { const m = /^rg(\d+)$/.exec(S.hub || ''); if (m && S.regName && !HUBS.some(h => h.k === S.hub)) HUBS.unshift(regionHub(Number(m[1]), S.regName)); }
   fillHubs();
   syncControls();
-  $('#go').onclick = () => { if (S.tab === 'buyrep'){ S.tab = 'items'; saveS(); } syncGo(); appraise(); };
+  $('#goMax').onclick = () => { S.tab = 'maxbuy'; saveS(); $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };
+  $('#go').onclick = () => { if (S.tab === 'buyrep' || S.tab === 'maxbuy'){ S.tab = 'items'; saveS(); } syncGo(); appraise(); };
   $('#stForm').onsubmit = e => { e.preventDefault(); pickStation(); };
   { const ji = $('#jumpsN'); ji.value = jumpsN(); ji.onclick = e => e.stopPropagation();
-    ji.onchange = () => { S.jumps = ji.value; S.jumps = jumpsN(); ji.value = S.jumps; S.scope = 'jumps'; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }; }
-  document.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { S.scope = b.dataset.scope; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); });
-  $('#repOnly').onclick = async () => { S.repOnly = !S.repOnly; saveS(); await checkHubsRep(); if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+    ji.onchange = () => { S.jumps = ji.value; S.jumps = jumpsN(); ji.value = S.jumps; S.scope = 'jumps'; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); }; }
+  document.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { S.scope = b.dataset.scope; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); });
+  $('#repOnly').onclick = async () => { S.repOnly = !S.repOnly; saveS(); await checkHubsRep(); if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); };
   $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
   $('#clear').onclick = () => { $('#paste').value = ''; $('#paste').focus(); };
   $('#paste').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); appraise(); } });
-  $('#hub').onchange = e => { S.hub = e.target.value; saveS(); syncControls(); if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+  $('#hub').onchange = e => { S.hub = e.target.value; saveS(); syncControls(); if (A && A.rows.length && !A.snap) appraise(); else if ((S.tab === 'buyrep' || S.tab === 'maxbuy') && $('#tabBody')) renderTab(); };
   $('#pct').oninput = e => { const v = Number(e.target.value); if (v > 0 && v <= 200){ S.pct = v; saveS(); if (A && A.rows.length) render(A); } };
   $('#depth').onchange = e => { S.depth = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
   $('#merge').onchange = e => { S.merge = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
