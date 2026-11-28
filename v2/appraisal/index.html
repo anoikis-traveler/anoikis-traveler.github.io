@@ -45,6 +45,7 @@ nav.tools a[aria-current="page"]{background:var(--panel-2);color:var(--accent)}
 header .grow{flex:1}
 .sde{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 6px}
 main{max-width:1320px;margin:0 auto;padding:16px;display:grid;grid-template-columns:400px 1fr;gap:16px;align-items:start}
+body.wide main{max-width:1960px;grid-template-columns:360px minmax(0,1fr)}   /* the market tools take the whole screen */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:14px}
 .card h2{font-family:var(--display);font-size:1.15rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;font-weight:700}
 #paste{width:100%;height:300px;resize:vertical;font-family:var(--mono);font-size:12.5px;line-height:1.45}
@@ -135,7 +136,12 @@ tr.spotHi td{background:#f2a74b1c}
 #routeW .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 #routeW.min .bd{display:none}
 /* market tree, like the in-game market browser */
-.mkwrap{display:grid;grid-template-columns:minmax(200px,250px) minmax(0,1fr);gap:12px;align-items:start}
+.mkwrap{display:grid;grid-template-columns:minmax(180px,230px) minmax(0,1fr);gap:10px;align-items:start}
+.mkwrap.notree{grid-template-columns:minmax(0,1fr)} .mkwrap.notree .mktree{display:none}
+.mkwrap > div{min-width:0;overflow-x:auto}
+.mkwrap table th,.mkwrap table td{padding-left:7px;padding-right:7px}
+.mkwrap .wp .small{padding:2px 6px;font-size:11.5px}
+.treebtn{margin:0 0 6px}
 .mktree{max-height:72vh;overflow:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:4px;padding:4px 0;font-size:12.5px;background:#0006;position:sticky;top:70px}
 .mktree .n{display:flex;gap:4px;align-items:baseline;padding:2px 6px;cursor:pointer;border-radius:2px;white-space:nowrap}
 .mktree .n:hover{background:#ffffff0d}
@@ -143,7 +149,7 @@ tr.spotHi td{background:#f2a74b1c}
 .mktree .n .tw{width:12px;flex:none;color:var(--dim);text-align:center}
 .mktree .n .c{color:var(--dim);font-size:11px;margin-left:auto;padding-left:6px}
 .mktree .n .lb{overflow:hidden;text-overflow:ellipsis}
-@media (max-width:1200px){ .mkwrap{grid-template-columns:1fr} .mktree{position:static;max-height:40vh} }
+@media (max-width:1700px){ .mkwrap{grid-template-columns:1fr} .mktree{position:static;max-height:38vh} }
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:4px;display:none;z-index:9}
 #toast.err{border-color:var(--bad)}
 .snap{border:1px solid var(--line);border-left:3px solid var(--split);background:var(--panel);border-radius:5px;padding:8px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -1013,6 +1019,7 @@ function render(a){
 }
 // the main button is the one of the tool in use: Appraise, or Buy to reprocess
 function syncGo(){ const tb = !!$('#tabBody'), br = S.tab === 'buyrep' && tb, mx = S.tab === 'maxbuy' && tb;
+  document.body.classList.toggle('wide', br || mx);
   [['#go', !br && !mx], ['#goBr', br], ['#goMax', mx]].forEach(([k, on]) => { $(k).classList.toggle('primary', on); $(k).setAttribute('aria-pressed', String(on)); }); }
 function renderTab(){
   const box = $('#tabBody'); syncGo(); if (!box) return;
@@ -1178,6 +1185,8 @@ let META = null; const T12 = new Set([1, 2, 53, 54]);
 async function loadMeta(){ if (!META){ try{ META = await (await fetch('../../appraisal/data/meta.json')).json(); }catch(e){ META = {}; } } return META; }
 const t12ok = id => !S.t12 || !META || !META[id] || T12.has(META[id]);
 const t12Btn = () => `<button type="button" class="small" data-t12 aria-pressed="${!!S.t12}" title="Show only Tech I and Tech II items (no faction, officer, deadspace, storyline, abyssal…)">${S.t12 ? '☑' : '☐'} Tech I &amp; II only</button>`;
+function wireFold(root){ root.querySelectorAll('[data-treefold]').forEach(b => b.onclick = () => { S.treeOff = !S.treeOff; saveS();
+  root.querySelectorAll('.mkwrap').forEach(w => w.classList.toggle('notree', !!S.treeOff)); b.textContent = S.treeOff ? '▸ Show the market tree' : '◂ Hide the market tree'; b.setAttribute('aria-pressed', String(!S.treeOff)); }); }
 function wireT12(root, redo){ root.querySelectorAll('[data-t12]').forEach(b => b.onclick = async () => { S.t12 = !S.t12; saveS(); await loadMeta(); redo(); }); }
 async function loadMG(){ if (!MG){ try{ MG = await (await fetch('../../appraisal/data/mgroups.json')).json(); }catch(e){ MG = {}; } } return MG; }
 const mgPath = mg => { const out = []; let g = mg, n = 0; while (g && MG[g] && n++ < 12){ out.unshift(g); g = MG[g][0]; } return out; };   // root first
@@ -1273,9 +1282,10 @@ function tabMaxBuy(box){
     </div>
     ${t12Btn()} <label class="dim" style="display:inline-flex;gap:6px;align-items:center;margin:4px 0 4px 8px"><input type="checkbox" id="mxCmp"${MX.cmp ? ' checked' : ''}> Compare with the sell prices of ${esc(hub.short || hub.name)}${hub.whole || scopeOf(hub) !== 'station' ? ` (${hub.whole ? 'whole region' : scopeOf(hub) === 'jumps' ? jumpsN() + ' jumps' : 'its ' + scopeOf(hub)})` : ''}</label>
     <div class="go"><span class="dim" id="mxSt"></span></div>
-    <div class="mkwrap"><nav class="mktree" id="mxTree" role="tree" aria-label="Market groups"></nav><div id="mxRes"></div></div></div>`;
+    <button type="button" class="small treebtn" data-treefold aria-pressed="${!S.treeOff}">${S.treeOff ? '▸ Show the market tree' : '◂ Hide the market tree'}</button>
+    <div class="mkwrap${S.treeOff ? ' notree' : ''}"><nav class="mktree" id="mxTree" role="tree" aria-label="Market groups"></nav><div id="mxRes"></div></div></div>`;
   const allIds = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && it.mg && t12ok(id); });
-  wireT12(box, () => tabMaxBuy(box));
+  wireT12(box, () => tabMaxBuy(box)); wireFold(box);
   const tree = () => mgTree($('#mxTree'), allIds, MX.mg, g => { MX.mg = g; MX.n = 200; store.set('appr.maxbuy', MX); tree(); if (mxData) draw(); });
   tree();
   const st = m => { const e = $('#mxSt'); if (e) e.textContent = m; };
@@ -1330,9 +1340,10 @@ function tabBuyRep(box){
     </div>
     <div class="go"><button class="primary" id="brGo">Search</button> <span class="dim" id="brSt"></span></div>
     <div style="margin:6px 0 2px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">${t12Btn()} ${autoBtn()}</div>
-    <div class="mkwrap"><nav class="mktree" id="brTree" role="tree" aria-label="Market groups"></nav><div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div></div>`;
+    <button type="button" class="small treebtn" data-treefold aria-pressed="${!S.treeOff}">${S.treeOff ? '▸ Show the market tree' : '◂ Hide the market tree'}</button>
+    <div class="mkwrap${S.treeOff ? ' notree' : ''}"><nav class="mktree" id="brTree" role="tree" aria-label="Market groups"></nav><div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div></div>`;
   const allIds = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && it.mg && t12ok(id); });
-  wireT12(box, () => tabBuyRep(box));
+  wireT12(box, () => tabBuyRep(box)); wireFold(box);
   const tree = () => mgTree($('#brTree'), allIds, BR.mg, g => { BR.mg = g; store.set('appr.buyrep', BR); tree(); });
   tree();
   const keep = () => { BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.rtax = Number($('#brRtax').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
