@@ -166,6 +166,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
         <label style="grid-column:1/-1">Character
           <select id="char"></select>
           <span id="charSt" class="dim" style="font-size:11.5px"></span>
+          <span id="dockSt" class="dim" style="font-size:11.5px"></span>
         </label>
         <label>Market
           <select id="hub"></select>
@@ -284,6 +285,48 @@ async function dockedHubs(){
   }
   return out;
 }
+const STRUCT_SCOPES = ['esi-markets.structure_markets.v1', 'esi-universe.read_structures.v1'];
+async function dockHubOf(t){
+  const h = { headers:{ Authorization:'Bearer ' + t.access_token } };
+  const loc = await (await fetch(`${ESI}/characters/${t.charId}/location/`, h)).json();
+  const sysId = loc.solar_system_id; let region = null;
+  try{ const sy = await (await fetch(`${ESI}/universe/systems/${sysId}/`)).json(); const co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json(); region = co.region_id; }catch(e){}
+  if (loc.station_id){ const st = await (await fetch(`${ESI}/universe/stations/${loc.station_id}/`)).json();
+    return { k:'dock' + t.charId, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region, station:loc.station_id, dock:true, who:t.charName }; }
+  if (loc.structure_id){
+    if (!STRUCT_SCOPES.every(x => scopesOf(t).includes(x))) return { k:'dock' + t.charId, name:'📍 Structure (no access yet)', short:'Structure', region, structure:loc.structure_id, needScope:true, disabled:true, who:t.charName };
+    let name = 'Structure'; try{ const r = await fetch(`${ESI}/universe/structures/${loc.structure_id}/`, h); if (r.ok) name = (await r.json()).name; }catch(e){}
+    return { k:'dock' + t.charId, name:`📍 ${name}`, short:name.split(' - ')[0], region, structure:loc.structure_id, dock:true, tok:t, who:t.charName };
+  }
+  return null;                                                   // in space
+}
+// a structure's market: every order at once (EVE gives them all together), kept a few minutes
+const structOrders = new Map();
+async function structBook(hub){
+  const c = structOrders.get(hub.structure); if (c && Date.now() - c.t < 5 * 60000) return c.by;
+  const t = await freshTok(hub.tok); if (!t) throw new Error('EVE session expired');
+  const by = new Map(); let page = 1, pages = 1;
+  do{ const r = await fetch(`${ESI}/markets/structures/${hub.structure}/?page=${page}`, { headers:{ Authorization:'Bearer ' + t.access_token } });
+    if (!r.ok) throw new Error('This structure does not share its market with you (' + r.status + ')');
+    pages = Number(r.headers.get('x-pages')) || 1;
+    for (const o of await r.json()){ let b = by.get(o.type_id); if (!b) by.set(o.type_id, b = { buy:[], sell:[] }); (o.is_buy_order ? b.buy : b.sell).push([o.price, o.volume_remain]); }
+  } while (++page <= pages);
+  for (const b of by.values()){ b.buy.sort((x, y) => y[0] - x[0]); b.sell.sort((x, y) => x[0] - y[0]); }
+  structOrders.set(hub.structure, { t:Date.now(), by }); return by;
+}
+// the chosen character's dock: the market of everything on this page
+async function useDock(t){
+  const st = $('#dockSt');
+  try{ const h = await dockHubOf(await freshTok(t) || t);
+    if (!h){ st.textContent = `${t.charName} is in space: the market stays ${(HUBS.find(x => x.k === S.hub) || HUBS[0]).short}.`; return; }
+    const i = HUBS.findIndex(x => x.k === h.k); if (i >= 0) HUBS.splice(i, 1, h); else HUBS.unshift(h);
+    $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
+    if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: its market needs your permission. <button type="button" class="small" id="dockLog">Allow structure markets</button>`; $('#dockLog').onclick = () => charLogin(t, STRUCT_SCOPES); $('#hub').value = S.hub; return; }
+    S.hub = h.k; saveS(); $('#hub').value = h.k;
+    st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.`;
+    if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
+  }catch(e){ st.textContent = `Could not read where ${t.charName} is docked.`; }
+}
 async function addDocked(){
   const d = await dockedHubs(); if (!d.length) return;
   for (const h of d.reverse()) if (!HUBS.some(x => x.k === h.k)) HUBS.unshift(h);
@@ -324,7 +367,7 @@ function chars(){ const out = []; try{ for (let i = 0; i < localStorage.length; 
 const scopesOf = t => { const s = jwt((t && t.access_token) || '').scp || []; return Array.isArray(s) ? s : [s]; };
 async function loadChar(id){
   const st = $('#charSt'); CH = null;
-  if (!id){ st.textContent = 'Manual yields and taxes (Reprocess tab, Buy to reprocess).'; afterChar(); return; }
+  if (!id){ st.textContent = 'Manual yields and taxes (Reprocess tab, Buy to reprocess).'; $('#dockSt').textContent = ''; afterChar(); return; }
   const t0 = chars().find(t => String(t.charId) === String(id)); if (!t0){ st.textContent = ''; afterChar(); return; }
   if (!NEED.every(x => scopesOf(t0).includes(x))){ st.innerHTML = `<span class="bad">EVE has not given this site ${esc(t0.charName)}'s skills yet.</span> <button type="button" class="small" id="charLog">Allow skills and implants</button>`; $('#charLog').onclick = () => charLogin(t0); afterChar(); return; }
   st.textContent = 'Reading skills…';
@@ -336,18 +379,19 @@ async function loadChar(id){
     CH = { id:t.charId, name:t.charName, sk:Object.fromEntries((sk.skills || []).map(x => [x.skill_id, x.active_skill_level])), imp };
     st.innerHTML = `Skills applied: ore yield up to <b>${yieldOreDefault().toFixed(1)} %</b>, scrapmetal <b>${yieldFor(-1).toFixed(1)} %</b>, sales tax <b>${chTax()} %</b> (Accounting ${lvl(SK.acc)}), broker fee <b>${chBroker()} %</b> (Broker Relations ${lvl(SK.broker)}, without standings).`;
     BR.tax = chTax(); BR.broker = chBroker(); store.set('appr.buyrep', BR);
+    useDock(t);
   }catch(e){ st.innerHTML = '<span class="bad">Could not read the skills.</span>'; }
   afterChar();
 }
 function afterChar(){ RP.key = ''; if (A && A.rows.length) render(A); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }
 // log in again with the skills and implants added to what the character already allows (the map keeps working)
-async function charLogin(t){
+async function charLogin(t, extra){
   const cid = await clientIdOf(); if (!cid){ toast('No EVE application set for the site', true); return; }
   const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const verifier = b64(crypto.getRandomValues(new Uint8Array(32))), challenge = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
   const state = 'ap' + b64(crypto.getRandomValues(new Uint8Array(12)));                       // "ap": the site root sends the answer back here
   sessionStorage.setItem('appr.pkce', JSON.stringify({ verifier, state }));
-  const scope = [...new Set([...scopesOf(t), ...NEED, 'esi-location.read_location.v1'])].join(' ');
+  const scope = [...new Set([...scopesOf(t), ...NEED, 'esi-location.read_location.v1', ...(extra || [])])].join(' ');
   const root = location.origin + location.pathname.replace(/v2\/appraisal\/(index\.html)?$/, '');
   location.href = `${SSO}/authorize/?` + new URLSearchParams({ response_type:'code', redirect_uri:root, client_id:cid, scope, code_challenge:challenge, code_challenge_method:'S256', state });
 }
@@ -419,6 +463,7 @@ const books = new Map();   // hub:type -> { t, buy:[[p,v]] desc, sell:[[p,v]] as
 async function getBook(hub, id){
   const key = hub.k + ':' + id, c = books.get(key);
   if (c && Date.now() - c.t < 5 * 60000) return c;
+  if (hub.structure){ const by = await structBook(hub), b0 = by.get(Number(id)) || { buy:[], sell:[] }; const b = { t:Date.now(), buy:b0.buy, sell:b0.sell }; books.set(key, b); return b; }
   const orders = [];
   let page = 1, pages = 1;
   do{
@@ -775,7 +820,10 @@ async function tabReproc(box){
 /* --- Buy to reprocess: items on sale below what their minerals bring, after taxes --- */
 // Bulk prices (Fuzzwork aggregates: lowest sell and highest buy of each item at a station or in a region), 200 items a call
 async function bulkPrices(hub, ids, onStep){
-  const out = {}, where = HUBS.slice(-5).some(h => h.station === hub.station) ? `station=${hub.station}` : `region=${hub.region}`;
+  if (hub.structure){ const by = await structBook(hub), out = {};
+    for (const id of ids){ const b = by.get(Number(id)); if (b) out[id] = { sell:b.sell.length ? b.sell[0][0] : 0, sellVol:b.sell.reduce((m, x) => m + x[1], 0), buy:b.buy.length ? b.buy[0][0] : 0 }; }
+    if (onStep) onStep(ids.length, ids.length); return out; }
+  const out = {}, where = hub.station ? `station=${hub.station}` : `region=${hub.region}`;
   for (let i = 0; i < ids.length; i += 200){
     const r = await fetch(`https://market.fuzzwork.co.uk/aggregates/?${where}&types=${ids.slice(i, i + 200).join(',')}`);
     if (!r.ok) throw new Error('Fuzzwork ' + r.status);
@@ -987,7 +1035,6 @@ function setup(){
   setup(); renderHist();
   try{ await loadTypes(); }catch(e){ $('#sdeVer').textContent = 'item list unavailable'; toast(e.message, true); return; }
   renderBB();
-  addDocked();
   setupChar(await charCallback());
   const hs = location.hash;
   let m;
