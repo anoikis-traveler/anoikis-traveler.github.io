@@ -146,6 +146,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
 @media (max-width:980px){ main{grid-template-columns:1fr} .left{position:static} .tiles{grid-template-columns:repeat(2,1fr)} }
 .flag.rp{background:rgba(95,214,138,.14);color:#5fd68a;border-color:rgba(95,214,138,.5)}
 .v2tag{font:600 11px var(--mono,monospace);color:#f2a74b;border:1px solid #f2a74b;border-radius:3px;padding:0 5px;margin-left:8px}
+.warn{color:#f2c94c}
 </style>
 </head>
 <body>
@@ -171,6 +172,8 @@ tr.detail td{background:var(--bg);padding:10px 14px}
         <label>Market
           <select id="hub"></select>
         </label>
+        <form id="stForm" style="grid-column:1/-1;display:flex;gap:6px;align-items:center"><input id="stIn" placeholder="or a station: type its system (e.g. Sobaseki)" autocomplete="off" style="flex:1"><button type="submit" class="small">Use</button></form>
+        <div id="stPick" style="grid-column:1/-1;font-size:12px"></div>
         <label>Your price
           <span class="pct"><input id="pct" type="number" min="1" max="200" step="1" value="100" aria-label="Percent of the price"> <span>%</span></span>
         </label>
@@ -288,7 +291,8 @@ async function dockedHubs(){
 const STRUCT_SCOPES = ['esi-markets.structure_markets.v1', 'esi-universe.read_structures.v1'];
 async function dockHubOf(t){
   const h = { headers:{ Authorization:'Bearer ' + t.access_token } };
-  const loc = await (await fetch(`${ESI}/characters/${t.charId}/location/`, h)).json();
+  const lr = await fetch(`${ESI}/characters/${t.charId}/location/`, h); if (!lr.ok) throw new Error('location ' + lr.status);   // no permission or session expired: said, not taken for 'in space'
+  const loc = await lr.json();
   const sysId = loc.solar_system_id; let region = null;
   try{ const sy = await (await fetch(`${ESI}/universe/systems/${sysId}/`)).json(); const co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json(); region = co.region_id; }catch(e){}
   if (loc.station_id){ const st = await (await fetch(`${ESI}/universe/stations/${loc.station_id}/`)).json();
@@ -318,14 +322,33 @@ async function structBook(hub){
 async function useDock(t){
   const st = $('#dockSt');
   try{ const h = await dockHubOf(await freshTok(t) || t);
-    if (!h){ st.textContent = `${t.charName} is in space: the market stays ${(HUBS.find(x => x.k === S.hub) || HUBS[0]).short}.`; return; }
+    if (!h){ st.innerHTML = `<span class="warn">${esc(t.charName)} is not docked: the market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.</span>`; return; }
     const i = HUBS.findIndex(x => x.k === h.k); if (i >= 0) HUBS.splice(i, 1, h); else HUBS.unshift(h);
     $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
     if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: reading its market needs the permissions <code>esi-markets.structure_markets.v1</code> and <code>esi-universe.read_structures.v1</code> on the site's EVE application (developers.eveonline.com). The market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.`; $('#hub').value = S.hub; return; }
     S.hub = h.k; saveS(); $('#hub').value = h.k;
     st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.`;
     if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
-  }catch(e){ st.textContent = `Could not read where ${t.charName} is docked.`; }
+  }catch(e){ st.innerHTML = `<span class="warn">⚠ Could not read where ${esc(t.charName)} is docked (log it in again on the <a href="../" target="_blank" rel="noopener">map</a>), or type the station's system below.</span>`; }
+}
+async function pickStation(){
+  const name = $('#stIn').value.trim(), out = $('#stPick'); if (!name) return;
+  out.innerHTML = '<span class="dim">…</span>';
+  try{
+    const r = await fetch(`${ESI}/universe/ids/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([name]) });
+    const sys = ((r.ok ? await r.json() : {}).systems || [])[0]; if (!sys){ out.innerHTML = `<span class="bad">Unknown system: ${esc(name)}</span>`; return; }
+    const sy = await (await fetch(`${ESI}/universe/systems/${sys.id}/`)).json(), co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json();
+    const sts = await Promise.all((sy.stations || []).map(id => fetch(`${ESI}/universe/stations/${id}/`).then(x => x.json()).then(x => ({ id, name:x.name })).catch(() => null)));
+    const list = sts.filter(Boolean); if (!list.length){ out.innerHTML = `<span class="bad">${esc(sys.name)} has no NPC station.</span>`; return; }
+    const use = st => { const h = { k:'st' + st.id, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region:co.region_id, station:st.id };
+      const i = HUBS.findIndex(x => x.k === h.k); if (i < 0) HUBS.unshift(h);
+      $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
+      S.hub = h.k; saveS(); $('#hub').value = h.k; out.innerHTML = `Market: <b>${esc(st.name)}</b>`; $('#stIn').value = '';
+      if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+    if (list.length === 1){ use(list[0]); return; }
+    out.innerHTML = list.map((x, i) => `<button type="button" class="small" data-sti="${i}" style="margin:2px">${esc(x.name)}</button>`).join('');
+    out.querySelectorAll('[data-sti]').forEach(b => b.onclick = () => use(list[+b.dataset.sti]));
+  }catch(e){ out.innerHTML = '<span class="bad">EVE did not answer, try again.</span>'; }
 }
 async function addDocked(){
   const d = await dockedHubs(); if (!d.length) return;
@@ -392,7 +415,7 @@ async function loadChar(id){
     CH = { id:Number(id), name, sk, imp };
     st.innerHTML = `Skills applied: ore yield up to <b>${yieldOreDefault().toFixed(1)} %</b>, scrapmetal <b>${yieldFor(-1).toFixed(1)} %</b>, sales tax <b>${chTax()} %</b> (Accounting ${lvl(SK.acc)}), broker fee <b>${chBroker()} %</b> (Broker Relations ${lvl(SK.broker)}, without standings).`;
     BR.tax = chTax(); BR.broker = chBroker(); store.set('appr.buyrep', BR);
-    if (mapT) useDock(mapT); else $('#dockSt').innerHTML = `Where ${esc(name)} is docked comes from the <a href="../">map</a>'s login: log it in there too.`;
+    if (mapT) useDock(mapT); else $('#dockSt').innerHTML = `<span class="warn">⚠ Where ${esc(name)} is docked is unknown: log ${esc(name)} in on the <a href="../" target="_blank" rel="noopener">map</a> too, or type the station's system below.</span>`;
   }catch(e){ st.innerHTML = '<span class="bad">Could not read the skills.</span>'; }
   afterChar();
 }
@@ -1030,6 +1053,7 @@ function setup(){
   $('#hub').innerHTML = HUBS.map(h => `<option value="${h.k}">${esc(h.name)}</option>`).join('');
   syncControls();
   $('#go').onclick = appraise;
+  $('#stForm').onsubmit = e => { e.preventDefault(); pickStation(); };
   $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
   $('#clear').onclick = () => { $('#paste').value = ''; $('#paste').focus(); };
   $('#paste').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); appraise(); } });
