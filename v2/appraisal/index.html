@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appraisal · Anoikis Traveler</title>
+<meta name="description" content="EVE Online appraisal: paste any item list, get Jita, Amarr, Dodixie, Rens or Hek values from the live order book.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Appraisal: same palette and fonts as the mapper, so the tools read as one site */
+:root{
+  --bg:#070a12; --panel:#0e1424; --panel-2:#141c30; --line:#24314c; --text:#e2e8f3; --dim:#8b98b0;
+  --accent:#f2a74b; --ok:#5fd68a; --warn:#f2c94b; --bad:#ef5a5a; --buy:#5fb8f2; --sell:#f2a74b; --split:#c9b6ff;
+  --display:"Saira Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(circle at 1px 1px,#141c30 1px,transparent 1.5px) 0 0/28px 28px,var(--bg);color:var(--text);font-family:var(--body);font-size:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel-2);border:1px solid var(--line);padding:6px 11px;cursor:pointer;border-radius:3px}
+button:hover:not(:disabled){border-color:var(--dim)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent);font-weight:600}
+button.small{padding:3px 8px;font-size:12px}
+button.ghost{background:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);padding:6px 8px;border-radius:3px;min-width:0}
+a{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.dim{color:var(--dim)}
+header{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{font-family:var(--display);font-size:1.5rem;margin:0 10px 0 0;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+header h1 a{color:inherit;text-decoration:none}
+header h1 b{color:var(--accent)}
+nav.tools{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:2px}
+nav.tools a{color:var(--dim);text-decoration:none;padding:5px 12px;border-radius:3px;font-family:var(--display);font-size:1.02rem;letter-spacing:.06em;text-transform:uppercase}
+nav.tools a:hover{color:var(--text)}
+nav.tools a[aria-current="page"]{background:var(--panel-2);color:var(--accent)}
+header .grow{flex:1}
+.sde{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:2px 6px}
+main{max-width:1320px;margin:0 auto;padding:16px;display:grid;grid-template-columns:400px 1fr;gap:16px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:14px}
+.card h2{font-family:var(--display);font-size:1.15rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;font-weight:700}
+#paste{width:100%;height:300px;resize:vertical;font-family:var(--mono);font-size:12.5px;line-height:1.45}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.opts label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
+.seg{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.seg button{flex:1;border:none;border-radius:0;padding:6px 4px;background:var(--bg);font-size:13px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--accent);font-weight:600}
+.pct{display:flex;align-items:center;gap:6px}
+.pct input{width:100%}
+.chk{display:flex!important;flex-direction:row!important;align-items:center;gap:7px;color:var(--text)!important;font-size:13px!important;grid-column:1/-1}
+.go{display:flex;gap:8px;margin-top:12px}
+.go .primary{flex:1;padding:9px;font-size:15px}
+.hint{font-size:12px;color:var(--dim);margin:8px 0 0}
+#progress{height:3px;background:var(--line);border-radius:2px;margin-top:10px;overflow:hidden}
+#progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+#hist ul{list-style:none;margin:0;padding:0}
+#hist li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid rgba(36,49,76,.6);font-size:13px;cursor:pointer}
+#hist li:hover .t{color:var(--accent)}
+#hist li .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#hist li small{color:var(--dim);display:block;font-size:11px}
+.left{display:flex;flex-direction:column;gap:16px;position:sticky;top:70px}
+/* results */
+.empty{border:1px dashed var(--line);border-radius:5px;padding:40px 24px;text-align:center;color:var(--dim)}
+.empty h3{font-family:var(--display);font-size:1.6rem;letter-spacing:.05em;color:var(--text);margin:0 0 8px;text-transform:uppercase}
+.empty p{max-width:560px;margin:6px auto}
+.empty .fmts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px}
+.chip{display:inline-block;padding:2px 9px;border:1px solid var(--line);border-radius:11px;font-size:12px;color:var(--dim)}
+.offer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:linear-gradient(90deg,rgba(242,167,75,.12),transparent 70%),var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:5px;padding:14px 16px}
+.offer .lbl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.offer .val{font-family:var(--display);font-size:2.4rem;font-weight:700;letter-spacing:.02em;line-height:1.1}
+.offer .val small{font-size:1.1rem;color:var(--dim);margin-left:6px}
+.offer .sub{font-size:12px;color:var(--dim)}
+.offer .acts{display:flex;flex-direction:column;gap:6px}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:10px 12px}
+.tile .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.tile .v{font-family:var(--display);font-size:1.45rem;font-weight:700;margin-top:2px}
+.tile.buy .v{color:var(--buy)} .tile.sell .v{color:var(--sell)} .tile.split .v{color:var(--split)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 6px;font-size:12.5px;color:var(--dim)}
+.meta .grow{flex:1}
+.cats{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.cats span{font-size:12px;border:1px solid var(--line);border-radius:11px;padding:2px 9px;background:var(--panel)}
+.cats b{font-family:var(--mono);font-weight:500;color:var(--text);margin-left:4px}
+.warnbox{border:1px solid #5a4a1a;background:rgba(242,201,75,.06);border-radius:5px;padding:8px 12px;font-size:13px;margin:10px 0}
+.warnbox summary{cursor:pointer;color:var(--warn)}
+.warnbox ul{margin:6px 0 0;padding-left:18px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+th,td{padding:6px 9px;border-bottom:1px solid rgba(36,49,76,.6);text-align:left;font-size:13px;vertical-align:middle}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);font-weight:600;background:var(--panel-2);white-space:nowrap;cursor:pointer;user-select:none}
+th[aria-sort="ascending"]::after{content:" ▲";color:var(--accent)}
+th[aria-sort="descending"]::after{content:" ▼";color:var(--accent)}
+th.r,td.r{text-align:right}
+td.num{white-space:nowrap}
+tr.off td{opacity:.4}
+tr.off td:first-child{opacity:1}
+.it{display:flex;align-items:center;gap:8px;min-width:0}
+.it img{width:28px;height:28px;border-radius:3px;background:var(--bg);flex:none}
+.it .n{overflow:hidden;text-overflow:ellipsis}
+.it small{display:block;color:var(--dim);font-size:11px}
+.share{position:relative;height:4px;background:var(--line);border-radius:2px;margin-top:4px;min-width:60px}
+.share i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
+.thin{color:var(--warn);font-size:11px;display:block}
+.none{color:var(--bad);font-size:11px;display:block}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:4px;display:none;z-index:9}
+#toast.err{border-color:var(--bad)}
+.snap{border:1px solid var(--line);border-left:3px solid var(--split);background:var(--panel);border-radius:5px;padding:8px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* v2: tabs, panels, verdict, history */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 12px}
+.tabs button{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:14px}
+.panel h3{font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px;color:var(--dim)}
+.formrow{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.formrow label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
+.formrow input{width:130px}
+.best{color:var(--ok);font-weight:600}
+td.best{background:rgba(95,214,138,.07)}
+.verdict{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:5px;padding:10px 14px;margin-top:12px;background:var(--panel)}
+.verdict .big{font-family:var(--display);font-size:1.6rem;font-weight:700}
+.verdict.good{border-left:3px solid var(--ok)} .verdict.good .big{color:var(--ok)}
+.verdict.fair{border-left:3px solid var(--warn)} .verdict.fair .big{color:var(--warn)}
+.verdict.bad{border-left:3px solid var(--bad)} .verdict.bad .big{color:var(--bad)}
+tr.detail td{background:var(--bg);padding:10px 14px}
+.hist{display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.hist svg{background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.hist b{color:var(--text);font-family:var(--mono);font-weight:500}
+.it .n{cursor:pointer}
+.it .n:hover{color:var(--accent)}
+.flag{display:inline-block;font-size:10.5px;border:1px solid #5a4a1a;color:var(--warn);border-radius:8px;padding:0 6px;margin-left:6px;vertical-align:1px}
+.bbtable{width:100%;border:none;background:none;margin-top:6px}
+.bbtable td{border:none;padding:3px 0;font-size:13px}
+.bbtable input{width:64px;padding:3px 6px}
+#bbBox{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.prog{font-size:12px;color:var(--split);border:1px solid var(--line);border-left:3px solid var(--split);border-radius:4px;padding:6px 10px;margin-top:10px}
+@media (max-width:980px){ main{grid-template-columns:1fr} .left{position:static} .tiles{grid-template-columns:repeat(2,1fr)} }
+.flag.rp{background:rgba(95,214,138,.14);color:#5fd68a;border-color:rgba(95,214,138,.5)}
+.v2tag{font:600 11px var(--mono,monospace);color:#f2a74b;border:1px solid #f2a74b;border-radius:3px;padding:0 5px;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../../">Anoikis <b>Traveler</b></a></h1>
+  <nav class="tools" aria-label="Tools">
+    <a href="../">Map</a><a href="../../fitting/">Fitting</a><a href="./" aria-current="page">Appraisal</a><span class="v2tag" title="New version, being rebuilt">v2</span>
+  </nav>
+  <span class="grow"></span>
+  <span class="sde" id="sdeVer">loading items…</span>
+</header>
+<main>
+  <div class="left">
+    <section class="card">
+      <h2>Paste items</h2>
+      <textarea id="paste" spellcheck="false" placeholder="Paste from your inventory, a container, a contract, a cargo scan, an EFT fit, a killmail, a multibuy list…&#10;&#10;Tritanium	12,000&#10;Hammerhead II x5&#10;3 Large Shield Extender II"></textarea>
+      <div class="opts">
+        <label>Market
+          <select id="hub"></select>
+        </label>
+        <label>Your price
+          <span class="pct"><input id="pct" type="number" min="1" max="200" step="1" value="100" aria-label="Percent of the price"> <span>%</span></span>
+        </label>
+        <label style="grid-column:1/-1">Offer
+          <span class="seg" role="group" aria-label="Offer mode">
+            <button type="button" data-mode="flat">Same % for all</button><button type="button" data-mode="bb">Buyback rates</button>
+          </span>
+        </label>
+        <div id="bbBox" style="grid-column:1/-1" hidden>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)">Program name <input id="bbName" placeholder="e.g. Corp buyback"></label>
+          <table class="bbtable"><tbody id="bbRates"></tbody></table>
+          <div class="go" style="margin-top:6px"><button type="button" class="small" id="bbAdd">+ Category</button><button type="button" class="small" id="bbShare">Copy program link</button></div>
+        </div>
+        <label style="grid-column:1/-1">Asking price (contract) <input id="ask" placeholder="optional · e.g. 250m, 1.2b, 250,000,000" inputmode="decimal"></label>
+        <label style="grid-column:1/-1">Price basis
+          <span class="seg" role="group" aria-label="Price basis">
+            <button type="button" data-basis="buy">Buy</button><button type="button" data-basis="split">Split</button><button type="button" data-basis="sell">Sell</button>
+          </span>
+        </label>
+        <label class="chk" title="Values each line by walking the order book for its full quantity, instead of only the best order"><input id="depth" type="checkbox"> Order-book depth (real price for the whole quantity)</label>
+        <label class="chk"><input id="merge" type="checkbox"> Merge identical items</label>
+      </div>
+      <div class="go">
+        <button type="button" class="primary" id="go">Appraise</button><button type="button" id="goBr" title="Items on sale below what their minerals bring, after taxes">♻ Buy to reprocess</button>
+        <button type="button" id="clear" class="ghost" title="Clear the list">Clear</button>
+      </div>
+      <div id="progress" hidden><i></i></div>
+      <p class="hint">Ctrl + Enter to appraise. Prices: live EVE market (ESI), station orders only.</p>
+      <div id="progBanner" class="prog" hidden></div>
+    </section>
+    <section class="card" id="hist" hidden>
+      <h2>Recent appraisals</h2>
+      <ul id="histList"></ul>
+    </section>
+  </div>
+  <div id="out" aria-live="polite">
+    <div class="empty">
+      <h3>Appraise anything</h3>
+      <p>Paste a list of items on the left. The value comes straight from the market order book of the hub you pick, for the exact quantity you hold.</p>
+      <div class="fmts"><span class="chip">Inventory &amp; containers</span><span class="chip">Contracts</span><span class="chip">Cargo scan</span><span class="chip">EFT fits</span><span class="chip">Killmails</span><span class="chip">Multibuy</span><span class="chip">Asset lists</span><span class="chip">English · Français · Deutsch</span></div>
+    </div>
+  </div>
+</main>
+<div id="toast" role="status"></div>
+<script>
+(() => {
+'use strict';
+const ESI = 'https://esi.evetech.net/latest';
+const HUBS = [
+  { k:'jita', name:'Jita IV - Moon 4', short:'Jita', region:10000002, station:60003760 },
+  { k:'amarr', name:'Amarr VIII (Oris)', short:'Amarr', region:10000043, station:60008494 },
+  { k:'dodixie', name:'Dodixie IX - Moon 20', short:'Dodixie', region:10000032, station:60011866 },
+  { k:'rens', name:'Rens VI - Moon 8', short:'Rens', region:10000030, station:60004588 },
+  { k:'hek', name:'Hek VIII - Moon 12', short:'Hek', region:10000042, station:60005686 },
+];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = { get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }, set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
+function toast(m, err){ const t = $('#toast'); t.textContent = m; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', err ? 6000 : 2500); }
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const fmtU = n => n >= 100 ? Math.round(n).toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+function short(n){ const a = Math.abs(n); return a >= 1e12 ? (n / 1e12).toFixed(2) + ' t' : a >= 1e9 ? (n / 1e9).toFixed(2) + ' b' : a >= 1e6 ? (n / 1e6).toFixed(2) + ' m' : a >= 1e3 ? (n / 1e3).toFixed(1) + ' k' : fmt(n); }
+const fmtM3 = v => v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toLocaleString('en-US', { maximumFractionDigits:2 });
+
+/* ---------- Settings ---------- */
+const S = Object.assign({ hub:'jita', basis:'buy', pct:100, depth:true, merge:true, mode:'flat', bb:{ name:'', rates:{} }, tab:'items',
+  yieldOre:90.6, yieldScrap:55, freight:{ rate:1000, coll:1, collOn:'sell', min:0, max:0 } }, store.get('appr.cfg', {}));
+const saveS = () => store.set('appr.cfg', S);
+
+/* ---------- Items (CCP static data, built into data/types.json) ---------- */
+let T = null;                 // { byId:Map, idx:Map(lowercase name -> id), g, c }
+async function loadTypes(){
+  const r = await fetch('../../appraisal/data/types.json'); if (!r.ok) throw new Error('Item list missing');
+  const d = await r.json();
+  const byId = new Map(), idx = new Map();
+  for (const [id, en, fr, de, vol, grp, mg, por] of d.t){
+    byId.set(id, { id, name:en, vol, grp, mg, por });
+    for (const n of [en, fr, de]) if (n){ const k = n.toLowerCase(); if (!idx.has(k)) idx.set(k, id); }
+  }
+  T = { byId, idx, g:d.g, c:d.c, z:d.z || {}, build:d.build };
+  $('#sdeVer').textContent = `${fmt(byId.size)} items · SDE ${d.build || ''}`;
+}
+const catOf = it => { const g = T.g[it.grp]; return g ? (T.c[g[1]] || 'Other') : 'Other'; };
+const grpOf = it => { const g = T.g[it.grp]; return g ? g[0] : ''; };
+
+/* ---------- Your station: a character logged in on the site and docked in an NPC station adds it as a market ---------- */
+const SSO = 'https://login.eveonline.com/v2/oauth';
+const jwt = t => { try{ return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }catch(e){ return {}; } };
+async function clientIdOf(){ try{ const r = await fetch('../../site.json', { cache:'no-store' }); if (r.ok){ const j = await r.json(); if (j.clientId) return j.clientId; } }catch(e){} const c = store.get('whmap.cfg', {}); return c && c.clientId; }
+async function freshTok(t){
+  if (Date.now() < t.exp - 60000) return t;
+  const cid = await clientIdOf(); if (!cid || !t.refresh_token) return null;
+  try{ const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:t.refresh_token, client_id:cid }) });
+    if (!r.ok) return null; const j = await r.json(), c = jwt(j.access_token);
+    const n = { ...t, access_token:j.access_token, refresh_token:j.refresh_token, exp:(c.exp || 0) * 1000 }; store.set('whmap.tok.' + t.charId, n); return n; }catch(e){ return null; }
+}
+async function dockedHubs(){
+  const out = [], toks = [];
+  try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) toks.push(t); } } }catch(e){}
+  for (const t0 of toks){
+    const sc = jwt(t0.access_token || '').scp || []; if (!(Array.isArray(sc) ? sc : [sc]).includes('esi-location.read_location.v1')) continue;
+    const t = await freshTok(t0); if (!t) continue;
+    try{
+      const loc = await (await fetch(`${ESI}/characters/${t.charId}/location/`, { headers:{ Authorization:'Bearer ' + t.access_token } })).json();
+      if (loc.structure_id){ out.push({ k:'dock' + t.charId, name:`📍 ${t.charName}: docked in a structure (its market needs a permission the site does not ask yet)`, short:'Structure', disabled:true }); continue; }
+      if (!loc.station_id) continue;
+      const st = await (await fetch(`${ESI}/universe/stations/${loc.station_id}/`)).json();
+      const sy = await (await fetch(`${ESI}/universe/systems/${st.system_id}/`)).json();
+      const co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json();
+      out.push({ k:'dock' + t.charId, name:`📍 ${st.name} (${t.charName})`, short:st.name.split(' - ')[0], region:co.region_id, station:loc.station_id, dock:true });
+    }catch(e){}
+  }
+  return out;
+}
+async function addDocked(){
+  const d = await dockedHubs(); if (!d.length) return;
+  for (const h of d.reverse()) if (!HUBS.some(x => x.k === h.k)) HUBS.unshift(h);
+  $('#hub').innerHTML = HUBS.map(h => `<option value="${h.k}"${h.disabled ? ' disabled' : ''}>${esc(h.name)}</option>`).join('');
+  if (!HUBS.some(h => h.k === S.hub && !h.disabled)) S.hub = 'jita';
+  $('#hub').value = S.hub;
+  const ok = d.filter(h => !h.disabled); if (ok.length) toast(`Your station added to the markets: ${ok.map(h => h.short).join(', ')}`);
+}
+
+/* ---------- Parsing: one pass, any EVE copy format ---------- */
+function qty(s){
+  s = String(s).trim().replace(/[   ]/g, ' ');
+  if (/^\d+$/.test(s)) return Number(s);
+  if (/^\d{1,3}([ .,']\d{3})+$/.test(s)) return Number(s.replace(/[ .,']/g, ''));
+  return null;
+}
+function look(name){
+  if (!name) return null;
+  let n = name.trim().replace(/\s+/g, ' ').replace(/\*$/, '').trim();
+  let id = T.idx.get(n.toLowerCase());
+  if (id) return id;
+  n = n.replace(/\s*\((?:copy|original|fitted|cargo|drone bay|dropped|destroyed|in container)[^)]*\)\s*$/i, '');
+  return T.idx.get(n.toLowerCase()) || null;
+}
+function parse(text){
+  const out = [], bad = [];
+  const add = (id, q, src) => out.push({ id, q:Math.max(1, q || 1), src });
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.replace(/[  ]/g, ' ').trim();
+    if (!line) continue;
+    if (/^\[(empty|vide|leer)[^\]]*\]$/i.test(line)) continue;                     // EFT empty slots
+    let m = line.match(/^\[([^,\]]+),[^\]]*\]$/);                                    // EFT header: [Ship, Fit name]
+    if (m){ const id = look(m[1]); if (id) add(id, 1, line); else bad.push(line); continue; }
+    if (/destroyed|détruit|zerstört/i.test(line) && /qty|quantité|anzahl/i.test(line)) continue;   // killmail: destroyed items are gone
+    if (line.includes('\t')){                                                         // inventory, contract, assets, d-scan…
+      const cells = line.split('\t').map(s => s.trim());
+      let id = null, at = -1;
+      for (let i = 0; i < cells.length; i++){ id = look(cells[i]); if (id){ at = i; break; } }
+      if (!id){ bad.push(line); continue; }
+      let q = null; for (let i = at + 1; i < cells.length && q == null; i++) q = qty(cells[i]);
+      if (q == null && at > 0) q = qty(cells[0]);
+      add(id, q == null ? 1 : q, line); continue;
+    }
+    let id = look(line); if (id){ add(id, 1, line); continue; }
+    if ((m = line.match(/^(.+?),\s*(?:qty|quantité|anzahl):\s*([\d .,']+)/i))){ id = look(m[1]); if (id){ add(id, qty(m[2]), line); continue; } }   // killmail
+    if ((m = line.match(/^(.+?)\s+[x×]\s?([\d .,']+)$/i))){ id = look(m[1]); if (id){ add(id, qty(m[2]), line); continue; } }      // Name x5
+    if ((m = line.match(/^([\d .,']+?)\s*[x×]?\s+(.+)$/i))){ id = look(m[2]); if (id && qty(m[1]) != null){ add(id, qty(m[1]), line); continue; } }   // 5 Name, 5x Name (cargo scan)
+    if ((m = line.match(/^(.+?)\s+([\d .,']+)$/))){ id = look(m[1]); if (id && qty(m[2]) != null){ add(id, qty(m[2]), line); continue; } }     // multibuy: Name 5
+    if ((m = line.match(/^([^,]+),\s*(.+)$/))){ id = look(m[1]); if (id){ add(id, 1, line); continue; } }                          // EFT module, charge
+    bad.push(line);
+  }
+  return { items:out, bad };
+}
+
+/* ---------- Market: station order book from ESI ---------- */
+const books = new Map();   // hub:type -> { t, buy:[[p,v]] desc, sell:[[p,v]] asc }
+async function getBook(hub, id){
+  const key = hub.k + ':' + id, c = books.get(key);
+  if (c && Date.now() - c.t < 5 * 60000) return c;
+  const orders = [];
+  let page = 1, pages = 1;
+  do{
+    const r = await fetch(`${ESI}/markets/${hub.region}/orders/?datasource=tranquility&order_type=all&type_id=${id}&page=${page}`);
+    if (!r.ok){ if (r.status === 404) break; throw new Error('ESI ' + r.status); }
+    pages = Number(r.headers.get('x-pages')) || 1;
+    orders.push(...await r.json());
+  } while (++page <= pages);
+  const at = orders.filter(o => o.location_id === hub.station);
+  const b = { t:Date.now(),
+    buy:at.filter(o => o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => y[0] - x[0]),
+    sell:at.filter(o => !o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => x[0] - y[0]) };
+  books.set(key, b);
+  return b;
+}
+async function pool(items, n, fn, onStep){
+  let i = 0, done = 0; const errs = [];
+  await Promise.all(Array.from({ length:Math.min(n, items.length) }, async () => {
+    while (i < items.length){ const k = i++; try{ await fn(items[k]); }catch(e){ errs.push(e); } onStep(++done, items.length); }
+  }));
+  return errs;
+}
+/* Walk the book: what q units really fetch (into buy orders) or cost (from sell orders) */
+function walk(levels, q){
+  let left = q, tot = 0;
+  for (const [p, v] of levels){ const take = Math.min(left, v); tot += take * p; left -= take; if (!left) break; }
+  return { filled:q - left, total:tot };
+}
+function value(book, q, depth){
+  const top = { buy:book.buy.length ? book.buy[0][0] : 0, sell:book.sell.length ? book.sell[0][0] : 0 };
+  if (!depth) return { buyU:top.buy, sellU:top.sell, buyFill:q, sellFill:q, topBuy:top.buy, topSell:top.sell };
+  const b = walk(book.buy, q), s = walk(book.sell, q);
+  // unfilled units: valued at the last price reached is optimistic; Janice-like tools ignore depth. We count unfilled sell-side as 0 and buy-side at the last sell price.
+  const lastSell = book.sell.length ? book.sell[book.sell.length - 1][0] : 0;
+  return { buyU:b.total / q, sellU:(s.total + (q - s.filled) * lastSell) / q, buyFill:b.filled, sellFill:s.filled, topBuy:top.buy, topSell:top.sell };
+}
+
+/* ---------- Appraisal state ---------- */
+let A = null;   // { t, hub, depth, rows:[{id,q,buyU,sellU,buyFill,sellFill,off}], bad:[], snap }
+let sortBy = { k:'total', dir:-1 };
+const basisU = r => S.basis === 'buy' ? r.buyU : S.basis === 'sell' ? r.sellU : (r.buyU + r.sellU) / 2;
+function totals(){
+  const on = A.rows.filter(r => !r.off);
+  const sum = f => on.reduce((m, r) => m + f(r), 0);
+  return { buy:sum(r => r.buyU * r.q), sell:sum(r => r.sellU * r.q), split:sum(r => (r.buyU + r.sellU) / 2 * r.q),
+           vol:sum(r => (T.byId.get(r.id)?.vol || 0) * r.q), n:on.length, units:sum(r => r.q) };
+}
+
+async function appraise(){
+  if (!T){ toast('Items are still loading…'); return; }
+  const text = $('#paste').value;
+  const { items, bad } = parse(text);
+  if (!items.length){ toast(bad.length ? 'No item recognised in this text' : 'Paste a list of items first', true); if (bad.length) render({ t:Date.now(), hub:S.hub, depth:S.depth, rows:[], bad }); return; }
+  let rows = items;
+  if (S.merge){ const m = new Map(); for (const r of items) m.set(r.id, (m.get(r.id) || 0) + r.q); rows = [...m].map(([id, q]) => ({ id, q })); }
+  const hub = HUBS.find(h => h.k === S.hub) || HUBS[0];
+  const ids = [...new Set(rows.map(r => r.id))];
+  const bar = $('#progress'); bar.hidden = false; bar.firstElementChild.style.width = '0';
+  $('#go').disabled = true;
+  const errs = await pool(ids, 16, id => getBook(hub, id), (d, n) => bar.firstElementChild.style.width = (d / n * 100) + '%');
+  $('#go').disabled = false; setTimeout(() => bar.hidden = true, 400);
+  if (errs.length) toast(`${errs.length} price${errs.length > 1 ? 's' : ''} could not be loaded (EVE servers). Try again.`, true);
+  const out = rows.map(r => { const b = books.get(hub.k + ':' + r.id) || { buy:[], sell:[] }; return { id:r.id, q:r.q, ...value(b, r.q, S.depth) }; });
+  A = { t:Date.now(), hub:hub.k, depth:S.depth, rows:out, bad, text };
+  render(A); saveHist();
+}
+
+/* ---------- Share link: the whole appraisal, prices included, packed in the address ---------- */
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+async function pack(a){
+  const o = { v:1, t:a.t, h:a.hub, d:a.depth ? 1 : 0, b:S.basis, p:S.pct, r:a.rows.filter(r => !r.off).map(r => [r.id, r.q, +r.buyU.toFixed(2), +r.sellU.toFixed(2)]) };
+  const cs = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return b64u(await new Response(cs).arrayBuffer());
+}
+async function unpack(s){
+  const ds = new Blob([unb64u(s)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return JSON.parse(await new Response(ds).text());
+}
+async function shareLink(){
+  const code = await pack(A);
+  return location.origin + location.pathname + '#a=' + code;
+}
+
+/* ---------- History (this browser) ---------- */
+async function saveHist(){
+  if (!A || !A.rows.length) return;
+  const tt = totals(), top = A.rows.slice().sort((x, y) => y.buyU * y.q - x.buyU * x.q)[0];
+  const h = store.get('appr.hist', []);
+  h.unshift({ t:A.t, hub:A.hub, n:A.rows.length, buy:tt.buy, sell:tt.sell, title:T.byId.get(top.id).name + (A.rows.length > 1 ? ` +${A.rows.length - 1}` : ''), code:await pack(A) });
+  store.set('appr.hist', h.slice(0, 25)); renderHist();
+}
+function renderHist(){
+  const h = store.get('appr.hist', []);
+  $('#hist').hidden = !h.length;
+  $('#histList').innerHTML = h.map((x, i) => `<li data-i="${i}"><span class="t">${esc(x.title)}<small>${new Date(x.t).toLocaleString([], { dateStyle:'short', timeStyle:'short' })} · ${esc((HUBS.find(k => k.k === x.hub) || {}).short || x.hub)}</small></span><span class="num">${short(x.buy)}</span></li>`).join('');
+  $('#histList').querySelectorAll('li').forEach(li => li.onclick = () => openCode(h[Number(li.dataset.i)].code, true));
+}
+
+/* ---------- Offer: one % for all, or a buyback program with a rate per category ---------- */
+const catOfId = id => catOf(T.byId.get(id));
+function rateOf(cat){ const r = S.bb.rates || {}; return r[cat] != null ? r[cat] : (r._default != null ? r._default : S.pct); }
+function offerOf(a){
+  const on = a.rows.filter(r => !r.off);
+  if (S.mode === 'bb') return on.reduce((m, r) => m + basisU(r) * r.q * rateOf(catOfId(r.id)) / 100, 0);
+  return on.reduce((m, r) => m + basisU(r) * r.q, 0) * S.pct / 100;
+}
+function parseIsk(s){
+  s = String(s || '').trim().toLowerCase().replace(/isk/g, '').replace(/\s/g, '');
+  if (!s) return null;
+  const m = s.match(/^([\d.,]+)\s*(k|m|mil|b|bil|t)?$/); if (!m) return null;
+  let n = m[1];
+  if (m[2]) n = n.replace(',', '.'); else n = n.replace(/[.,](?=\d{3}(\D|$))/g, '');
+  const v = parseFloat(n); if (!isFinite(v)) return null;
+  return v * ({ k:1e3, m:1e6, mil:1e6, b:1e9, bil:1e9, t:1e12 }[m[2]] || 1);
+}
+
+/* ---------- Fetch helpers with the progress bar ---------- */
+async function loadBooks(hub, ids, label){
+  const bar = $('#progress'); bar.hidden = false; bar.firstElementChild.style.width = '0';
+  const pb = $('#progBanner'); if (label){ pb.hidden = false; pb.textContent = label; }
+  const errs = await pool(ids, 16, id => getBook(hub, id), (d, n) => bar.firstElementChild.style.width = (d / n * 100) + '%');
+  setTimeout(() => { bar.hidden = true; pb.hidden = true; }, 400);
+  if (errs.length) toast(`${errs.length} price${errs.length > 1 ? 's' : ''} could not be loaded (EVE servers). Try again.`, true);
+}
+const bookOf = (hub, id) => books.get(hub.k + ':' + id) || { buy:[], sell:[] };
+
+/* ---------- Price history (30 days, region of the hub), loaded on demand ---------- */
+const histCache = new Map();
+async function getHistory(hub, id){
+  const key = hub.region + ':' + id; if (histCache.has(key)) return histCache.get(key);
+  const r = await fetch(`${ESI}/markets/${hub.region}/history/?datasource=tranquility&type_id=${id}`);
+  const j = r.ok ? await r.json() : [];
+  const last = j.slice(-30); histCache.set(key, last); return last;
+}
+function histSvg(h){
+  const W = 260, H = 64; if (!h.length) return '';
+  const ps = h.map(d => d.average), vs = h.map(d => d.volume);
+  const lo = Math.min(...ps), hi = Math.max(...ps), vmax = Math.max(...vs) || 1, n = h.length;
+  const X = i => 4 + i * (W - 8) / Math.max(1, n - 1), Y = p => 6 + (H - 22) * (1 - (hi === lo ? .5 : (p - lo) / (hi - lo)));
+  const bars = vs.map((v, i) => `<rect x="${(X(i) - 3).toFixed(1)}" y="${(H - 2 - v / vmax * 14).toFixed(1)}" width="5" height="${(v / vmax * 14).toFixed(1)}" fill="#2a3a5c"/>`).join('');
+  const line = ps.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p).toFixed(1)}`).join('');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Average price over 30 days">${bars}<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="1.6"/></svg>`;
+}
+
+/* ---------- Render ---------- */
+let openRows = new Set();          // item rows with their price history open
+function render(a){
+  const o = $('#out');
+  if (!a.rows.length){
+    o.innerHTML = `<div class="empty"><h3>Nothing recognised</h3><p>None of these lines matched an item that can be sold on the market.</p></div>` + badBox(a.bad);
+    return;
+  }
+  const hub = HUBS.find(h => h.k === a.hub) || HUBS[0];
+  const tt = totals();
+  const base = S.basis === 'buy' ? tt.buy : S.basis === 'sell' ? tt.sell : tt.split;
+  const offer = offerOf(a);
+  const thin = a.depth ? a.rows.filter(r => !r.off && r.buyFill < r.q).length : 0;
+  const none = a.rows.filter(r => !r.off && !r.buyU && !r.sellU).length;
+  const cats = {}; for (const r of a.rows) if (!r.off){ const c = catOfId(r.id); cats[c] = (cats[c] || 0) + basisU(r) * r.q; }
+  const catList = Object.entries(cats).sort((x, y) => y[1] - x[1]);
+  const lbl = S.mode === 'bb' ? `${esc(S.bb.name || 'Buyback')} · rates by category on ${hub.short} ${S.basis}` : `${S.pct}% of ${hub.short} ${S.basis}`;
+  const ask = parseIsk($('#ask').value);
+  let verdict = '';
+  if (ask){
+    const pb = ask / tt.buy * 100, ps = ask / tt.sell * 100;
+    const cls = ask <= tt.buy ? 'good' : ask <= tt.split ? 'fair' : 'bad';
+    const word = ask <= tt.buy ? 'Below buy value: you could resell at once' : ask <= tt.split ? 'Between buy and split: fair' : ask <= tt.sell ? 'Above split: only worth it if you sell with orders' : 'Above sell value: overpriced';
+    verdict = `<div class="verdict ${cls}"><div class="big num">${pb.toFixed(0)}%</div><div><b>${word}</b><div class="dim" style="font-size:12.5px">Asking ${fmt(ask)} ISK = ${pb.toFixed(1)}% of ${hub.short} buy (${short(tt.buy)}) · ${ps.toFixed(1)}% of sell (${short(tt.sell)}) · difference with buy: ${ask - tt.buy >= 0 ? '+' : ''}${short(ask - tt.buy)}</div></div></div>`;
+  }
+  o.innerHTML = (a.snap ? `<div class="snap"><span>Shared appraisal · prices of <b>${new Date(a.t).toLocaleString([], { dateStyle:'medium', timeStyle:'short' })}</b></span><button class="small" id="refresh">Refresh prices now</button></div>` : '')
+  + (a.note ? `<div class="snap">${a.note}</div>` : '')
+  + `<div class="offer">
+      <div><div class="lbl">${lbl}</div>
+        <div class="val num" title="${fmt(offer)} ISK">${fmt(offer)}<small>ISK</small></div>
+        <div class="sub">${a.depth ? 'Order-book depth: each line valued for its full quantity' : 'Best order price for each line'} · ${hub.name} · ${new Date(a.t).toLocaleTimeString([], { timeStyle:'short' })}</div></div>
+      <div class="acts"><button class="primary" id="cpVal">Copy value</button><button id="cpLink">Copy share link</button></div>
+    </div>
+    <div class="tiles">
+      <div class="tile buy"><div class="k">Buy</div><div class="v num" title="${fmt(tt.buy)} ISK">${short(tt.buy)}</div></div>
+      <div class="tile split"><div class="k">Split</div><div class="v num" title="${fmt(tt.split)} ISK">${short(tt.split)}</div></div>
+      <div class="tile sell"><div class="k">Sell</div><div class="v num" title="${fmt(tt.sell)} ISK">${short(tt.sell)}</div></div>
+      <div class="tile"><div class="k">Volume</div><div class="v num">${fmtM3(tt.vol)} <span class="dim" style="font-size:.9rem">m³</span></div></div>
+      <div class="tile"><div class="k">Items</div><div class="v num">${fmt(tt.n)} <span class="dim" style="font-size:.9rem">· ${short(tt.units)} u</span></div></div>
+    </div>
+    ${verdict}
+    <div class="cats" style="margin-top:10px">${catList.map(([c, v]) => `<span>${esc(c)}${S.mode === 'bb' ? ` <span class="dim">${rateOf(c)}%</span>` : ''}<b>${short(v)}</b></span>`).join('')}</div>
+    ${thin ? `<div class="warnbox">⚠ ${thin} line${thin > 1 ? 's' : ''} cannot be fully sold into ${hub.short} buy orders: the buy value only counts what the orders can absorb.</div>` : ''}
+    ${none ? `<div class="warnbox">⚠ ${none} item${none > 1 ? 's have' : ' has'} no order at ${hub.short} at all.</div>` : ''}
+    ${badBox(a.bad)}
+    <div class="tabs" role="tablist">${[['items', 'Items'], ['hubs', 'Compare hubs'], ['reproc', 'Reprocess & compress'], ['freight', 'Freight'], ['buyrep', 'Buy to reprocess']].map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${n}</button>`).join('')}</div>
+    <div id="tabBody"></div>`;
+  const cp = async (txt, msg) => { try{ await navigator.clipboard.writeText(txt); toast(msg); }catch(e){ toast('Copy refused by the browser', true); } };
+  $('#cpVal').onclick = () => cp(String(Math.round(offer)), `Copied: ${fmt(offer)} ISK`);
+  $('#cpLink').onclick = async () => cp(await shareLink(), 'Share link copied');
+  if ($('#refresh')) $('#refresh').onclick = () => { $('#paste').value = a.rows.map(r => `${T.byId.get(r.id).name}\t${r.q}`).join('\n'); S.hub = a.hub; $('#hub').value = a.hub; history.replaceState(null, '', location.pathname); appraise(); };
+  o.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; saveS(); o.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); renderTab(); });
+  renderTab();
+}
+function renderTab(){
+  const box = $('#tabBody'); if (!box) return;
+  if (S.tab === 'buyrep'){ tabBuyRep(box); return; }
+  if (!A) return;
+  ({ items:tabItems, hubs:tabHubs, reproc:tabReproc, freight:tabFreight }[S.tab] || tabItems)(box);
+  if (S.tab === 'items') reprocValues();
+}
+
+/* --- Reprocess value of each line, shown in the item list when it pays more than selling as is --- */
+let RP = { key:'', by:new Map(), busy:false };
+async function reprocValues(){
+  if (!A || !A.rows.length) return;
+  const hub = HUBS.find(h => h.k === A.hub) || HUBS[0], key = A.t + ':' + hub.k + ':' + S.basis + ':' + S.yieldOre + ':' + S.yieldScrap;
+  if (RP.key === key || RP.busy) return; RP.busy = true;
+  try{
+    await loadMats();
+    const on = A.rows.filter(r => MATS[r.id]); const need = new Set(); for (const r of on) for (const [m] of MATS[r.id]) need.add(m);
+    const missing = [...need].filter(id => !books.has(hub.k + ':' + id)); if (missing.length) await loadBooks(hub, missing, 'Loading mineral prices…');
+    const unit = id => { const v = value(bookOf(hub, id), 1, false); return S.basis === 'buy' ? v.buyU : S.basis === 'sell' ? v.sellU : (v.buyU + v.sellU) / 2; };
+    const by = new Map();
+    for (const r of on){ const it = T.byId.get(r.id), y = (isOreCat(r.id) ? S.yieldOre : S.yieldScrap) / 100, por = it.por || 1, b = Math.floor(r.q / por);
+      let v = (r.q - b * por) * basisU(r); for (const [m, qn] of MATS[r.id]) v += Math.floor(b * qn * y) * unit(m);
+      by.set(r.id, { rep:v, raw:basisU(r) * r.q }); }
+    RP = { key, by, busy:false };
+    if (S.tab === 'items' && $('#tabBody')) tabItems($('#tabBody'));
+  }catch(e){ RP.busy = false; }
+}
+const reprocBadge = r => { const x = RP.by.get(r.id); if (!x || !(x.rep > x.raw * 1.005)) return '';
+  const pct = x.raw > 0 ? Math.round((x.rep / x.raw - 1) * 100) : null;
+  return `<span class="flag rp" title="Reprocessed (your yield ${isOreCat(r.id) ? S.yieldOre : S.yieldScrap} %): ${fmt(x.rep)} ISK instead of ${fmt(x.raw)}">♻ reprocess${pct != null ? ' +' + pct + ' %' : ''}</span>`; };
+
+/* --- Items --- */
+function tabItems(box){
+  const a = A, tt = totals(), base = S.basis === 'buy' ? tt.buy : S.basis === 'sell' ? tt.sell : tt.split;
+  const hub = HUBS.find(h => h.k === a.hub) || HUBS[0];
+  const rows = a.rows.slice().sort((x, y) => {
+    const it = r => T.byId.get(r.id);
+    const k = sortBy.k, f = k === 'name' ? r => it(r).name : k === 'q' ? r => r.q : k === 'vol' ? r => it(r).vol * r.q : k === 'buy' ? r => r.buyU : k === 'sell' ? r => r.sellU : r => basisU(r) * r.q;
+    const va = f(x), vb = f(y); return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * sortBy.dir;
+  });
+  const sortAttr = k => sortBy.k === k ? ` aria-sort="${sortBy.dir > 0 ? 'ascending' : 'descending'}"` : '';
+  box.innerHTML = `<div class="meta" style="margin-top:0"><span>Click an item's name for its 30-day price history. Untick a line to leave it out.</span><span class="grow"></span><button class="small" id="cpList">Copy list</button><button class="small" id="csv">Export CSV</button></div>
+    <table>
+      <thead><tr><th style="width:28px"></th><th data-k="name"${sortAttr('name')}>Item</th><th class="r" data-k="q"${sortAttr('q')}>Qty</th><th class="r" data-k="vol"${sortAttr('vol')}>m³</th>
+        <th class="r" data-k="buy"${sortAttr('buy')}>Buy / u</th><th class="r" data-k="sell"${sortAttr('sell')}>Sell / u</th><th class="r" data-k="total"${sortAttr('total')}>Total (${S.basis})</th></tr></thead>
+      <tbody>${rows.map(r => { const it = T.byId.get(r.id), tot = basisU(r) * r.q;
+        const share = base > 0 && !r.off ? Math.max(0.5, tot / base * 100) : 0;
+        const h = histCache.get(hub.region + ':' + r.id);
+        const avgVol = h && h.length ? h.reduce((m, d) => m + d.volume, 0) / h.length : null;
+        const flag = avgVol != null && r.q > avgVol ? `<span class="flag" title="More than the average daily volume traded in the region">thin market</span>` : '';
+        return `<tr class="${r.off ? 'off' : ''}" data-id="${r.id}">
+          <td><input type="checkbox" aria-label="Count ${esc(it.name)}" ${r.off ? '' : 'checked'}></td>
+          <td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${r.id}/icon?size=32"><span class="n" role="button" tabindex="0" data-hist="${r.id}">${esc(it.name)}${flag}${reprocBadge(r)}<small>${esc(grpOf(it))}</small></span></div></td>
+          <td class="r num">${fmt(r.q)}</td>
+          <td class="r num">${fmtM3(it.vol * r.q)}</td>
+          <td class="r num">${r.buyU ? fmtU(r.buyU) : '—'}${a.depth && r.buyFill < r.q ? `<span class="thin">${r.buyFill ? fmt(r.buyFill) + ' sellable' : 'no buy order'}</span>` : ''}${a.depth && r.topBuy && r.buyFill === r.q && r.topBuy - r.buyU > r.topBuy * 0.001 ? `<span class="thin" title="Best buy order">top ${fmtU(r.topBuy)}</span>` : ''}</td>
+          <td class="r num">${r.sellU ? fmtU(r.sellU) : '—'}${a.depth && r.sellFill < r.q && r.sellU ? `<span class="thin">${fmt(r.sellFill)} on sale</span>` : ''}</td>
+          <td class="r num"><b>${fmt(tot)}</b><div class="share"><i style="width:${share.toFixed(1)}%"></i></div></td></tr>`
+          + (openRows.has(r.id) ? `<tr class="detail"><td></td><td colspan="6">${h ? (h.length ? `<div class="hist">${histSvg(h)}<div>Last 30 days in ${esc(regionLabel(hub))}<br>Average price <b>${fmtU(h.reduce((m, d) => m + d.average, 0) / h.length)}</b> · low <b>${fmtU(Math.min(...h.map(d => d.lowest)))}</b> · high <b>${fmtU(Math.max(...h.map(d => d.highest)))}</b><br>Traded per day <b>${fmt(avgVol)}</b> units · your quantity = <b>${avgVol ? (r.q / avgVol < 1 ? (r.q / avgVol).toFixed(2) : (r.q / avgVol).toFixed(1)) : '∞'}</b> days of trading</div></div>` : '<span class="dim">No trade history for this item in this region.</span>') : '<span class="dim">Loading history…</span>'}</td></tr>` : ''); }).join('')}</tbody>
+    </table>`;
+  const cp = async (txt, msg) => { try{ await navigator.clipboard.writeText(txt); toast(msg); }catch(e){ toast('Copy refused by the browser', true); } };
+  $('#cpList').onclick = () => cp(a.rows.filter(r => !r.off).map(r => `${T.byId.get(r.id).name}\t${r.q}`).join('\n'), 'Item list copied');
+  $('#csv').onclick = () => {
+    const lines = [['Item', 'Category', 'Quantity', 'Volume m3', 'Buy per unit', 'Sell per unit', 'Buy total', 'Sell total'].join(',')]
+      .concat(a.rows.filter(r => !r.off).map(r => { const it = T.byId.get(r.id); return [`"${it.name.replace(/"/g, '""')}"`, `"${catOf(it)}"`, r.q, (it.vol * r.q).toFixed(2), r.buyU.toFixed(2), r.sellU.toFixed(2), (r.buyU * r.q).toFixed(2), (r.sellU * r.q).toFixed(2)].join(','); }));
+    const u = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/csv' }));
+    const l = document.createElement('a'); l.href = u; l.download = `appraisal-${hub.k}-${new Date(a.t).toISOString().slice(0, 16).replace(/[:T]/g, '')}.csv`; l.click(); setTimeout(() => URL.revokeObjectURL(u), 1000);
+  };
+  box.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; sortBy = { k, dir:sortBy.k === k ? -sortBy.dir : (k === 'name' ? 1 : -1) }; tabItems(box); });
+  box.querySelectorAll('tbody input[type=checkbox]').forEach(cb => cb.onchange = () => { const id = Number(cb.closest('tr').dataset.id); A.rows.filter(r => r.id === id).forEach(r => r.off = !cb.checked); render(A); });
+  box.querySelectorAll('[data-hist]').forEach(el => { const go = async () => {
+    const id = Number(el.dataset.hist);
+    if (openRows.has(id)){ openRows.delete(id); tabItems(box); return; }
+    openRows.add(id); tabItems(box);
+    try{ await getHistory(hub, id); }catch(e){ histCache.set(hub.region + ':' + id, []); }
+    if ($('#tabBody') === box) tabItems(box);
+  }; el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }; });
+}
+const REGION_NAMES = { 10000002:'The Forge', 10000043:'Domain', 10000032:'Sinq Laison', 10000030:'Heimatar', 10000042:'Metropolis' };
+const regionLabel = hub => REGION_NAMES[hub.region] || 'the region';
+
+/* --- Compare hubs --- */
+let hubCmp = null;   // { key, res:[{hub, buy, split, sell, noBuy}] }
+function tabHubs(box){
+  const key = A.t + ':' + A.rows.filter(r => !r.off).map(r => r.id + 'x' + r.q).join(',') + ':' + (A.depth ? 1 : 0);
+  if (!hubCmp || hubCmp.key !== key){
+    box.innerHTML = `<div class="panel"><h3>Where to sell</h3><p class="dim" style="margin:0 0 10px">Values the same list in the five trade hubs, with the same settings (${A.depth ? 'order-book depth' : 'best order'}).</p><button class="primary" id="runHubs">Compare the 5 hubs</button></div>`;
+    $('#runHubs').onclick = async () => {
+      const on = A.rows.filter(r => !r.off), ids = [...new Set(on.map(r => r.id))];
+      for (const hub of HUBS) await loadBooks(hub, ids, `Loading ${hub.short} prices…`);
+      hubCmp = { key, res:HUBS.map(hub => { let buy = 0, sell = 0, noBuy = 0;
+        for (const r of on){ const v = value(bookOf(hub, r.id), r.q, A.depth); buy += v.buyU * r.q; sell += v.sellU * r.q; if (!v.buyU) noBuy++; }
+        return { hub, buy, sell, split:(buy + sell) / 2, noBuy }; }) };
+      tabHubs(box);
+    };
+    return;
+  }
+  const res = hubCmp.res, bestB = Math.max(...res.map(x => x.buy)), bestS = Math.max(...res.map(x => x.sell)), bestP = Math.max(...res.map(x => x.split));
+  box.innerHTML = `<table><thead><tr><th>Hub</th><th class="r">Buy</th><th class="r">Split</th><th class="r">Sell</th><th class="r">Lines with no buyer</th><th></th></tr></thead><tbody>
+    ${res.map(x => `<tr><td><b>${esc(x.hub.short)}</b> <span class="dim" style="font-size:12px">${esc(x.hub.name)}</span></td>
+      <td class="r num ${x.buy === bestB ? 'best' : ''}">${fmt(x.buy)}</td><td class="r num ${x.split === bestP ? 'best' : ''}">${fmt(x.split)}</td><td class="r num ${x.sell === bestS ? 'best' : ''}">${fmt(x.sell)}</td>
+      <td class="r num">${x.noBuy || '—'}</td><td class="r">${x.hub.k === A.hub ? '<span class="dim">current</span>' : `<button class="small" data-use="${x.hub.k}">Use</button>`}</td></tr>`).join('')}
+  </tbody></table><p class="hint">Buy = sell everything now to buy orders. Sell = list everything at the lowest sell price. Green: best hub for each.</p>`;
+  box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => { S.hub = b.dataset.use; saveS(); syncControls(); appraise(); });
+}
+
+/* --- Reprocess & compress --- */
+let MATS = null;
+async function loadMats(){ if (MATS) return MATS; const r = await fetch('../../appraisal/data/materials.json'); MATS = r.ok ? await r.json() : {}; return MATS; }
+const isOreCat = id => catOfId(id) === 'Asteroid';
+async function tabReproc(box){
+  box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>';
+  await loadMats();
+  const hub = HUBS.find(h => h.k === A.hub) || HUBS[0];
+  const on = A.rows.filter(r => !r.off && MATS[r.id]);
+  if (!on.length){ box.innerHTML = '<div class="panel dim">Nothing in this list can be reprocessed.</div>'; return; }
+  const need = new Set();
+  for (const r of on){ for (const [m] of MATS[r.id]) need.add(m); const z = T.z[r.id]; if (z) need.add(Number(z)); }
+  const missing = [...need].filter(id => !books.has(hub.k + ':' + id));
+  if (missing.length) await loadBooks(hub, missing, 'Loading mineral and compressed prices…');
+  const unit = id => { const v = value(bookOf(hub, id), 1, false); return S.basis === 'buy' ? v.buyU : S.basis === 'sell' ? v.sellU : (v.buyU + v.sellU) / 2; };
+  const lines = on.map(r => {
+    const it = T.byId.get(r.id), ore = isOreCat(r.id), y = (ore ? S.yieldOre : S.yieldScrap) / 100;
+    const batches = Math.floor(r.q / (it.por || 1)), left = r.q - batches * (it.por || 1);
+    const raw = basisU(r) * r.q;
+    let rep = left * basisU(r); const out = [];
+    for (const [m, qn] of MATS[r.id]){ const got = Math.floor(batches * qn * y); out.push([m, got]); rep += got * unit(m); }
+    const z = T.z[r.id], comp = z && T.byId.has(Number(z)) ? r.q * unit(Number(z)) : null;
+    const best = Math.max(raw, rep, comp || 0);
+    return { r, it, ore, raw, rep, comp, best, out, z };
+  }).sort((a, b) => b.best - a.best);
+  const sum = f => lines.reduce((m, l) => m + f(l), 0);
+  const rawT = sum(l => l.raw), bestT = sum(l => l.best);
+  box.innerHTML = `<div class="panel">
+    <div class="formrow">
+      <label>Ore, ice &amp; moon yield (%) <input id="yOre" type="number" step="0.1" min="0" max="100" value="${S.yieldOre}"></label>
+      <label>Scrapmetal yield, other items (%) <input id="yScrap" type="number" step="0.1" min="0" max="100" value="${S.yieldScrap}"></label>
+      <span class="dim" style="font-size:12px;max-width:380px">Your own yield after skills, implant, structure and rigs. Prices: ${esc(hub.short)} ${S.basis}.</span>
+    </div>
+    <table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Sell as is</th><th class="r">Compressed</th><th class="r">Reprocessed</th><th>Gives</th></tr></thead><tbody>
+    ${lines.map(l => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${l.r.id}/icon?size=32"><span>${esc(l.it.name)}<small>${l.ore ? 'ore yield' : 'scrapmetal yield'}</small></span></div></td>
+      <td class="r num">${fmt(l.r.q)}</td>
+      <td class="r num ${l.best === l.raw ? 'best' : ''}">${fmt(l.raw)}</td>
+      <td class="r num ${l.comp != null && l.best === l.comp ? 'best' : ''}">${l.comp != null ? fmt(l.comp) + `<span class="thin" style="color:var(--dim)">${fmtM3(T.byId.get(Number(l.z)).vol * l.r.q)} m³</span>` : '—'}</td>
+      <td class="r num ${l.best === l.rep ? 'best' : ''}">${fmt(l.rep)}</td>
+      <td style="font-size:12px;color:var(--dim)">${l.out.filter(([, g]) => g).slice(0, 6).map(([m, g]) => `${fmt(g)} ${esc(T.byId.get(m)?.name || m)}`).join(', ')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="r num"><b>${fmt(rawT)}</b></td><td></td><td></td><td><b class="best">Best of each line: ${fmt(bestT)}</b> <span class="dim">(${bestT >= rawT ? '+' : ''}${short(bestT - rawT)})</span></td></tr></tfoot></table>
+    <p class="hint">Compression keeps the same reprocessing output and divides the volume (ore by 100, ice by 10). Leftover units below one batch are counted as is.</p></div>`;
+  const upd = () => { S.yieldOre = Number($('#yOre').value) || 0; S.yieldScrap = Number($('#yScrap').value) || 0; saveS(); clearTimeout(upd._t); upd._t = setTimeout(() => tabReproc(box), 350); };
+  $('#yOre').oninput = upd; $('#yScrap').oninput = upd;
+}
+
+/* --- Buy to reprocess: items on sale below what their minerals bring, after taxes --- */
+const BR = Object.assign({ cat:'Module', min:5, tax:3.6, broker:1.5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
+let brRun = null;
+function tabBuyRep(box){
+  const hub = HUBS.find(h => h.k === S.hub && !h.disabled) || HUBS.find(h => !h.disabled);
+  const cats = MATS ? [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort() : [];
+  if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
+  box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
+    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)} whose reprocessed minerals sell for more, taxes included. Uses your yields (Reprocess tab): ore ${S.yieldOre} %, other items ${S.yieldScrap} %.</p>
+    <div class="formrow">
+      <label>Kind of item <select id="brCat">${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
+      <label>Minimum profit (%) <input id="brMin" type="number" step="0.5" value="${BR.min}"></label>
+      <label>Sales tax (%) <input id="brTax" type="number" step="0.1" value="${BR.tax}"></label>
+      <label>Minerals sold <select id="brTo"><option value="buy"${BR.sellTo === 'buy' ? ' selected' : ''}>at once, to buy orders</option><option value="sell"${BR.sellTo === 'sell' ? ' selected' : ''}>with sell orders (+ broker fee)</option></select></label>
+      <label>Broker fee (%) <input id="brBroker" type="number" step="0.1" value="${BR.broker}"></label>
+      <label>Items checked at most <input id="brMax" type="number" step="10" min="10" max="600" value="${BR.max}"></label>
+    </div>
+    <div class="go"><button class="primary" id="brGo">Search</button> <span class="dim" id="brSt"></span></div>
+    <div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div>`;
+  const keep = () => { BR.cat = $('#brCat').value; BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
+  box.querySelectorAll('input,select').forEach(i => i.onchange = keep);
+  $('#brGo').onclick = async () => {
+    keep(); const run = brRun = { html:'' };
+    const q = BR.q.toLowerCase();
+    const cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && catOf(it) === BR.cat && (!q || it.name.toLowerCase().includes(q)); }).slice(0, BR.max);
+    if (!cand.length){ $('#brRes').innerHTML = '<p class="dim">Nothing of this kind to check.</p>'; return; }
+    const mins = [...new Set(cand.flatMap(id => MATS[id].map(m => m[0])))];
+    $('#brSt').textContent = 'Mineral prices…';
+    await loadBooks(hub, mins.filter(id => !books.has(hub.k + ':' + id)), 'Loading mineral prices…');
+    const keepRate = 1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0);
+    const minU = id => { const v = value(bookOf(hub, id), 1, false); return BR.sellTo === 'sell' ? v.sellU : v.buyU; };
+    const found = [];
+    await pool(cand, 8, async id => {
+      if (run !== brRun) return;
+      const b = await getBook(hub, id); if (!b.sell.length) return;
+      const it = T.byId.get(id), por = it.por || 1, y = (isOreCat(id) ? S.yieldOre : S.yieldScrap) / 100;
+      let per = 0; for (const [m, qn] of MATS[id]) per += Math.floor(por * qn * y) * minU(m);   // one batch
+      const net = per / por * keepRate, price = b.sell[0][0], profit = (net - price) / price * 100;
+      if (profit >= BR.min){ let units = 0; for (const [p, v] of b.sell){ if ((net - p) / p * 100 < BR.min) break; units += v; }
+        found.push({ id, it, price, net, profit, units, gain:(net - price) * units }); }
+    }, (d, n) => { if (run === brRun) $('#brSt').textContent = `${d} / ${n} checked · ${found.length} found`; });
+    if (run !== brRun) return;
+    found.sort((a, b) => b.gain - a.gain);
+    run.html = found.length ? `<table><thead><tr><th>Item</th><th class="r">Buy at</th><th class="r">Minerals, net</th><th class="r">Profit</th><th class="r">Units at that profit</th><th class="r">Gain</th></tr></thead><tbody>
+      ${found.map(f => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}</small></span></div></td>
+        <td class="r num">${fmtU(f.price)}</td><td class="r num">${fmtU(f.net)}</td><td class="r num best">+${f.profit.toFixed(1)} %</td><td class="r num">${fmt(f.units)}</td><td class="r num"><b>${fmt(f.gain)}</b></td></tr>`).join('')}</tbody></table>
+      <p class="hint">Buy price: the cheapest sell orders, no tax. Minerals: ${BR.sellTo === 'buy' ? 'sold at once to buy orders' : 'sold with sell orders'}, minus ${BR.tax} % sales tax${BR.sellTo === 'sell' ? ` and ${BR.broker} % broker fee` : ''}. Units: what is on sale while the profit stays above ${BR.min} %.</p>`
+      : `<p class="dim">No item of this kind pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`;
+    $('#brRes').innerHTML = run.html; $('#brSt').textContent = `${cand.length} checked · ${found.length} found`;
+  };
+}
+
+/* --- Freight --- */
+function tabFreight(box){
+  const tt = totals(), f = S.freight, offer = offerOf(A);
+  const collBase = f.collOn === 'buy' ? tt.buy : tt.sell;
+  const cost = Math.max(f.min || 0, tt.vol * (f.rate || 0) + collBase * (f.coll || 0) / 100);
+  box.innerHTML = `<div class="panel">
+    <div class="formrow">
+      <label>Rate (ISK per m³) <input id="fRate" type="number" min="0" step="50" value="${f.rate}"></label>
+      <label>Collateral fee (%) <input id="fColl" type="number" min="0" step="0.1" value="${f.coll}"></label>
+      <label>Collateral based on <select id="fOn"><option value="sell"${f.collOn !== 'buy' ? ' selected' : ''}>Sell value</option><option value="buy"${f.collOn === 'buy' ? ' selected' : ''}>Buy value</option></select></label>
+      <label>Minimum fee (ISK) <input id="fMin" placeholder="e.g. 5m" value="${f.min ? short(f.min).replace(' ', '') : ''}"></label>
+      <label>Max volume per contract (m³) <input id="fMax" type="number" min="0" step="1000" value="${f.max || ''}" placeholder="e.g. 340000"></label>
+    </div>
+    <div class="tiles" style="grid-template-columns:repeat(4,1fr);margin-top:0">
+      <div class="tile"><div class="k">Volume</div><div class="v num">${fmtM3(tt.vol)} m³</div></div>
+      <div class="tile"><div class="k">Collateral</div><div class="v num">${short(collBase)}</div></div>
+      <div class="tile sell"><div class="k">Freight cost</div><div class="v num" title="${fmt(cost)} ISK">${short(cost)}</div></div>
+      <div class="tile buy"><div class="k">Offer after freight</div><div class="v num" title="${fmt(offer - cost)} ISK">${short(offer - cost)}</div></div>
+    </div>
+    <p class="hint">Freight = max(minimum, volume × rate + collateral × fee). Freight is ${tt.sell ? (cost / tt.sell * 100).toFixed(1) : '—'}% of the sell value${f.max ? ` · ${Math.ceil(tt.vol / f.max)} contract${Math.ceil(tt.vol / f.max) > 1 ? 's' : ''} needed at ${fmt(f.max)} m³ each` : ''}. Volumes are packaged volumes.</p>
+    <div class="go" style="margin-top:6px"><button class="small" id="cpFreight">Copy freight details</button></div></div>`;
+  const upd = () => { f.rate = Number($('#fRate').value) || 0; f.coll = Number($('#fColl').value) || 0; f.collOn = $('#fOn').value; f.min = parseIsk($('#fMin').value) || 0; f.max = Number($('#fMax').value) || 0; saveS(); clearTimeout(upd._t); upd._t = setTimeout(() => { const ae = document.activeElement && document.activeElement.id; tabFreight(box); if (ae && $('#' + ae)){ const el = $('#' + ae); el.focus(); } }, 600); };
+  ['#fRate', '#fColl', '#fMin', '#fMax'].forEach(s => $(s).oninput = upd); $('#fOn').onchange = upd;
+  $('#cpFreight').onclick = async () => { try{ await navigator.clipboard.writeText(`Volume: ${fmtM3(tt.vol)} m3\nCollateral: ${fmt(collBase)} ISK\nReward: ${fmt(cost)} ISK`); toast('Freight details copied'); }catch(e){ toast('Copy refused by the browser', true); } };
+}
+
+function badBox(bad){
+  if (!bad || !bad.length) return '';
+  return `<details class="warnbox"><summary>${bad.length} line${bad.length > 1 ? 's' : ''} not recognised</summary><ul>${bad.slice(0, 60).map(b => `<li>${esc(b)}</li>`).join('')}${bad.length > 60 ? `<li>… ${bad.length - 60} more</li>` : ''}</ul></details>`;
+}
+async function openCode(code, fromHist){
+  try{
+    const o = await unpack(code);
+    A = { t:o.t, hub:o.h, depth:!!o.d, rows:o.r.map(([id, q, b, s]) => ({ id, q, buyU:b, sellU:s, buyFill:q, sellFill:q, topBuy:b, topSell:s })).filter(r => T.byId.has(r.id)), bad:[], snap:true };
+    if (o.b) S.basis = o.b; if (o.p) S.pct = o.p; syncControls();
+    $('#paste').value = A.rows.map(r => `${T.byId.get(r.id).name}\t${r.q}`).join('\n');
+    render(A);
+    if (fromHist) window.scrollTo({ top:0, behavior:'smooth' });
+  }catch(e){ toast('This appraisal link is damaged', true); }
+}
+
+/* ---------- Incoming links from the other tools ---------- */
+// #t=<text>   : a list or an EFT fit (fitting tool's "Appraise" button)
+// #km=id/hash : a killmail (mapper's kill list): dropped loot by default
+// #bb=<code>  : a corp buyback program
+async function openKillmail(id, hash, all){
+  try{
+    const r = await fetch(`${ESI}/killmails/${id}/${hash}/?datasource=tranquility`); if (!r.ok) throw 0;
+    const km = await r.json(), lines = [];
+    const walkItems = (list) => { for (const it of list || []){ const q = (it.quantity_dropped || 0) + (all ? it.quantity_destroyed || 0 : 0); const n = T.byId.get(it.item_type_id); if (q && n) lines.push(`${n.name}\t${q}`); if (it.items) walkItems(it.items); } };
+    walkItems(km.victim.items);
+    const ship = T.byId.get(km.victim.ship_type_id);
+    if (all && ship) lines.unshift(`${ship.name}\t1`);
+    $('#paste').value = lines.join('\n');
+    await appraise();
+    if (A) { A.note = `Killmail <a href="https://zkillboard.com/kill/${id}/" target="_blank" rel="noopener">#${id}</a>${ship ? ` · ${esc(ship.name)}` : ''} · ${all ? 'everything lost (hull, dropped and destroyed)' : 'dropped loot only'} · <button class="small" id="kmToggle">${all ? 'Show dropped loot only' : 'Show the total loss'}</button>`; render(A);
+      $('#kmToggle').onclick = () => openKillmail(id, hash, !all); }
+  }catch(e){ toast('Could not load this killmail', true); }
+}
+function bbPack(){ return b64u(new TextEncoder().encode(JSON.stringify({ n:S.bb.name, r:S.bb.rates, b:S.basis, h:S.hub }))); }
+function bbOpen(code){
+  try{ const o = JSON.parse(new TextDecoder().decode(unb64u(code))); S.bb = { name:o.n || '', rates:o.r || {} }; if (o.b) S.basis = o.b; if (o.h) S.hub = o.h; S.mode = 'bb'; saveS(); syncControls();
+    const pb = $('#progBanner'); pb.hidden = false; pb.textContent = `Buyback program loaded: ${S.bb.name || 'unnamed'}. Paste your items and appraise.`; }
+  catch(e){ toast('This buyback link is damaged', true); }
+}
+
+/* ---------- Controls ---------- */
+function renderBB(){
+  $('#bbBox').hidden = S.mode !== 'bb';
+  if (S.mode !== 'bb') return;
+  $('#bbName').value = S.bb.name || '';
+  const rates = S.bb.rates || (S.bb.rates = {});
+  if (rates._default == null) rates._default = S.pct;
+  const present = A ? [...new Set(A.rows.map(r => catOfId(r.id)))] : [];
+  const cats = [...new Set([...Object.keys(rates).filter(k => k !== '_default'), ...present])].sort();
+  $('#bbRates').innerHTML = `<tr><td>All other categories</td><td style="text-align:right"><input data-cat="_default" type="number" min="0" max="200" value="${rates._default}"> %</td></tr>`
+    + cats.map(c => `<tr><td>${esc(c)}${present.includes(c) ? '' : ' <span class="dim" style="font-size:11px">(not in this list)</span>'}</td><td style="text-align:right"><input data-cat="${esc(c)}" type="number" min="0" max="200" placeholder="${rates._default}" value="${rates[c] ?? ''}"> %</td></tr>`).join('');
+  $('#bbRates').querySelectorAll('input').forEach(i => i.oninput = () => { const v = i.value === '' ? null : Number(i.value); if (v == null) delete rates[i.dataset.cat]; else rates[i.dataset.cat] = v; saveS(); if (A && A.rows.length) render(A); });
+}
+function syncControls(){
+  $('#hub').value = S.hub; $('#pct').value = S.pct; $('#depth').checked = S.depth; $('#merge').checked = S.merge;
+  document.querySelectorAll('[data-basis]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.basis === S.basis)));
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
+  renderBB();
+}
+function setup(){
+  $('#hub').innerHTML = HUBS.map(h => `<option value="${h.k}">${esc(h.name)}</option>`).join('');
+  syncControls();
+  $('#go').onclick = appraise;
+  $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
+  $('#clear').onclick = () => { $('#paste').value = ''; $('#paste').focus(); };
+  $('#paste').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); appraise(); } });
+  $('#hub').onchange = e => { S.hub = e.target.value; saveS(); if (A && !A.snap) appraise(); };
+  $('#pct').oninput = e => { const v = Number(e.target.value); if (v > 0 && v <= 200){ S.pct = v; saveS(); if (A && A.rows.length) render(A); } };
+  $('#depth').onchange = e => { S.depth = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
+  $('#merge').onchange = e => { S.merge = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
+  $('#ask').oninput = () => { if (A && A.rows.length) render(A); };
+  document.querySelectorAll('[data-basis]').forEach(b => b.onclick = () => { S.basis = b.dataset.basis; saveS(); syncControls(); if (A && A.rows.length) render(A); });
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { S.mode = b.dataset.mode; saveS(); syncControls(); if (A && A.rows.length) render(A); });
+  $('#bbName').oninput = e => { S.bb.name = e.target.value; saveS(); if (A && A.rows.length) render(A); };
+  $('#bbAdd').onclick = () => { const c = prompt('Category name, as shown under the totals (e.g. Asteroid, Ship, Module, Planetary Commodities):'); if (c){ S.bb.rates[c.trim()] = S.bb.rates._default; saveS(); renderBB(); } };
+  $('#bbShare').onclick = async () => { try{ await navigator.clipboard.writeText(location.origin + location.pathname + '#bb=' + bbPack()); toast('Buyback program link copied: send it to your members'); }catch(e){ toast('Copy refused by the browser', true); } };
+}
+
+(async function init(){
+  setup(); renderHist();
+  try{ await loadTypes(); }catch(e){ $('#sdeVer').textContent = 'item list unavailable'; toast(e.message, true); return; }
+  renderBB();
+  addDocked();
+  const hs = location.hash;
+  let m;
+  if ((m = hs.match(/^#a=([\w-]+)/))) openCode(m[1]);
+  else if ((m = hs.match(/^#bb=([\w-]+)/))) bbOpen(m[1]);
+  else if ((m = hs.match(/^#km=(\d+)\/([0-9a-f]+)/i))) openKillmail(m[1], m[2], false);
+  else if ((m = hs.match(/^#t=(.+)$/))){ try{ $('#paste').value = decodeURIComponent(m[1]); history.replaceState(null, '', location.pathname); appraise(); }catch(e){} }
+})();
+})();
+</script>
+</body>
+</html>
