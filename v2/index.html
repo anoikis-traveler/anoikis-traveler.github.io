@@ -44,6 +44,11 @@ input,select{background:rgba(3,5,11,.6);border:1px solid var(--line);padding:5px
 .privc p{margin:0 0 6px}
 .privc .row{display:flex;gap:6px;flex-wrap:wrap}
 #wWins{width:max-content;max-width:320px}
+.hchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin:1px 4px 1px 0;font-size:12px}
+.hchip img{width:18px;height:18px}
+.hgx{margin:3px 0;font-size:11.5px}
+.hgx button[aria-pressed="true"]{background:rgba(242,167,75,.18);color:var(--accent);border-color:var(--accent)}
+.hgout{margin-top:3px}
 .jfiche{display:grid;gap:4px;margin:6px 0 4px;font-size:12.5px}
 .jfiche .jst{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:1px 2px 1px 0;font-family:var(--mono);font-size:11.5px}
 .hleft{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:14px}
@@ -2319,11 +2324,15 @@ const lvlOfStanding = st => st == null ? 0 : st > 0 ? 1 : st <= -10 ? 5 : st <= 
 const THREAT = [ { k:0, n:'—', c:'' }, ...['Friendly', 'Low', 'Medium', 'High', 'Extreme'].map((n, i) => ({ k:i + 1, n, get c(){ return thrCol(i + 1); } })) ];   // colours from the Colours window
 function holdLvl(r){   // set by hand, or from your standings
   if (!r) return { lvl:0, auto:false };
-  if (r.lvlSet || !(r.holder && r.holder.id) || !standReady()) return { lvl:r.lvl || 0, auto:false };
-  return { lvl:lvlOfStanding(standOf(r.holder.id, r.holder.kind)), auto:true, st:standOf(r.holder.id, r.holder.kind) };
+  const hs = holdersOf(r).filter(h => h.id);
+  if (r.lvlSet || !hs.length || !standReady()) return { lvl:r.lvl || 0, auto:false };
+  const sts = hs.map(h => standOf(h.id, h.kind)), st = Math.min(...sts);   // several holders: the most hostile one sets the threat
+  return { lvl:lvlOfStanding(st), auto:true, st };
 }
 const lvlOpts = v => THREAT.map(t => `<option value="${t.k}"${+v === t.k ? ' selected' : ''}${t.c ? ` style="color:${t.c}"` : ''}>${t.n}</option>`).join('');
 /* Wormhole holders: who lives in a J system, shown in big each time one of your pilots jumps into it (on your chain) */
+const holdersOf = r => !r ? [] : Array.isArray(r.holders) && r.holders.length ? r.holders : r.holder ? [r.holder] : [];
+const withHolders = (r, hs) => ({ ...r, holders:hs, holder:hs[0] || null });   // holder (the first) kept for older pages
 function holdAll(){ return share.owner && !DEMO ? ((share.map && share.map.data && share.map.data.holders) || {}) : store.get(DEMO ? 'whmap.reg.holders.demo' : 'whmap.reg.holders', {}); }
 async function saveHold(id, rec){
   id = String(id);
@@ -2351,59 +2360,81 @@ async function addHolder(sysTxt, whoTxt, lvl){
   if (whoTxt && holder && !holder.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(whoTxt)}: no corporation or alliance with this exact name, kept as text (no logo).</span>`; else $('#holdMsg').textContent = '';
   const prev = holdAll()[id] || {};
   if (holder && holder.kind === 'corporation' && holder.id) await corpAlly(holder.id);
-  if (await saveHold(id, { n:sysName(id), holder:holder || prev.holder || null, lvl:+lvl || 0, lvlSet:+lvl > 0, by:tok ? tok.charName : '', t:Date.now() })){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
+  const hs = holdersOf(prev).slice(); if (holder && !hs.some(x => (x.id && x.id === holder.id) || x.name.toLowerCase() === holder.name.toLowerCase())) hs.push(holder);
+  if (await saveHold(id, withHolders({ ...prev, n:sysName(id), lvl:+lvl || prev.lvl || 0, lvlSet:+lvl > 0 || !!prev.lvlSet, by:tok ? tok.charName : '', t:Date.now() }, hs))){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
 }
 /* Who lives in a wormhole: a GUESS the site proposes and you confirm.
    The guess comes from one "source" below. To try another method, add an entry to HOLDER_SOURCES with
    guess(systemId) → a promise of [{ id, name, kind:'corporation'|'alliance', score, why }] (best first), and set HOLDER_SOURCE. */
+const srcLabel = () => (window.I18N ? I18N.t(HOLDER_SOURCES[HOLDER_SOURCE].label) : HOLDER_SOURCES[HOLDER_SOURCE].label);
 const HOLDER_SOURCES = {
-  zkill:{ label:'zKillboard, last 30 days', guess:zkillHolderGuess },
+  zkill:{ label:'zKillboard, last 180 days', guess:zkillHolderGuess },
 };
 let HOLDER_SOURCE = 'zkill';
 const holderGuessCache = {};
+// zKillboard: the kills of the last 180 days in the system (its API only filters 7 days back, so the dates come from each killmail)
+const HOLD_DAYS = 180, HOLD_MAX = 150;
 async function zkillHolderGuess(id){
-  const list = await zkList(`https://zkillboard.com/api/solarSystemID/${id}/pastSeconds/2592000/`);
-  const score = {}, add = (cid, w, why) => { if (!cid) return; const x = score[cid] = score[cid] || { s:0, why:{} }; x.s += w; x.why[why] = (x.why[why] || 0) + 1; };
-  for (const k of list.filter(k => k && k.killmail_id && k.zkb && k.zkb.hash).slice(0, 40)){
-    let j = null; try{ const r = await fetch(`${ESI}/killmails/${k.killmail_id}/${k.zkb.hash}/`); if (r.ok) j = await r.json(); }catch(e){}
-    if (!j || !j.victim) continue;
-    const struct = !j.victim.character_id;                      // a structure (citadel, POS…) losing: its owner lived here
-    add(j.victim.corporation_id, struct ? 6 : 1, struct ? 'structures lost' : 'ships lost');
-    for (const c of new Set((j.attackers || []).map(a => a.corporation_id).filter(Boolean))) add(c, 0.5, 'kills here');
+  const list = (await zkList(`https://zkillboard.com/api/solarSystemID/${id}/`)).filter(k => k && k.killmail_id && k.zkb && k.zkb.hash).slice(0, HOLD_MAX);
+  const since = Date.now() - HOLD_DAYS * 864e5, st = {}, S = c => st[c] = st[c] || { days:new Set(), kills:0, losses:0, structs:0 };
+  let seen = 0, oldest = null;
+  for (let i = 0; i < list.length; i += 10){
+    const js = await Promise.all(list.slice(i, i + 10).map(k => fetch(`${ESI}/killmails/${k.killmail_id}/${k.zkb.hash}/`).then(r => r.ok ? r.json() : null).catch(() => null)));
+    let old = false;
+    for (const j of js){
+      if (!j || !j.victim) continue; const t = Date.parse(j.killmail_time); if (t < since){ old = true; continue; }
+      seen++; oldest = Math.min(oldest || t, t); const day = String(j.killmail_time).slice(0, 10);
+      const v = j.victim.corporation_id; if (v){ const x = S(v); x.days.add(day); if (j.victim.character_id) x.losses++; else x.structs++; }
+      for (const c of new Set((j.attackers || []).map(a => a.corporation_id).filter(Boolean))){ const x = S(c); x.days.add(day); x.kills++; }
+    }
+    if (old) break;                                             // the list is newest first: past 180 days, stop
   }
-  const ids = Object.keys(score).sort((a, b) => score[b].s - score[a].s).slice(0, 3); if (!ids.length) return [];
+  // a resident comes back day after day; a lost structure is almost a proof
+  const score = x => x.days.size * 3 + x.structs * 15 + x.losses + x.kills * 0.3;
+  const ids = Object.keys(st).filter(c => st[c].days.size >= 2 || st[c].structs).sort((a, b) => score(st[b]) - score(st[a])).slice(0, 5); if (!ids.length) return [];
   let names = {}; try{ const r = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(ids.map(Number)) }); if (r.ok) for (const x of await r.json()) names[x.id] = x.name; }catch(e){}
-  return ids.map(c => ({ id:Number(c), name:names[c] || ('#' + c), kind:'corporation', score:Math.round(score[c].s * 10) / 10, why:Object.entries(score[c].why).map(([w, n]) => `${n} ${w}`).join(', ') }));
+  const span = oldest ? Math.max(1, Math.round((Date.now() - oldest) / 864e5)) : HOLD_DAYS;
+  return ids.map(c => { const x = st[c]; return { id:Number(c), name:names[c] || ('#' + c), kind:'corporation', score:Math.round(score(x)),
+    why:`seen ${x.days.size} days · ${x.kills} kills · ${x.losses} losses${x.structs ? ` · ${x.structs} structures lost` : ''}`, of:`${seen} kills over ${span} days` }; });
 }
 async function guessHolder(id){
   id = String(id); const src = HOLDER_SOURCES[HOLDER_SOURCE];
-  if (DEMO) return [{ id:98000001, name:'Demo Residents', kind:'corporation', score:14, why:'2 structures lost, 3 ships lost' }];
+  if (DEMO) return [{ id:98000001, name:'Demo Residents', kind:'corporation', score:62, why:'seen 14 days · 31 kills · 6 losses · 1 structures lost', of:'48 kills over 180 days' }, { id:98000002, name:'Demo Neighbours', kind:'corporation', score:21, why:'seen 5 days · 12 kills · 2 losses', of:'48 kills over 180 days' }];
   if (!holderGuessCache[id]) holderGuessCache[id] = src.guess(id).catch(() => []);
   return holderGuessCache[id];
 }
 async function showHolderGuess(id, out){
-  out.innerHTML = `<span class="dim">Looking (${esc(HOLDER_SOURCES[HOLDER_SOURCE].label)})…</span>`;
+  out.innerHTML = `<span class="dim">Looking (${esc(srcLabel())})…</span>`;
   const g = await guessHolder(id);
-  if (!g.length){ out.innerHTML = '<span class="dim">No clue: nothing on zKillboard here for 30 days.</span>'; return; }
-  out.innerHTML = `<span class="dim">Probably (${esc(HOLDER_SOURCES[HOLDER_SOURCE].label)}):</span> ` + g.map((x, i) => `<button type="button" class="small${i ? '' : ' primary'}" data-hg="${i}" title="${esc(x.why)} · score ${x.score}">${esc(x.name)}</button>`).join(' ');
+  if (!g.length){ out.innerHTML = '<span class="dim">No clue: no corporation seen twice here on zKillboard in 180 days.</span>'; return; }
+  const have = holdersOf(holdAll()[id]);
+  out.innerHTML = `<div class="dim">Probably (${esc(srcLabel())}, ${esc(g[0].of || '')}): click the ones who live here</div>` + g.map((x, i) => { const on = have.some(h => h.id === x.id);
+    return `<div class="hgx"><button type="button" class="small" data-hg="${i}" aria-pressed="${on}">${on ? '✓ ' : '+ '}${esc(x.name)}</button> <span class="dim">${esc(x.why)}</span></div>`; }).join('');
   out.querySelectorAll('[data-hg]').forEach(b => b.onclick = async () => { const x = g[+b.dataset.hg], r = holdAll()[id] || { n:sysName(id), lvl:0 };
-    if (await saveHold(id, { ...r, n:sysName(id), holder:{ id:x.id, name:x.name, kind:x.kind }, guessed:HOLDER_SOURCE, by:tok ? tok.charName : '', t:Date.now() })){ toast(`${x.name}: holder of ${sysName(id)}`); renderHold(); renderPanel(); } });
+    let hs = holdersOf(r).slice(); const was = hs.some(h => h.id === x.id);
+    hs = was ? hs.filter(h => h.id !== x.id) : [...hs, { id:x.id, name:x.name, kind:x.kind }];
+    if (await saveHold(id, withHolders({ ...r, n:sysName(id), guessed:HOLDER_SOURCE, by:tok ? tok.charName : '', t:Date.now() }, hs))){ toast(was ? `${x.name}: removed from ${sysName(id)}` : `${x.name}: holder of ${sysName(id)}`); renderHold(); renderPanel();
+      const o2 = out.isConnected ? out : (() => { const b2 = document.querySelector(`[data-hguess="${id}"]`) || document.querySelector(`[data-hgs="${id}"]`); if (!b2) return null; if (b2.dataset.hgs){ const row = document.querySelector(`#holdList [data-hgo="${id}"]`); if (row){ row.hidden = false; return row.firstElementChild; } return null; } return b2.parentElement.querySelector('.hgout'); })();
+      if (o2) showHolderGuess(id, o2); } });   // the card was redrawn: show the list again where it now is
 }
 function renderHold(){
   const box = $('#wHold'); if (!box || box.hidden) return;
   const all = holdAll(), ids = Object.keys(all).sort((a, b) => (all[a].n || '').localeCompare(all[b].n || ''));
   $('#holdSub').textContent = ids.length ? String(ids.length) : '';
-  $('#holdList').innerHTML = ids.map(id => { const r = all[id], h = r.holder, on = onChain(id);
+  $('#holdList').innerHTML = ids.map(id => { const r = all[id], hs = holdersOf(r), h = hs[0], on = onChain(id);
     return `<tr><td class="w" title="${on ? 'On your chain' : 'Not on your chain right now'}">${esc(r.n || sysName(id))} <span class="k">${esc(classOf(id) || '')}</span>${on ? ' <span style="color:var(--ok)">●</span>' : ''}</td>
-      <td class="h">${h && h.id ? `<img src="${holdLogo(h)}64" alt="">` : ''}<input data-hw="${id}" value="${esc(h ? h.name : '')}" placeholder="optional" title="Corporation or alliance, exact name">${h && h.kind ? `<span class="k">${h.kind === 'alliance' ? 'ally' : 'corp'}</span>` : ''}</td>
-      <td>${(() => { const L = holdLvl(r), c = THREAT[L.lvl].c, canAuto = h && h.id && standReady();
-        return `<select class="hlvl" data-hl="${id}" title="${L.auto ? `From your standings (${L.st > 0 ? '+' : ''}${L.st}): choose a level to set it by hand` : 'Threat: the map gets a frame of this colour when you jump in'}" style="${c ? `color:${c};border-color:${c}` : ''}">${canAuto ? `<option value="a"${L.auto ? ' selected' : ''}>Auto · ${THREAT[lvlOfStanding(standOf(h.id, h.kind))].n}</option>` : ''}${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()}</td>
-      <td style="white-space:nowrap"><button type="button" class="x" data-hgs="${id}" title="Guess who lives here">🔍</button>${h || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>
+      <td class="h">${hs.map((x, i) => `<span class="hchip">${x.id ? `<img src="${holdLogo(x)}64" alt="">` : ''}${esc(x.name)}${x.kind ? `<span class="k">${x.kind === 'alliance' ? 'ally' : 'corp'}</span>` : ''}<button type="button" class="x" data-hx="${id}" data-hi="${i}" title="Remove">✕</button></span>`).join('')}<input data-hw="${id}" value="" placeholder="${hs.length ? 'add another' : 'optional'}" title="Corporation or alliance, exact name"></td>
+      <td>${(() => { const L = holdLvl(r), c = THREAT[L.lvl].c, canAuto = hs.some(x => x.id) && standReady();
+        return `<select class="hlvl" data-hl="${id}" title="${L.auto ? `From your standings (${L.st > 0 ? '+' : ''}${L.st}): choose a level to set it by hand` : 'Threat: the map gets a frame of this colour when you jump in'}" style="${c ? `color:${c};border-color:${c}` : ''}">${canAuto ? `<option value="a"${L.auto ? ' selected' : ''}>Auto · ${THREAT[L.auto ? L.lvl : lvlOfStanding(Math.min(...hs.filter(x => x.id).map(x => standOf(x.id, x.kind))))].n}</option>` : ''}${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()}</td>
+      <td style="white-space:nowrap"><button type="button" class="x" data-hgs="${id}" title="Guess who lives here">🔍</button>${hs.length || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>
       <tr class="hgrow" hidden data-hgo="${id}"><td colspan="4"></td></tr>`; }).join('')
     || '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>';
-  $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; const h = await resolveHolder(i.value);
-    if (i.value.trim() && h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
-    if (await saveHold(id, { ...r, holder:h, t:Date.now() })) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; if (!i.value.trim()) return; const h = await resolveHolder(i.value);
+    if (h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
+    const hs = holdersOf(r).slice(); if (h && !hs.some(x => (x.id && x.id === h.id) || x.name.toLowerCase() === h.name.toLowerCase())) hs.push(h);
+    if (await saveHold(id, withHolders({ ...r, t:Date.now() }, hs))) renderHold(); });
+  $('#holdList').querySelectorAll('[data-hx]').forEach(b => b.onclick = async () => { const id = b.dataset.hx, r = holdAll()[id], hs = holdersOf(r).filter((x, i) => i !== +b.dataset.hi);
+    if (await saveHold(id, withHolders({ ...r, t:Date.now() }, hs))) renderHold(); });
   $('#holdList').querySelectorAll('[data-hl]').forEach(sl => sl.onchange = async () => { const id = sl.dataset.hl, a = sl.value === 'a';
     if (await saveHold(id, { ...holdAll()[id], lvl:a ? 0 : +sl.value, lvlSet:!a, t:Date.now() })) renderHold(); });
   $('#holdList').querySelectorAll('[data-hd]').forEach(b => b.onclick = async () => { if (await saveHold(b.dataset.hd, null)) renderHold(); });
@@ -2414,12 +2445,13 @@ function renderHold(){
 }
 const onChain = id => !!(mapper.nodes && mapper.nodes[String(id)]) || whLinks().some(l => String(l.a) === String(id) || String(l.b) === String(id));
 function holderSplash(id, preview){
-  const r = holdAll()[String(id)], h = r && r.holder; if (!r || (!h && !holdLvl(r).lvl)) return;
+  const r = holdAll()[String(id)], hs = holdersOf(r), h = hs[0]; if (!r || (!h && !holdLvl(r).lvl)) return;
   if (!preview && (!SET.holder || !onChain(id))) return;
   const L = holdLvl(r), t = THREAT[L.lvl];
   if (!h){ if (!L.lvl) return; splash(`<div class="sn" style="color:${t.c}">${esc(t.n)} threat</div><div class="ss"><b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}</div>`, L.lvl); return; }
-  splash(`${h.id ? `<img src="${holdLogo(h)}256" alt="" width="256" height="256">` : `<div class="regbadge">${esc(h.name.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`}
-    <div class="sn">${esc(h.name)}</div><div class="ss">lives in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${h.kind ? ` · ${h.kind}` : ''}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
+  const big = hs.length > 1 ? 150 : 256, badge = x => x.id ? `<img src="${holdLogo(x)}256" alt="" width="${big}" height="${big}">` : `<div class="regbadge">${esc(x.name.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase())}</div>`;
+  splash(`<div style="display:flex;gap:18px;justify-content:center">${hs.slice(0, 4).map(badge).join('')}</div>
+    <div class="sn">${hs.map(x => esc(x.name)).join(' · ')}</div><div class="ss">${hs.length > 1 ? 'live' : 'lives'} in <b>${esc(sysName(id))}</b> ${esc(classOf(id) || '')}${hs.length === 1 && h.kind ? ` · ${h.kind}` : ''}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)} threat</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
 let holdLast = null;   // the system your pilot was in: only a jump into the hole shows its holder (not opening the page inside)
 function holderOnMove(){
@@ -3964,7 +3996,7 @@ function outHtml(id){
   const sec = secOfId(id);
   return `<h2>${esc(sysName(id))} <span style="color:${WH_COL[classOf(id)] || 'var(--eol)'}">${esc(sec != null ? secR(sec).toFixed(1) : classOf(id) || '')}</span></h2>
     <div class="dim">${reg ? esc(regionName(reg)) : 'Wormhole space'}${me.sys === id ? ' · <span style="color:var(--ok)">you are here</span>' : ''}</div>
-    ${hd && hd.holder ? `<div class="sovline">${hd.holder.id ? `<img src="${holdLogo(hd.holder)}64" alt="" width="22" height="22">` : ''}<span>Holder: <b>${esc(hd.holder.name)}</b>${hl && hl.lvl ? ` · <b style="color:${THREAT[hl.lvl].c}">${THREAT[hl.lvl].n}</b>` : ''}</span></div>` : ''}
+    ${holdersOf(hd).length ? `<div class="sovline">${holdersOf(hd).filter(x => x.id).map(x => `<img src="${holdLogo(x)}64" alt="" width="22" height="22">`).join('')}<span>Holder: <b>${holdersOf(hd).map(x => esc(x.name)).join(', ')}</b>${hl && hl.lvl ? ` · <b style="color:${THREAT[hl.lvl].c}">${THREAT[hl.lvl].n}</b>` : ''}</span></div>` : ''}
     ${sg ? `<div class="sovline"><a href="#" data-opensigs="1">📡 ${Object.keys(sg.list).length} signatures</a></div>` : ''}
     <h3>Wormholes</h3><ul class="plain">${holes.map(l => { const o = String(l.a) === id ? String(l.b) : String(l.a), sc = sigClose(l);
       return `<li>↔ ${byId[o] || regionOf(o) ? `<button class="lk" data-sys="${o}">${esc(sysName(o))}</button>` : `<button class="lk" data-out="${o}">${esc(sysName(o))}</button>`} <span class="dim">${esc([l.wh, l.size && l.size !== '?' ? l.size : '', l.mass, l.eol ? 'EOL' : '', sc ? '⌛ ~' + closeTxt(sc) : ''].filter(Boolean).join(' · '))}</span></li>`; }).join('') || '<li class="dim">none</li>'}</ul>
@@ -4564,7 +4596,7 @@ function jFicheHtml(id){
   return `<div class="jfiche"><div><span class="dim">Class</span> <b style="color:${WH_COL[cls] || WH_COL.J}">${esc(cls)}</b></div>
     <div><span class="dim">Statics</span> ${st || '<span class="dim">unknown</span>'}</div>
     <div><span class="dim">Effect</span> ${ws && ws.eff ? esc(ws.eff) : '<span class="dim">None</span>'}</div>
-    <div><span class="dim">Holder</span> ${(() => { const r = holdAll()[id], h = r && r.holder; return h ? `<b>${esc(h.name)}</b>${r.guessed ? ' <span class="dim">(guessed, confirmed by you)</span>' : ''}` : '<span class="dim">unknown</span>'; })()} <button type="button" class="lk" data-hguess="${id}">🔍 guess</button><div class="hgout"></div></div></div>`;
+    <div><span class="dim">Holder</span> ${(() => { const r = holdAll()[id], hs = holdersOf(r); return hs.length ? `<b>${hs.map(x => esc(x.name)).join(', ')}</b>${r.guessed ? ' <span class="dim">(guessed, confirmed by you)</span>' : ''}` : '<span class="dim">unknown</span>'; })()} <button type="button" class="lk" data-hguess="${id}">🔍 guess</button><div class="hgout"></div></div></div>`;
 }
 /* Import from another mapper: a Pathfinder or Wanderer export, added to your map (shared when you have one) */
 function parseMapperExport(j){

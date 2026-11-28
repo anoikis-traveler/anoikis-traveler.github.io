@@ -200,12 +200,17 @@ const D = {
   'optional':['facultatif', 'optional', 'opcional'], 'No wormhole yet.':['Aucun wormhole pour l\'instant.', 'Noch kein Wurmloch.', 'Aún no hay agujeros.'], 'Remove':['Retirer', 'Entfernen', 'Quitar'],
   'Show what your pilots will see':['Voir ce que verront tes pilotes', 'Zeigen, was deine Piloten sehen', 'Ver lo que verán tus pilotos'],
   'Who lives in a wormhole: each time a pilot of yours jumps into it, while it is on your chain, the holder\'s logo shows in big.':['Qui habite un wormhole : à chaque fois qu\'un de tes pilotes y entre, tant qu\'il est sur ta chaîne, le logo de l\'habitant s\'affiche en grand.', 'Wer in einem Wurmloch wohnt: springt einer deiner Piloten hinein, solange es auf deiner Kette ist, erscheint das Logo groß.', 'Quién vive en un agujero: cada vez que uno de tus pilotos entra, mientras esté en tu cadena, el logo del habitante aparece en grande.'],
-  'zKillboard, last 30 days':['zKillboard, 30 derniers jours', 'zKillboard, letzte 30 Tage', 'zKillboard, últimos 30 días'],
+  'add another':['en ajouter un', 'weiteren hinzufügen', 'añadir otro'], 'Corporation or alliance, exact name':['Corpo ou alliance, nom exact', 'Corp oder Allianz, genauer Name', 'Corporación o alianza, nombre exacto'],
+  'No clue: no corporation seen twice here on zKillboard in 180 days.':['Aucun indice : aucune corpo vue deux fois ici sur zKillboard en 180 jours.', 'Kein Hinweis: keine Corp in 180 Tagen zweimal hier auf zKillboard.', 'Sin pistas: ninguna corporación vista dos veces aquí en zKillboard en 180 días.'],
   // v2 banner
   'New version, being rebuilt':['Nouvelle version, en cours de refonte', 'Neue Version, im Umbau', 'Nueva versión, en reconstrucción'], 'Back to the current map':['Retour à la carte actuelle', 'Zurück zur aktuellen Karte', 'Volver al mapa actual'],
 };
 // phrases with numbers or names: [pattern, fr, de, es] ($1, $2 … are the parts in brackets)
 const RX = [
+  [/^Probably \((.+), (\d+) kills over (\d+) days\): click the ones who live here$/, 'Probablement ($1, $2 kills sur $3 jours) : clique ceux qui habitent ici', 'Wahrscheinlich ($1, $2 Kills in $3 Tagen): klicke die Bewohner an', 'Probablemente ($1, $2 muertes en $3 días): marca los que viven aquí'],
+  [/^seen (\d+) days · (\d+) kills · (\d+) losses( · (\d+) structures lost)?$/, 'vue $1 jours · $2 kills · $3 pertes$4', '$1 Tage gesehen · $2 Kills · $3 Verluste$4', 'vista $1 días · $2 muertes · $3 pérdidas$4'],
+  [/^zKillboard, last (\d+) days$/, 'zKillboard, $1 derniers jours', 'zKillboard, letzte $1 Tage', 'zKillboard, últimos $1 días'],
+  [/^(.+): removed from (.+)$/, '$1 : retiré de $2', '$1: aus $2 entfernt', '$1: quitado de $2'],
   [/^Looking \((.+)\)…$/, 'Recherche ($1)…', 'Suche ($1)…', 'Buscando ($1)…'],
   [/^Probably \((.+)\):$/, 'Probablement ($1) :', 'Wahrscheinlich ($1):', 'Probablemente ($1):'],
   [/^(.+): holder of (.+)$/, '$1 : habitant de $2', '$1: Bewohner von $2', '$1: habitante de $2'],
