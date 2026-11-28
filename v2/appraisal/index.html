@@ -147,6 +147,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
 .flag.rp{background:rgba(95,214,138,.14);color:#5fd68a;border-color:rgba(95,214,138,.5)}
 .v2tag{font:600 11px var(--mono,monospace);color:#f2a74b;border:1px solid #f2a74b;border-radius:3px;padding:0 5px;margin-left:8px}
 .warn{color:#f2c94c}
+#repOnly[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -172,6 +173,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
         <label>Market
           <select id="hub"></select>
         </label>
+        <button type="button" id="repOnly" class="small" style="grid-column:1/-1;justify-self:start" title="Leave out of the market list the stations without a reprocessing plant">♻ Reprocessing stations only</button>
         <form id="stForm" style="grid-column:1/-1;display:flex;gap:6px;align-items:center"><input id="stIn" placeholder="or a station: type its system (e.g. Sobaseki)" autocomplete="off" style="flex:1"><button type="submit" class="small">Use</button></form>
         <div id="stPick" style="grid-column:1/-1;font-size:12px"></div>
         <label>Your price
@@ -320,17 +322,33 @@ async function structBook(hub){
 }
 // the chosen character's dock: the market of everything on this page
 async function useDock(t){
+  setTimeout(checkHubsRep, 1500);
   const st = $('#dockSt');
   try{ const h = await dockHubOf(await freshTok(t) || t);
     if (!h){ st.innerHTML = `<span class="warn">${esc(t.charName)} is not docked: the market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.</span>`; return; }
     const i = HUBS.findIndex(x => x.k === h.k); if (i >= 0) HUBS.splice(i, 1, h); else HUBS.unshift(h);
-    $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
+    fillHubs();
     if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: reading its market needs the permissions <code>esi-markets.structure_markets.v1</code> and <code>esi-universe.read_structures.v1</code> on the site's EVE application (developers.eveonline.com). The market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.`; $('#hub').value = S.hub; return; }
     S.hub = h.k; saveS(); $('#hub').value = h.k;
     st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.${h.noRep ? ' <span class="warn">⚠ This station has no reprocessing plant: type the system of one below.</span>' : ''}`;
     if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
   }catch(e){ st.innerHTML = `<span class="warn">⚠ Could not read where ${esc(t.charName)} is docked (log it in again on the <a href="../" target="_blank" rel="noopener">map</a>), or type the station's system below.</span>`; }
 }
+// stations: has it a reprocessing plant? (EVE's services list, asked once per station)
+const repCache = store.get('appr.repst', {});
+async function canReprocess(h){
+  if (!h.station) return null;                                   // structures: unknown here
+  if (repCache[h.station] == null){ try{ const x = await (await fetch(`${ESI}/universe/stations/${h.station}/`)).json(); repCache[h.station] = (x.services || []).includes('reprocessing-plant'); store.set('appr.repst', repCache); }catch(e){ return null; } }
+  return repCache[h.station];
+}
+function fillHubs(){
+  const sel = $('#hub'), shown = HUBS.filter(h => !S.repOnly || h.disabled || repCache[h.station] !== false);
+  sel.innerHTML = shown.map(h => `<option value="${h.k}"${h.disabled ? ' disabled' : ''}>${esc(h.name)}${repCache[h.station] === false ? ' · no reprocessing' : ''}</option>`).join('');
+  if (!shown.some(h => h.k === S.hub && !h.disabled)){ const f = shown.find(h => !h.disabled); if (f){ S.hub = f.k; saveS(); } }
+  sel.value = S.hub;
+  const b = $('#repOnly'); if (b){ b.setAttribute('aria-pressed', String(!!S.repOnly)); b.textContent = S.repOnly ? '♻ Reprocessing stations only ✓' : '♻ Reprocessing stations only'; }
+}
+async function checkHubsRep(){ await Promise.all(HUBS.map(canReprocess)); fillHubs(); }
 async function pickStation(){
   const name = $('#stIn').value.trim(), out = $('#stPick'); if (!name) return;
   out.innerHTML = '<span class="dim">…</span>';
@@ -339,22 +357,23 @@ async function pickStation(){
     const sys = ((r.ok ? await r.json() : {}).systems || [])[0]; if (!sys){ out.innerHTML = `<span class="bad">Unknown system: ${esc(name)}</span>`; return; }
     const sy = await (await fetch(`${ESI}/universe/systems/${sys.id}/`)).json(), co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json();
     const sts = await Promise.all((sy.stations || []).map(id => fetch(`${ESI}/universe/stations/${id}/`).then(x => x.json()).then(x => ({ id, name:x.name, rep:(x.services || []).includes('reprocessing-plant') })).catch(() => null)));
-    const all = sts.filter(Boolean), list = all.filter(x => x.rep);   // only the stations with a reprocessing plant
-    if (!list.length){ out.innerHTML = `<span class="bad">${all.length ? `None of the ${all.length} NPC stations of ${esc(sys.name)} can reprocess.` : `${esc(sys.name)} has no NPC station.`}</span>`; return; }
+    const all = sts.filter(Boolean); for (const x of all) repCache[x.id] = x.rep; store.set('appr.repst', repCache);
+    const list = S.repOnly ? all.filter(x => x.rep) : all;
+    if (!list.length){ out.innerHTML = `<span class="bad">${all.length ? `None of the ${all.length} NPC station(s) of ${esc(sys.name)} can reprocess.` : `${esc(sys.name)} has no NPC station.`}</span>`; return; }
     const use = st => { const h = { k:'st' + st.id, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region:co.region_id, station:st.id };
       const i = HUBS.findIndex(x => x.k === h.k); if (i < 0) HUBS.unshift(h);
-      $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
+      fillHubs();
       S.hub = h.k; saveS(); $('#hub').value = h.k; out.innerHTML = `Market: <b>${esc(st.name)}</b>`; $('#stIn').value = '';
       if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
     if (list.length === 1){ use(list[0]); return; }
-    out.innerHTML = list.map((x, i) => `<button type="button" class="small" data-sti="${i}" style="margin:2px">${esc(x.name)}</button>`).join('');
+    out.innerHTML = list.map((x, i) => `<button type="button" class="small" data-sti="${i}" style="margin:2px">${esc(x.name)}${x.rep ? '' : ' · no reprocessing'}</button>`).join('');
     out.querySelectorAll('[data-sti]').forEach(b => b.onclick = () => use(list[+b.dataset.sti]));
   }catch(e){ out.innerHTML = '<span class="bad">EVE did not answer, try again.</span>'; }
 }
 async function addDocked(){
   const d = await dockedHubs(); if (!d.length) return;
   for (const h of d.reverse()) if (!HUBS.some(x => x.k === h.k)) HUBS.unshift(h);
-  $('#hub').innerHTML = HUBS.map(h => `<option value="${h.k}"${h.disabled ? ' disabled' : ''}>${esc(h.name)}</option>`).join('');
+  fillHubs();
   if (!HUBS.some(h => h.k === S.hub && !h.disabled)) S.hub = 'jita';
   $('#hub').value = S.hub;
   const ok = d.filter(h => !h.disabled); if (ok.length) toast(`Your station added to the markets: ${ok.map(h => h.short).join(', ')}`);
@@ -1051,10 +1070,11 @@ function syncControls(){
   renderBB();
 }
 function setup(){
-  $('#hub').innerHTML = HUBS.map(h => `<option value="${h.k}">${esc(h.name)}</option>`).join('');
+  fillHubs();
   syncControls();
   $('#go').onclick = appraise;
   $('#stForm').onsubmit = e => { e.preventDefault(); pickStation(); };
+  $('#repOnly').onclick = async () => { S.repOnly = !S.repOnly; saveS(); await checkHubsRep(); if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
   $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
   $('#clear').onclick = () => { $('#paste').value = ''; $('#paste').focus(); };
   $('#paste').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); appraise(); } });
@@ -1075,6 +1095,7 @@ function setup(){
   try{ await loadTypes(); }catch(e){ $('#sdeVer').textContent = 'item list unavailable'; toast(e.message, true); return; }
   renderBB();
   setupChar(await charCallback());
+  checkHubsRep();
   const hs = location.hash;
   let m;
   if ((m = hs.match(/^#a=([\w-]+)/))) openCode(m[1]);
