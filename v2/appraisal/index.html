@@ -321,7 +321,7 @@ async function useDock(t){
     if (!h){ st.textContent = `${t.charName} is in space: the market stays ${(HUBS.find(x => x.k === S.hub) || HUBS[0]).short}.`; return; }
     const i = HUBS.findIndex(x => x.k === h.k); if (i >= 0) HUBS.splice(i, 1, h); else HUBS.unshift(h);
     $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
-    if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: its market needs your permission. <button type="button" class="small" id="dockLog">Allow structure markets</button>`; $('#dockLog').onclick = () => charLogin(t, STRUCT_SCOPES); $('#hub').value = S.hub; return; }
+    if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: reading its market needs the permissions <code>esi-markets.structure_markets.v1</code> and <code>esi-universe.read_structures.v1</code> on the site's EVE application (developers.eveonline.com). The market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.`; $('#hub').value = S.hub; return; }
     S.hub = h.k; saveS(); $('#hub').value = h.k;
     st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.`;
     if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
@@ -365,21 +365,34 @@ function chYieldTxt(){
 }
 function chars(){ const out = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) out.push(t); } } }catch(e){} return out.sort((a, b) => String(a.charName).localeCompare(String(b.charName))); }
 const scopesOf = t => { const s = jwt((t && t.access_token) || '').scp || []; return Array.isArray(s) ? s : [s]; };
+// skills and implants come from the Fitting page's login (its EVE application has that permission); the map's login gives the dock
+const FIT_CLIENT = '5a46c9a772c0466888cd6785d4fe7244';
+const fitChars = () => store.get('fit.chars', []);
+async function freshFit(t){
+  if (Date.now() < (t.exp || 0) - 60000) return t;
+  try{ const r = await fetch(`${SSO}/token`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'refresh_token', refresh_token:t.refresh_token, client_id:FIT_CLIENT }) });
+    if (!r.ok) return null; const j = await r.json(), c = jwt(j.access_token);
+    const n = { ...t, access_token:j.access_token, refresh_token:j.refresh_token, exp:(c.exp || 0) * 1000 };
+    store.set('fit.chars', fitChars().map(x => x.charId === t.charId ? n : x)); return n; }catch(e){ return null; }
+}
 async function loadChar(id){
   const st = $('#charSt'); CH = null;
   if (!id){ st.textContent = 'Manual yields and taxes (Reprocess tab, Buy to reprocess).'; $('#dockSt').textContent = ''; afterChar(); return; }
-  const t0 = chars().find(t => String(t.charId) === String(id)); if (!t0){ st.textContent = ''; afterChar(); return; }
-  if (!NEED.every(x => scopesOf(t0).includes(x))){ st.innerHTML = `<span class="bad">EVE has not given this site ${esc(t0.charName)}'s skills yet.</span> <button type="button" class="small" id="charLog">Allow skills and implants</button>`; $('#charLog').onclick = () => charLogin(t0); afterChar(); return; }
+  const mapT = chars().find(t => String(t.charId) === String(id)), fitT = fitChars().find(t => String(t.charId) === String(id)), name = (mapT || fitT || {}).charName || '';
+  if (!fitT){ st.innerHTML = `<span class="bad">${esc(name)}'s skills are not readable yet.</span> Log this character in once on the <a href="../../fitting/" target="_blank" rel="noopener">Fitting page</a> (character menu → log in), then choose it again here.`; afterChar(); if (mapT) useDock(mapT); return; }
   st.textContent = 'Reading skills…';
-  const t = await freshTok(t0); if (!t){ st.innerHTML = `<span class="bad">${esc(t0.charName)}: EVE session expired.</span> <button type="button" class="small" id="charLog">Log in again</button>`; $('#charLog').onclick = () => charLogin(t0); afterChar(); return; }
   try{
-    const h = { headers:{ Authorization:'Bearer ' + t.access_token } };
-    const sk = await (await fetch(`${ESI}/characters/${t.charId}/skills/`, h)).json();
-    let imp = 0; try{ const im = await (await fetch(`${ESI}/characters/${t.charId}/implants/`, h)).json(); for (const x of im || []) imp = Math.max(imp, IMPLANT_BONUS[x] || 0); }catch(e){}
-    CH = { id:t.charId, name:t.charName, sk:Object.fromEntries((sk.skills || []).map(x => [x.skill_id, x.active_skill_level])), imp };
+    let sk = null, imp = 0;
+    const t = await freshFit(fitT);
+    if (t){ const h = { headers:{ Authorization:'Bearer ' + t.access_token } };
+      const r = await fetch(`${ESI}/characters/${t.charId}/skills/`, h); if (r.ok) sk = Object.fromEntries(((await r.json()).skills || []).map(x => [x.skill_id, x.active_skill_level]));
+      try{ const im = await (await fetch(`${ESI}/characters/${t.charId}/implants/`, h)).json(); for (const x of im || []) imp = Math.max(imp, IMPLANT_BONUS[x] || 0); }catch(e){} }
+    if (!sk){ const cd = store.get('fit.chardata', {})[id]; if (cd && cd.skills){ sk = cd.skills; for (const x of cd.implants || []) imp = Math.max(imp, IMPLANT_BONUS[x] || 0); } }   // what Fitting read last time
+    if (!sk){ st.innerHTML = `<span class="bad">${esc(name)}: EVE session expired.</span> Log in again on the <a href="../../fitting/" target="_blank" rel="noopener">Fitting page</a>.`; afterChar(); return; }
+    CH = { id:Number(id), name, sk, imp };
     st.innerHTML = `Skills applied: ore yield up to <b>${yieldOreDefault().toFixed(1)} %</b>, scrapmetal <b>${yieldFor(-1).toFixed(1)} %</b>, sales tax <b>${chTax()} %</b> (Accounting ${lvl(SK.acc)}), broker fee <b>${chBroker()} %</b> (Broker Relations ${lvl(SK.broker)}, without standings).`;
     BR.tax = chTax(); BR.broker = chBroker(); store.set('appr.buyrep', BR);
-    useDock(t);
+    if (mapT) useDock(mapT); else $('#dockSt').innerHTML = `Where ${esc(name)} is docked comes from the <a href="../">map</a>'s login: log it in there too.`;
   }catch(e){ st.innerHTML = '<span class="bad">Could not read the skills.</span>'; }
   afterChar();
 }
@@ -405,7 +418,8 @@ async function charCallback(){
   catch(e){ toast('EVE refused the login', true); return null; }
 }
 function setupChar(back){
-  const sel = $('#char'), cs = chars();
+  const seen = new Set(), cs = [...chars(), ...fitChars()].filter(t => t && t.charId && !seen.has(t.charId) && seen.add(t.charId)).sort((a, b) => String(a.charName).localeCompare(String(b.charName)));
+  const sel = $('#char');
   sel.innerHTML = '<option value="">None: my own yields and taxes</option>' + cs.map(t => `<option value="${t.charId}">${esc(t.charName)}</option>`).join('');
   const want = back || S.char || ''; sel.value = cs.some(t => String(t.charId) === String(want)) ? String(want) : '';
   sel.onchange = () => { S.char = sel.value; saveS(); loadChar(sel.value); };
