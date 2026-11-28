@@ -718,7 +718,6 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnTop" type="button" title="Top-down view, like the in-game map">Top view</button>
         <button id="btnFlat" type="button" aria-pressed="false" title="2D: the chain as cards, like a wormhole mapper" hidden>2D</button>
         <button id="btnSov" type="button" aria-pressed="true" title="Null-sec: the logo of the alliance holding the sovereignty on each system">Alliance logos</button>
-        <button id="btnDrops" type="button" aria-pressed="false" title="Vertical lines from every system to the region's mid plane">Height lines</button>
         <button id="btnChain" class="proxy" type="button" aria-pressed="false" title="Flat map of your chains">Chain</button>
         <button id="btnAll" class="proxy" type="button" aria-pressed="false" title="A small flat map of each of your chains, side by side">All chains</button>
         <button id="btnPoch" class="proxy" type="button" aria-pressed="false" title="Pochven: its systems, the krais and their wormhole links to known space">Pochven</button>
@@ -1019,7 +1018,7 @@ let sel = null;              // selected system id (string)
 let route = null;            // { ids:[...], edges:Set }
 let follow = true;            // every time the map opens, it follows your active pilot
 let colorMode = store.get('whmap.reg.color', 'wh'); if (colorMode === 'auto') colorMode = 'wh';
-let drops = store.get('whmap.reg.drops', false);
+const drops = false;   // v2: no height lines
 const cam = { yaw:0, pitch:58 * Math.PI / 180, zoom:1, px:0, py:0, hx:1 };
 let tok = null, clientId = '', me = { sys:null, name:'' };
 let mapper = { nodes:{}, links:{}, pilots:{} };
@@ -3696,7 +3695,7 @@ function draw(){
   // by default only for the selected system and your position; "Height lines" shows them all
   if (cam.pitch < 1.5){
     for (const id in P){
-      if (!drops && id !== sel && id !== me.sys) continue;
+      continue;   // v2: no height lines at all
       const g = proj({ ...norm[id], y:0 }); el('line', { x1:P[id].x, y1:P[id].y, x2:g.x, y2:g.y, class:'drop' + (drops ? '' : ' one') }, gDrop); el('circle', { cx:g.x, cy:g.y, r:1.2, class:'ground' }, gDrop);
     }
   }
@@ -4382,8 +4381,7 @@ function setupInput(){
       if (miss.length) toast(`No asset permission for ${miss.join(', ')}: log in again with "Allow reading assets" ticked`, true); } };
   const sb = $('#btnSov'); sb.setAttribute('aria-pressed', String(sovLogos));
   sb.onclick = () => { sovLogos = !sovLogos; store.set('whmap.reg.sovLogos', sovLogos); sb.setAttribute('aria-pressed', String(sovLogos)); render(); };
-  const db = $('#btnDrops'); db.setAttribute('aria-pressed', String(drops));
-  db.onclick = () => { drops = !drops; store.set('whmap.reg.drops', drops); db.setAttribute('aria-pressed', String(drops)); render(); };
+
   $('#regSel').onchange = e => { sel = null; lookAway(); loadRegion(e.target.value); };
   $('#whSel').onchange = async e => {
     const v = e.target.value; e.target.value = ''; if (!v) return;
