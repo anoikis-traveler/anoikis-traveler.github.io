@@ -187,6 +187,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
         <button type="button" id="repOnly" class="small" style="grid-column:1/-1;justify-self:start" title="Leave out of the market list the stations without a reprocessing plant">♻ Reprocessing stations only</button>
         <form id="stForm" style="grid-column:1/-1;display:flex;gap:6px;align-items:center"><input id="stIn" placeholder="or a station: type its system (e.g. Sobaseki)" autocomplete="off" style="flex:1"><button type="submit" class="small">Use</button></form>
         <div id="stPick" style="grid-column:1/-1;font-size:12px"></div>
+        <label style="grid-column:1/-1">or a whole region, even far from you <select id="regIn"><option value="">Choose a region…</option></select></label>
         <label>Your price
           <span class="pct"><input id="pct" type="number" min="1" max="200" step="1" value="100" aria-label="Percent of the price"> <span>%</span></span>
         </label>
@@ -382,6 +383,21 @@ async function pickStation(){
     out.querySelectorAll('[data-sti]').forEach(b => b.onclick = () => use(list[+b.dataset.sti]));
   }catch(e){ out.innerHTML = '<span class="bad">EVE did not answer, try again.</span>'; }
 }
+// a whole region as the market, wherever the character is: every station of it
+let REGIONS = null;
+const regionHub = (id, name) => ({ k:'rg' + id, name:`🌐 Whole region: ${name}`, short:name, region:id, whole:true });
+async function loadRegions(){
+  try{ REGIONS = ((await (await fetch('../../regions/data/index.json')).json()).regions || []).filter(x => x.id < 11000000 && x.n).sort((a, b) => a.name.localeCompare(b.name)); }catch(e){ REGIONS = []; }
+  for (const x of REGIONS) REGION_NAMES[x.id] = REGION_NAMES[x.id] || x.name;
+  const sel = $('#regIn'); sel.innerHTML = '<option value="">Choose a region…</option>' + REGIONS.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  const m = /^rg(\d+)$/.exec(S.hub || ''), saved = m && REGIONS.find(x => x.id === Number(m[1]));
+  if (saved){ if (!HUBS.some(h => h.k === S.hub)) HUBS.unshift(regionHub(saved.id, saved.name)); fillHubs(); syncControls(); }
+  sel.onchange = () => { const x = REGIONS.find(y => y.id === Number(sel.value)); if (!x) return;
+    const h = regionHub(x.id, x.name); if (!HUBS.some(y => y.k === h.k)) HUBS.unshift(h);
+    S.hub = h.k; S.regName = x.name; saveS(); fillHubs(); syncControls(); sel.value = '';
+    $('#stPick').innerHTML = `Market: <b>every station of ${esc(x.name)}</b>`;
+    if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
+}
 async function addDocked(){
   const d = await dockedHubs(); if (!d.length) return;
   for (const h of d.reverse()) if (!HUBS.some(x => x.k === h.k)) HUBS.unshift(h);
@@ -530,7 +546,7 @@ function parse(text){
 /* ---------- Market: station order book from ESI ---------- */
 const books = new Map();   // hub:type -> { t, buy:[[p,v]] desc, sell:[[p,v]] asc }
 // where the orders are taken from: the station, its whole system, or its whole region (S.scope); a structure is always itself
-const scopeOf = hub => hub.structure ? 'station' : (S.scope || 'station');
+const scopeOf = hub => hub.structure ? 'station' : hub.whole ? 'region' : (S.scope || 'station');
 const jumpsN = () => Math.max(1, Math.min(15, Math.round(Number(S.jumps) || 5)));
 const hk = hub => hub.k + '@' + scopeOf(hub) + (scopeOf(hub) === 'jumps' ? jumpsN() : '');
 // stargate graph (appraisal/data/gates.json: system -> [region, neighbours…]); systems within n jumps of the hub, and their regions
@@ -955,7 +971,7 @@ function tabBuyRep(box){
   if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
   box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
     ${CH ? '' : `<div class="warnbox" style="margin:0 0 8px">⚠ No character chosen: the yields are your own figures (Reprocess tab: ore ${S.yieldOre} %, other items ${S.yieldScrap} %). Choose your character at the top left so its skills set them.</div>`}
-    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)}${scopeOf(hub) === 'system' ? ' and its system' : scopeOf(hub) === 'region' ? ' and its whole region' : scopeOf(hub) === 'jumps' ? ` and every station within ${jumpsN()} jump${jumpsN() > 1 ? 's' : ''}` : ''} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
+    <p class="dim" style="margin:0 0 8px">Items on sale ${hub.whole ? `in every station of <b>${esc(hub.short)}</b>` : `in ${esc(hub.short || hub.name)}`}${hub.whole ? '' : scopeOf(hub) === 'system' ? ' and its system' : scopeOf(hub) === 'region' ? ' and its whole region' : scopeOf(hub) === 'jumps' ? ` and every station within ${jumpsN()} jump${jumpsN() > 1 ? 's' : ''}` : ''} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
     <div class="formrow">
       <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
@@ -1151,10 +1167,13 @@ function syncControls(){
   $('#hub').value = S.hub; $('#pct').value = S.pct; $('#depth').checked = S.depth; $('#merge').checked = S.merge;
   document.querySelectorAll('[data-basis]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.basis === S.basis)));
   document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
-  document.querySelectorAll('[data-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scope === (S.scope || 'station'))));
+  { const h = HUBS.find(x => x.k === S.hub), whole = !!(h && h.whole);
+    document.querySelectorAll('[data-scope]').forEach(b => { b.setAttribute('aria-pressed', String(whole ? b.dataset.scope === 'region' : b.dataset.scope === (S.scope || 'station'))); b.disabled = whole && b.dataset.scope !== 'region'; b.title = whole ? 'A whole region is chosen as the market: pick a station to use these' : (b.dataset.scope === 'jumps' ? 'Every station within this many stargate jumps, across regions' : ''); });
+    const ji = $('#jumpsN'); if (ji) ji.disabled = whole; }
   renderBB();
 }
 function setup(){
+  { const m = /^rg(\d+)$/.exec(S.hub || ''); if (m && S.regName && !HUBS.some(h => h.k === S.hub)) HUBS.unshift(regionHub(Number(m[1]), S.regName)); }
   fillHubs();
   syncControls();
   $('#go').onclick = appraise;
@@ -1166,7 +1185,7 @@ function setup(){
   $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
   $('#clear').onclick = () => { $('#paste').value = ''; $('#paste').focus(); };
   $('#paste').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); appraise(); } });
-  $('#hub').onchange = e => { S.hub = e.target.value; saveS(); if (A && !A.snap) appraise(); };
+  $('#hub').onchange = e => { S.hub = e.target.value; saveS(); syncControls(); if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
   $('#pct').oninput = e => { const v = Number(e.target.value); if (v > 0 && v <= 200){ S.pct = v; saveS(); if (A && A.rows.length) render(A); } };
   $('#depth').onchange = e => { S.depth = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
   $('#merge').onchange = e => { S.merge = e.target.checked; saveS(); if (A && !A.snap) appraise(); };
@@ -1184,6 +1203,7 @@ function setup(){
   renderBB();
   setupChar(await charCallback());
   checkHubsRep();
+  loadRegions();
   const hs = location.hash;
   let m;
   if ((m = hs.match(/^#a=([\w-]+)/))) openCode(m[1]);
