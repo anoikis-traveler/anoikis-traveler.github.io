@@ -721,7 +721,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnMine" class="proxy" type="button" aria-pressed="false">My pilots</button>
         <button id="btnWhc" class="proxy" type="button" aria-pressed="false">Holes by pilot</button>
         <button id="btnBan" class="proxy" type="button" aria-pressed="false" hidden>Forum banner</button>
-        <button id="btnAct" class="proxy" type="button" aria-pressed="false" title="The busiest systems of this map, with an estimate of their ESS">Active systems</button>
+        <button id="btnAct" class="proxy" type="button" aria-pressed="false" title="The busiest systems of this map">Active systems</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
         <button id="btnSet" class="proxy" type="button" aria-pressed="false" title="Every timer and threshold of the map in one place">Settings</button>
@@ -1418,8 +1418,6 @@ function drawHoles(){
 const SETTINGS = [
   { g:'Map', k:'sysNames', label:'Names of all the systems on the map (otherwise only your pilot\'s system and the other regions\')', type:'bool', def:0 },
   { g:'Map', k:'routeFocus', label:'A selected route stands out, the rest of the map almost transparent', type:'bool', def:1 },
-  { g:'Active systems', k:'essShare', label:'ESS: share of the bounties going to the main bank (estimate)', unit:'%', def:25, min:1, max:100 },
-  { g:'Active systems', k:'essBounty', label:'ESS: mean bounty of one NPC kill at -1.0 true security', unit:'k ISK', def:450, min:50, max:3000 },
   { g:'Map', k:'tunnel', label:'Tunnel animation along the connection when your pilot jumps from one system to the next', type:'bool', def:1 },
   { g:'Map', k:'tunnelSec', label:'Tunnel animation length', unit:'s', def:6, min:5, max:8, step:0.1 },
   { g:'Map', k:'spin', label:'The map turns slowly around the selected system', type:'bool', def:1 },
@@ -2355,6 +2353,42 @@ async function addHolder(sysTxt, whoTxt, lvl){
   if (holder && holder.kind === 'corporation' && holder.id) await corpAlly(holder.id);
   if (await saveHold(id, { n:sysName(id), holder:holder || prev.holder || null, lvl:+lvl || 0, lvlSet:+lvl > 0, by:tok ? tok.charName : '', t:Date.now() })){ $('#holdSys').value = ''; $('#holdWho').value = ''; $('#holdLvl').value = '0'; renderHold(); }
 }
+/* Who lives in a wormhole: a GUESS the site proposes and you confirm.
+   The guess comes from one "source" below. To try another method, add an entry to HOLDER_SOURCES with
+   guess(systemId) → a promise of [{ id, name, kind:'corporation'|'alliance', score, why }] (best first), and set HOLDER_SOURCE. */
+const HOLDER_SOURCES = {
+  zkill:{ label:'zKillboard, last 30 days', guess:zkillHolderGuess },
+};
+let HOLDER_SOURCE = 'zkill';
+const holderGuessCache = {};
+async function zkillHolderGuess(id){
+  const list = await zkList(`https://zkillboard.com/api/solarSystemID/${id}/pastSeconds/2592000/`);
+  const score = {}, add = (cid, w, why) => { if (!cid) return; const x = score[cid] = score[cid] || { s:0, why:{} }; x.s += w; x.why[why] = (x.why[why] || 0) + 1; };
+  for (const k of list.filter(k => k && k.killmail_id && k.zkb && k.zkb.hash).slice(0, 40)){
+    let j = null; try{ const r = await fetch(`${ESI}/killmails/${k.killmail_id}/${k.zkb.hash}/`); if (r.ok) j = await r.json(); }catch(e){}
+    if (!j || !j.victim) continue;
+    const struct = !j.victim.character_id;                      // a structure (citadel, POS…) losing: its owner lived here
+    add(j.victim.corporation_id, struct ? 6 : 1, struct ? 'structures lost' : 'ships lost');
+    for (const c of new Set((j.attackers || []).map(a => a.corporation_id).filter(Boolean))) add(c, 0.5, 'kills here');
+  }
+  const ids = Object.keys(score).sort((a, b) => score[b].s - score[a].s).slice(0, 3); if (!ids.length) return [];
+  let names = {}; try{ const r = await fetch(`${ESI}/universe/names/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(ids.map(Number)) }); if (r.ok) for (const x of await r.json()) names[x.id] = x.name; }catch(e){}
+  return ids.map(c => ({ id:Number(c), name:names[c] || ('#' + c), kind:'corporation', score:Math.round(score[c].s * 10) / 10, why:Object.entries(score[c].why).map(([w, n]) => `${n} ${w}`).join(', ') }));
+}
+async function guessHolder(id){
+  id = String(id); const src = HOLDER_SOURCES[HOLDER_SOURCE];
+  if (DEMO) return [{ id:98000001, name:'Demo Residents', kind:'corporation', score:14, why:'2 structures lost, 3 ships lost' }];
+  if (!holderGuessCache[id]) holderGuessCache[id] = src.guess(id).catch(() => []);
+  return holderGuessCache[id];
+}
+async function showHolderGuess(id, out){
+  out.innerHTML = `<span class="dim">Looking (${esc(HOLDER_SOURCES[HOLDER_SOURCE].label)})…</span>`;
+  const g = await guessHolder(id);
+  if (!g.length){ out.innerHTML = '<span class="dim">No clue: nothing on zKillboard here for 30 days.</span>'; return; }
+  out.innerHTML = `<span class="dim">Probably (${esc(HOLDER_SOURCES[HOLDER_SOURCE].label)}):</span> ` + g.map((x, i) => `<button type="button" class="small${i ? '' : ' primary'}" data-hg="${i}" title="${esc(x.why)} · score ${x.score}">${esc(x.name)}</button>`).join(' ');
+  out.querySelectorAll('[data-hg]').forEach(b => b.onclick = async () => { const x = g[+b.dataset.hg], r = holdAll()[id] || { n:sysName(id), lvl:0 };
+    if (await saveHold(id, { ...r, n:sysName(id), holder:{ id:x.id, name:x.name, kind:x.kind }, guessed:HOLDER_SOURCE, by:tok ? tok.charName : '', t:Date.now() })){ toast(`${x.name}: holder of ${sysName(id)}`); renderHold(); renderPanel(); } });
+}
 function renderHold(){
   const box = $('#wHold'); if (!box || box.hidden) return;
   const all = holdAll(), ids = Object.keys(all).sort((a, b) => (all[a].n || '').localeCompare(all[b].n || ''));
@@ -2364,7 +2398,8 @@ function renderHold(){
       <td class="h">${h && h.id ? `<img src="${holdLogo(h)}64" alt="">` : ''}<input data-hw="${id}" value="${esc(h ? h.name : '')}" placeholder="optional" title="Corporation or alliance, exact name">${h && h.kind ? `<span class="k">${h.kind === 'alliance' ? 'ally' : 'corp'}</span>` : ''}</td>
       <td>${(() => { const L = holdLvl(r), c = THREAT[L.lvl].c, canAuto = h && h.id && standReady();
         return `<select class="hlvl" data-hl="${id}" title="${L.auto ? `From your standings (${L.st > 0 ? '+' : ''}${L.st}): choose a level to set it by hand` : 'Threat: the map gets a frame of this colour when you jump in'}" style="${c ? `color:${c};border-color:${c}` : ''}">${canAuto ? `<option value="a"${L.auto ? ' selected' : ''}>Auto · ${THREAT[lvlOfStanding(standOf(h.id, h.kind))].n}</option>` : ''}${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()}</td>
-      <td style="white-space:nowrap">${h || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>`; }).join('')
+      <td style="white-space:nowrap"><button type="button" class="x" data-hgs="${id}" title="Guess who lives here">🔍</button>${h || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>
+      <tr class="hgrow" hidden data-hgo="${id}"><td colspan="4"></td></tr>`; }).join('')
     || '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>';
   $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; const h = await resolveHolder(i.value);
     if (i.value.trim() && h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
@@ -2373,6 +2408,7 @@ function renderHold(){
     if (await saveHold(id, { ...holdAll()[id], lvl:a ? 0 : +sl.value, lvlSet:!a, t:Date.now() })) renderHold(); });
   $('#holdList').querySelectorAll('[data-hd]').forEach(b => b.onclick = async () => { if (await saveHold(b.dataset.hd, null)) renderHold(); });
   $('#holdList').querySelectorAll('[data-hp]').forEach(b => b.onclick = () => holderSplash(b.dataset.hp, true));
+  $('#holdList').querySelectorAll('[data-hgs]').forEach(b => b.onclick = () => { const row = $(`#holdList [data-hgo="${b.dataset.hgs}"]`); row.hidden = false; showHolderGuess(b.dataset.hgs, row.firstElementChild); });
   // suggestions: the J systems of your chain
   $('#holdSysList').innerHTML = [...new Set([...Object.keys(mapper.nodes || {}), ...whLinks().flatMap(l => [String(l.a), String(l.b)])])].filter(x => isJ(x) && !HUB_LIST.includes(x)).map(x => `<option value="${esc(sysName(x))}">`).join('');
 }
@@ -2578,16 +2614,13 @@ function renderWhc(){
 /* ---------- Active systems: the busiest systems of the map (CCP's hourly figures), and a rough ESS simulation ----------
    ESS: null-sec systems only. Bounties per hour ≈ NPC kills × a mean bounty that grows with how negative the true security is;
    the main bank gets a share of them. Both numbers are settings: CCP does not publish the banks, this is only an estimate. */
-let actSort = store.get('whmap.reg.actSort', 'score');
-const ACT_SORT = { score:'Activity', npc:'Ratting', ess:'ESS', jumps:'Traffic', pvp:'PvP' };
+let actSort = store.get('whmap.reg.actSort', 'score'); if (!['score', 'npc', 'jumps', 'pvp'].includes(actSort)) actSort = 'score';   // an old 'ess' choice falls back to Activity
+const ACT_SORT = { score:'Activity', npc:'Ratting', jumps:'Traffic', pvp:'PvP' };   // v2: no ESS or bounty estimate (not precise enough)
 function actRows(){
   if (!R) return [];
   return R.systems.filter(s2 => !s2.ext).map(s2 => {
     const id = String(s2.id), k = stats.kills[id] || {}, npc = k.npc_kills || 0, pvp = (k.ship_kills || 0) + (k.pod_kills || 0), jumps = stats.jumps[id] || 0;
-    const sec = s2.s, nul = sec != null && sec <= 0 && !isJ(id) && !isPoch(id);
-    const bounty = nul ? npc * SET.essBounty * 1000 * (0.25 + 0.75 * Math.min(1, -sec)) : 0;          // ISK per hour
-    const ess = bounty * SET.essShare / 100;
-    return { id, n:s2.n, sec, npc, pvp, jumps, bounty, ess, score:npc + jumps * 0.5 + pvp * 4 };
+    return { id, n:s2.n, sec:s2.s, npc, pvp, jumps, score:npc + jumps * 0.5 + pvp * 4 };
   }).filter(x => x.npc || x.jumps || x.pvp);
 }
 const iskS = v => v >= 1e9 ? (v / 1e9).toFixed(1) + ' B' : v >= 1e6 ? Math.round(v / 1e6) + ' M' : v >= 1e3 ? Math.round(v / 1e3) + ' k' : v ? String(Math.round(v)) : '—';
@@ -2595,15 +2628,15 @@ function renderAct(){
   const box = $('#wAct'); if (!box || box.hidden) return;
   $('#actSort').innerHTML = Object.entries(ACT_SORT).map(([k, n]) => `<button type="button" role="tab" aria-selected="${actSort === k}" data-as="${k}">${n}</button>`).join('');
   $('#actSort').querySelectorAll('[data-as]').forEach(b => b.onclick = () => { actSort = b.dataset.as; store.set('whmap.reg.actSort', actSort); renderAct(); });
-  const rows = actRows().sort((a, b) => b[actSort] - a[actSort] || b.score - a.score).filter(x => actSort !== 'ess' || x.ess > 0).slice(0, 25), max = rows.length ? rows[0][actSort] || 1 : 1;
+  const rows = actRows().sort((a, b) => b[actSort] - a[actSort] || b.score - a.score).slice(0, 25), max = rows.length ? rows[0][actSort] || 1 : 1;
   $('#actSub').textContent = stats.t ? `${R ? R.region.name : ''} · CCP ${new Date(stats.t).toLocaleTimeString([], { timeStyle:'short' })}` : 'loading…';
   $('#actBody').innerHTML = !rows.length ? `<div class="dim" style="font-size:12.5px;margin-top:6px">${stats.t ? 'No activity in the last hour on this map.' : 'Waiting for CCP\'s hourly figures…'}</div>`
-    : `<table class="actt"><tr><th>System</th><th title="NPC killed in the last hour">Rats/h</th><th title="Ship jumps in the last hour">Jumps/h</th><th title="Ships and pods killed in the last hour">Kills/h</th><th title="Bounties paid per hour (estimate)">Bounties/h</th><th title="ISK going into the ESS main bank per hour (estimate)">ESS/h</th><th></th></tr>`
+    : `<table class="actt"><tr><th>System</th><th title="NPC killed in the last hour">Rats/h</th><th title="Ship jumps in the last hour">Jumps/h</th><th title="Ships and pods killed in the last hour">Kills/h</th><th></th></tr>`
       + rows.map(x => `<tr class="${sel === x.id ? 'on' : ''}"><td><a href="#" data-ago="${x.id}">${esc(x.n)}</a> <span style="color:${isJ(x.id) ? WH_COL[classOf(x.id)] || '#aaa' : secCol(x.sec)}">${isJ(x.id) ? esc(classOf(x.id)) : secR(x.sec).toFixed(1)}</span>
           <div class="bar" style="width:${Math.max(4, Math.round(x[actSort] / max * 100))}%"></div></td>
-        <td>${x.npc || '—'}</td><td>${x.jumps || '—'}</td><td class="${x.pvp ? 'pvp' : ''}">${x.pvp || '—'}</td><td>${x.bounty ? iskS(x.bounty) : '—'}</td><td class="ess">${x.ess ? iskS(x.ess) : '—'}</td>
+        <td>${x.npc || '—'}</td><td>${x.jumps || '—'}</td><td class="${x.pvp ? 'pvp' : ''}">${x.pvp || '—'}</td>
         <td><button type="button" data-adest="${x.id}" title="Set destination in EVE">Dest</button> <button type="button" data-awp="${x.id}" title="Add a waypoint in EVE">+WP</button></td></tr>`).join('') + '</table>'
-      + `<div class="dim" style="font-size:11.5px;margin-top:5px">Figures of the last hour (CCP). ESS = rough simulation: rats × mean bounty by true security × ${SET.essShare} % to the main bank (Settings → Active systems).</div>`;
+      + `<div class="dim" style="font-size:11.5px;margin-top:5px">Figures of the last hour (CCP).</div>`;
   box.querySelectorAll('[data-ago]').forEach(a => a.onclick = e => { e.preventDefault(); lookAway(); select(a.dataset.ago); zoomTo(a.dataset.ago); renderAct(); });
   box.querySelectorAll('[data-adest]').forEach(b => b.onclick = () => sendWaypoint(b.dataset.adest, false));
   box.querySelectorAll('[data-awp]').forEach(b => b.onclick = () => sendWaypoint(b.dataset.awp, true));
@@ -2660,7 +2693,7 @@ function killStatHtml(){
   return `<div class="kst ${killStat.err && !killStat.ok ? 'bad' : 'dim'}">Last check ${ago < 90 ? ago + ' s' : Math.round(ago / 60) + ' min'} ago: ${killStat.n} kill${killStat.n === 1 ? '' : 's'} in the last hour, ${shown} system${shown === 1 ? '' : 's'} with a halo now.${killStat.err ? ' ⚠ ' + esc(killStat.err) : ''}</div>`;
 }
 // Settings: one tab per family, a search across all of them, every line with its default and a button back to it
-const SET_TABS = [['Map', ['Map', 'Active systems']], ['Pilots', ['Pilots']], ['Wormholes', ['Wormholes', 'New wormhole']], ['Kills', ['Kills (zKillboard)']], ['Refresh', ['Refresh']]];
+const SET_TABS = [['Map', ['Map']], ['Pilots', ['Pilots']], ['Wormholes', ['Wormholes', 'New wormhole']], ['Kills', ['Kills (zKillboard)']], ['Refresh', ['Refresh']]];
 const SET_GROUP_LABEL = { 'Map':'Map', 'Active systems':'Active systems', 'Pilots':'Pilots', 'Wormholes':'Wormholes', 'New wormhole':'New wormhole', 'Kills (zKillboard)':'Kills (zKillboard)', 'Refresh':'Refresh' };
 let setTab = store.get('whmap.reg.setTab', 'Map'), setQ = '';
 function renderSettings(){
@@ -4033,6 +4066,7 @@ function renderPanel(){
     if ($('#bReg')) $('#bReg').onclick = async () => { await loadRegion(s.r); select(id); centerOn(id); render(); };
   }
   P.querySelectorAll('[data-sys]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.sys)));
+  P.querySelectorAll('[data-hguess]').forEach(b => b.onclick = () => showHolderGuess(b.dataset.hguess, b.parentElement.querySelector('.hgout')));   // the J-space card: guess who lives here
   P.querySelectorAll('[data-reg]').forEach(b => b.addEventListener('click', () => loadRegion(b.dataset.reg)));
   P.querySelectorAll('[data-openassets]').forEach(b => b.addEventListener('click', () => openAssets(b.dataset.openassets)));
 }
@@ -4529,7 +4563,8 @@ function jFicheHtml(id){
   const cls = classOf(id);
   return `<div class="jfiche"><div><span class="dim">Class</span> <b style="color:${WH_COL[cls] || WH_COL.J}">${esc(cls)}</b></div>
     <div><span class="dim">Statics</span> ${st || '<span class="dim">unknown</span>'}</div>
-    <div><span class="dim">Effect</span> ${ws && ws.eff ? esc(ws.eff) : '<span class="dim">None</span>'}</div></div>`;
+    <div><span class="dim">Effect</span> ${ws && ws.eff ? esc(ws.eff) : '<span class="dim">None</span>'}</div>
+    <div><span class="dim">Holder</span> ${(() => { const r = holdAll()[id], h = r && r.holder; return h ? `<b>${esc(h.name)}</b>${r.guessed ? ' <span class="dim">(guessed, confirmed by you)</span>' : ''}` : '<span class="dim">unknown</span>'; })()} <button type="button" class="lk" data-hguess="${id}">🔍 guess</button><div class="hgout"></div></div></div>`;
 }
 /* Import from another mapper: a Pathfinder or Wanderer export, added to your map (shared when you have one) */
 function parseMapperExport(j){

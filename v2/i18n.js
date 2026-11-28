@@ -188,11 +188,27 @@ const D = {
   'Jump bridges shared with your map':['Jump bridges partagés avec ta carte', 'Sprungbrücken mit deiner Karte geteilt', 'Puentes compartidos con tu mapa'],
   '📦 Your assets here':['📦 Tes assets ici', '📦 Dein Besitz hier', '📦 Tus activos aquí'],
   '🟧 Set as ENTER':['🟧 Définir comme ENTER', '🟧 Als ENTER setzen', '🟧 Fijar como ENTER'], '🟩 Set as EXIT':['🟩 Définir comme EXIT', '🟩 Als EXIT setzen', '🟩 Fijar como EXIT'],
+  // lot 5: intel
+  'Activity':['Activité', 'Aktivität', 'Actividad'], 'Ratting':['Ratting', 'Ratting', 'Ratting'], 'Traffic':['Trafic', 'Verkehr', 'Tráfico'], 'PvP':['PvP', 'PvP', 'PvP'],
+  'Figures of the last hour (CCP).':['Chiffres de la dernière heure (CCP).', 'Zahlen der letzten Stunde (CCP).', 'Cifras de la última hora (CCP).'], 'The busiest systems of this map':['Les systèmes les plus actifs de cette carte', 'Die aktivsten Systeme dieser Karte', 'Los sistemas más activos de este mapa'],
+  'Rats/h':['NPC/h', 'NPC/h', 'NPC/h'], 'Jumps/h':['Sauts/h', 'Sprünge/h', 'Saltos/h'], 'Kills/h':['Kills/h', 'Kills/h', 'Muertes/h'],
+  'No activity in the last hour on this map.':['Aucune activité dans la dernière heure sur cette carte.', 'Keine Aktivität in der letzten Stunde auf dieser Karte.', 'Sin actividad en la última hora en este mapa.'],
+  'Holder':['Habitant', 'Bewohner', 'Habitante'], '🔍 guess':['🔍 deviner', '🔍 schätzen', '🔍 adivinar'], 'Guess who lives here':['Deviner qui habite ici', 'Schätzen, wer hier wohnt', 'Adivinar quién vive aquí'],
+  '(guessed, confirmed by you)':['(deviné, confirmé par toi)', '(geschätzt, von dir bestätigt)', '(adivinado, confirmado por ti)'],
+  'No clue: nothing on zKillboard here for 30 days.':['Aucun indice : rien sur zKillboard ici depuis 30 jours.', 'Kein Hinweis: seit 30 Tagen nichts auf zKillboard.', 'Sin pistas: nada en zKillboard aquí en 30 días.'],
+  'Wormhole':['Wormhole', 'Wurmloch', 'Agujero'], 'Holder (corporation or alliance)':['Habitant (corpo ou alliance)', 'Bewohner (Corp oder Allianz)', 'Habitante (corporación o alianza)'], 'Threat':['Menace', 'Bedrohung', 'Amenaza'],
+  'optional':['facultatif', 'optional', 'opcional'], 'No wormhole yet.':['Aucun wormhole pour l\'instant.', 'Noch kein Wurmloch.', 'Aún no hay agujeros.'], 'Remove':['Retirer', 'Entfernen', 'Quitar'],
+  'Show what your pilots will see':['Voir ce que verront tes pilotes', 'Zeigen, was deine Piloten sehen', 'Ver lo que verán tus pilotos'],
+  'Who lives in a wormhole: each time a pilot of yours jumps into it, while it is on your chain, the holder\'s logo shows in big.':['Qui habite un wormhole : à chaque fois qu\'un de tes pilotes y entre, tant qu\'il est sur ta chaîne, le logo de l\'habitant s\'affiche en grand.', 'Wer in einem Wurmloch wohnt: springt einer deiner Piloten hinein, solange es auf deiner Kette ist, erscheint das Logo groß.', 'Quién vive en un agujero: cada vez que uno de tus pilotos entra, mientras esté en tu cadena, el logo del habitante aparece en grande.'],
+  'zKillboard, last 30 days':['zKillboard, 30 derniers jours', 'zKillboard, letzte 30 Tage', 'zKillboard, últimos 30 días'],
   // v2 banner
   'New version, being rebuilt':['Nouvelle version, en cours de refonte', 'Neue Version, im Umbau', 'Nueva versión, en reconstrucción'], 'Back to the current map':['Retour à la carte actuelle', 'Zurück zur aktuellen Karte', 'Volver al mapa actual'],
 };
 // phrases with numbers or names: [pattern, fr, de, es] ($1, $2 … are the parts in brackets)
 const RX = [
+  [/^Looking \((.+)\)…$/, 'Recherche ($1)…', 'Suche ($1)…', 'Buscando ($1)…'],
+  [/^Probably \((.+)\):$/, 'Probablement ($1) :', 'Wahrscheinlich ($1):', 'Probablemente ($1):'],
+  [/^(.+): holder of (.+)$/, '$1 : habitant de $2', '$1: Bewohner von $2', '$1: habitante de $2'],
   [/^Go to (.+)$/, 'Aller à $1', 'Gehe zu $1', 'Ir a $1'],
   [/^✕ Mark the (.+) connection collapsed$/, '✕ Marquer la connexion $1 effondrée', '✕ Verbindung $1 als kollabiert markieren', '✕ Marcar la conexión de $1 colapsada'],
   [/^↺ (.+) connection: restore$/, '↺ Connexion $1 : rétablir', '↺ Verbindung $1: wiederherstellen', '↺ Conexión de $1: restaurar'],
