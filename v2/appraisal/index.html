@@ -174,7 +174,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
           <select id="hub"></select>
         </label>
         <label style="grid-column:1/-1">Orders taken from
-          <span class="seg" role="group" aria-label="Orders taken from"><button type="button" data-scope="station">The station</button><button type="button" data-scope="system">Its system</button><button type="button" data-scope="region">Its region</button></span>
+          <span class="seg" role="group" aria-label="Orders taken from"><button type="button" data-scope="station" style="white-space:nowrap">The station</button><button type="button" data-scope="system">Its system</button><button type="button" data-scope="region">Its region</button><button type="button" data-scope="jumps" style="white-space:nowrap" title="Every station within this many stargate jumps, across regions">Within <input id="jumpsN" type="number" min="1" max="15" step="1" inputmode="numeric" aria-label="Number of jumps" style="width:3.2em;padding:1px 3px;margin:0 3px;text-align:center"> jumps</button></span>
         </label>
         <button type="button" id="repOnly" class="small" style="grid-column:1/-1;justify-self:start" title="Leave out of the market list the stations without a reprocessing plant">♻ Reprocessing stations only</button>
         <form id="stForm" style="grid-column:1/-1;display:flex;gap:6px;align-items:center"><input id="stIn" placeholder="or a station: type its system (e.g. Sobaseki)" autocomplete="off" style="flex:1"><button type="submit" class="small">Use</button></form>
@@ -522,7 +522,21 @@ function parse(text){
 const books = new Map();   // hub:type -> { t, buy:[[p,v]] desc, sell:[[p,v]] asc }
 // where the orders are taken from: the station, its whole system, or its whole region (S.scope); a structure is always itself
 const scopeOf = hub => hub.structure ? 'station' : (S.scope || 'station');
-const hk = hub => hub.k + '@' + scopeOf(hub);
+const jumpsN = () => Math.max(1, Math.min(15, Math.round(Number(S.jumps) || 5)));
+const hk = hub => hub.k + '@' + scopeOf(hub) + (scopeOf(hub) === 'jumps' ? jumpsN() : '');
+// stargate graph (appraisal/data/gates.json: system -> [region, neighbours…]); systems within n jumps of the hub, and their regions
+let GATES = null;
+async function nearOf(hub){
+  const n = jumpsN(), sys = await systemOf(hub), key = sys + ':' + n;
+  if (hub.near && hub.near.key === key) return hub.near;
+  if (!GATES) GATES = await (await fetch('../../appraisal/data/gates.json')).json();
+  const dist = new Map([[sys, 0]]), seen = { has:x => dist.has(x) }; let ring = [sys];
+  for (let d = 0; d < n && ring.length; d++){ const next = [];
+    for (const s of ring) for (const t of (GATES[s] || []).slice(1)) if (!dist.has(t)){ dist.set(t, d + 1); next.push(t); }
+    ring = next; }
+  const regions = new Set([hub.region]); for (const s of dist.keys()) if (GATES[s]) regions.add(GATES[s][0]);
+  return hub.near = { key, systems:seen, dist, regions:[...regions] };
+}
 async function systemOf(hub){
   if (hub.system) return hub.system;
   try{ const x = await (await fetch(`${ESI}/universe/stations/${hub.station}/`)).json(); hub.system = x.system_id; }catch(e){}
@@ -532,16 +546,18 @@ async function getBook(hub, id){
   const key = hk(hub) + ':' + id, c = books.get(key);
   if (c && Date.now() - c.t < 5 * 60000) return c;
   if (hub.structure){ const by = await structBook(hub), b0 = by.get(Number(id)) || { buy:[], sell:[] }; const b = { t:Date.now(), buy:b0.buy, sell:b0.sell }; books.set(key, b); return b; }
-  const orders = [];
-  let page = 1, pages = 1;
-  do{
-    const r = await fetch(`${ESI}/markets/${hub.region}/orders/?datasource=tranquility&order_type=all&type_id=${id}&page=${page}`);
-    if (!r.ok){ if (r.status === 404) break; throw new Error('ESI ' + r.status); }
-    pages = Number(r.headers.get('x-pages')) || 1;
-    orders.push(...await r.json());
-  } while (++page <= pages);
-  const sc = scopeOf(hub), sys = sc === 'system' ? await systemOf(hub) : null;
-  const at = sc === 'region' ? orders : sc === 'system' ? orders.filter(o => o.system_id === sys) : orders.filter(o => o.location_id === hub.station);
+  const orders = [], sc = scopeOf(hub), near = sc === 'jumps' ? await nearOf(hub) : null;
+  for (const reg of near ? near.regions : [hub.region]){
+    let page = 1, pages = 1;
+    do{
+      const r = await fetch(`${ESI}/markets/${reg}/orders/?datasource=tranquility&order_type=all&type_id=${id}&page=${page}`);
+      if (!r.ok){ if (r.status === 404) break; throw new Error('ESI ' + r.status); }
+      pages = Number(r.headers.get('x-pages')) || 1;
+      orders.push(...await r.json());
+    } while (++page <= pages);
+  }
+  const sys = sc === 'system' ? await systemOf(hub) : null;
+  const at = sc === 'region' ? orders : sc === 'jumps' ? orders.filter(o => near.systems.has(o.system_id)) : sc === 'system' ? orders.filter(o => o.system_id === sys) : orders.filter(o => o.location_id === hub.station);
   const b = { t:Date.now(),
     buy:at.filter(o => o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => y[0] - x[0]),
     sell:at.filter(o => !o.is_buy_order).map(o => [o.price, o.volume_remain]).sort((x, y) => x[0] - y[0]), sellBy:new Map() };
@@ -894,12 +910,15 @@ async function bulkPrices(hub, ids, onStep){
   if (hub.structure){ const by = await structBook(hub), out = {};
     for (const id of ids){ const b = by.get(Number(id)); if (b) out[id] = { sell:b.sell.length ? b.sell[0][0] : 0, sellVol:b.sell.reduce((m, x) => m + x[1], 0), buy:b.buy.length ? b.buy[0][0] : 0 }; }
     if (onStep) onStep(ids.length, ids.length); return out; }
-  const sc = scopeOf(hub), out = {}, where = sc === 'region' || !hub.station ? `region=${hub.region}` : sc === 'system' ? `system=${await systemOf(hub)}` : `station=${hub.station}`;
-  for (let i = 0; i < ids.length; i += 200){
+  // within n jumps: Fuzzwork knows only stations, systems and regions, so the shortlist uses the regions crossed (best price of each); the lots themselves use the real orders within range
+  const sc = scopeOf(hub), out = {}, wheres = sc === 'jumps' ? (await nearOf(hub)).regions.map(g => `region=${g}`) : [sc === 'region' || !hub.station ? `region=${hub.region}` : sc === 'system' ? `system=${await systemOf(hub)}` : `station=${hub.station}`];
+  let step = 0; const steps = wheres.length * Math.ceil(ids.length / 200);
+  for (const where of wheres) for (let i = 0; i < ids.length; i += 200){
     const r = await fetch(`https://market.fuzzwork.co.uk/aggregates/?${where}&types=${ids.slice(i, i + 200).join(',')}`);
     if (!r.ok) throw new Error('Fuzzwork ' + r.status);
-    const j = await r.json(); for (const k in j) out[k] = { sell:Number(j[k].sell.percentile) || Number(j[k].sell.min) || 0, sellVol:Number(j[k].sell.volume) || 0, buy:Number(j[k].buy.percentile) || Number(j[k].buy.max) || 0 };   // percentile: the price of the first 5 % of the volume, not one odd order
-    if (onStep) onStep(Math.min(ids.length, i + 200), ids.length);
+    const j = await r.json(); for (const k in j){ const x = { sell:Number(j[k].sell.percentile) || Number(j[k].sell.min) || 0, sellVol:Number(j[k].sell.volume) || 0, buy:Number(j[k].buy.percentile) || Number(j[k].buy.max) || 0 };   // percentile: the price of the first 5 % of the volume, not one odd order
+      const o = out[k]; if (!o) out[k] = x; else { if (x.sell && (!o.sell || x.sell < o.sell)) o.sell = x.sell; o.sellVol += x.sellVol; if (x.buy > o.buy) o.buy = x.buy; } }
+    if (onStep) onStep(Math.round(++step / steps * ids.length), ids.length);
   }
   return out;
 }
@@ -927,7 +946,7 @@ function tabBuyRep(box){
   if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
   box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
     ${CH ? '' : `<div class="warnbox" style="margin:0 0 8px">⚠ No character chosen: the yields are your own figures (Reprocess tab: ore ${S.yieldOre} %, other items ${S.yieldScrap} %). Choose your character at the top left so its skills set them.</div>`}
-    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)}${scopeOf(hub) === 'system' ? ' and its system' : scopeOf(hub) === 'region' ? ' and its whole region' : ''} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
+    <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)}${scopeOf(hub) === 'system' ? ' and its system' : scopeOf(hub) === 'region' ? ' and its whole region' : scopeOf(hub) === 'jumps' ? ` and every station within ${jumpsN()} jump${jumpsN() > 1 ? 's' : ''}` : ''} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
     <div class="formrow">
       <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
@@ -994,11 +1013,11 @@ function tabBuyRep(box){
     }, (d, n) => { if (run === brRun) $('#brSt').textContent = `${d} / ${n} checked · ${found.length} found`; });
     if (run !== brRun) return;
     found.sort((a, b) => b.gain - a.gain);
-    const locName = {}; await Promise.all([...new Set(found.map(f => f.loc))].map(async l => { if (!l) return; try{ const r = await fetch(`${ESI}/universe/stations/${l}/`); locName[l] = r.ok ? (await r.json()).name : 'a structure'; }catch(e){ locName[l] = 'station ' + l; } }));
+    const locName = {}; await Promise.all([...new Set(found.map(f => f.loc))].map(async l => { if (!l) return; try{ const r = await fetch(`${ESI}/universe/stations/${l}/`); if (r.ok){ const x = await r.json(); const dj = hub.near && scopeOf(hub) === 'jumps' ? hub.near.dist.get(x.system_id) : undefined; locName[l] = x.name + (dj === undefined ? '' : dj ? ` (${dj} jump${dj > 1 ? 's' : ''})` : ' (same system)'); } else locName[l] = 'a structure'; }catch(e){ locName[l] = 'station ' + l; } }));
     run.html = found.length ? `<table><thead><tr><th>Item</th><th class="r">Units to buy</th><th class="r">Average price</th><th class="r">Minerals, net / u</th><th class="r">Profit</th><th class="r">Gain</th></tr></thead><tbody>
       ${found.map(f => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small></span></div></td>
         <td class="r num">${fmt(f.units)}</td><td class="r num">${fmtU(f.price)}</td><td class="r num">${fmtU(f.net)}</td><td class="r num best">+${f.profit.toFixed(1)} %</td><td class="r num"><b>${fmt(f.gain)}</b></td></tr>`).join('')}</tbody></table>
-      <p class="hint">Computed on the whole lot, from the order books: the units you buy walk up the sell orders of one station (the best of the area); their minerals walk down the buy orders${BR.sellTo === 'sell' ? ' (listed at the lowest sell price instead)' : ''}. Taken off: ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax. Yield: ${CH ? esc(CH.name) + "'s skills" : 'your figures in the Reprocess tab'}. ${scopeOf(hub) !== 'station' ? `Orders from the ${scopeOf(hub)}: some items sit in other stations, haul them to where you reprocess; buy orders far away may not reach your station (their range). ` : ''}Try a small lot first.</p>`
+      <p class="hint">Computed on the whole lot, from the order books: the units you buy walk up the sell orders of one station (the best of the area); their minerals walk down the buy orders${BR.sellTo === 'sell' ? ' (listed at the lowest sell price instead)' : ''}. Taken off: ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax. Yield: ${CH ? esc(CH.name) + "'s skills" : 'your figures in the Reprocess tab'}. ${scopeOf(hub) !== 'station' ? `Orders from ${scopeOf(hub) === 'jumps' ? `${jumpsN()} jump${jumpsN() > 1 ? 's' : ''} around` : 'the ' + scopeOf(hub)}: some items sit in other stations, haul them to where you reprocess; buy orders far away may not reach your station (their range). ` : ''}Try a small lot first.</p>`
       : `<p class="dim">No item of this kind pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`;
     $('#brRes').innerHTML = run.html; $('#brSt').textContent = `${cand.length} checked · ${found.length} found`;
   };
@@ -1095,6 +1114,8 @@ function setup(){
   syncControls();
   $('#go').onclick = appraise;
   $('#stForm').onsubmit = e => { e.preventDefault(); pickStation(); };
+  { const ji = $('#jumpsN'); ji.value = jumpsN(); ji.onclick = e => e.stopPropagation();
+    ji.onchange = () => { S.jumps = ji.value; S.jumps = jumpsN(); ji.value = S.jumps; S.scope = 'jumps'; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }; }
   document.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { S.scope = b.dataset.scope; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); });
   $('#repOnly').onclick = async () => { S.repOnly = !S.repOnly; saveS(); await checkHubsRep(); if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
   $('#goBr').onclick = () => { S.tab = 'buyrep'; saveS(); if (A && A.rows.length){ render(A); return; } $('#out').innerHTML = '<div id="tabBody"></div>'; renderTab(); };   // works without a list
