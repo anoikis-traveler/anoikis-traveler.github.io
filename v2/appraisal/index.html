@@ -394,13 +394,20 @@ window.addEventListener('storage', async e => {
   document.querySelectorAll('[data-wpfl]').forEach(x => x.textContent = prefTxt());
   routeShow(); if (!rtTimer) routePoll();
 });
-function routePoll(){ clearInterval(rtTimer); if (!RT) return;
-  rtTimer = setInterval(async () => { if (document.hidden || !RT) return;
-    const loc = await whereIs(RT.charId); if (!loc) return;
+function routePoll(){ clearInterval(rtTimer); rtTimer = 0; if (!RT && !S.autoAn) return;
+  rtTimer = setInterval(async () => { if (!RT && !S.autoAn){ clearInterval(rtTimer); rtTimer = 0; return; }
+    const id = RT ? RT.charId : rtChar(); if (!id) return;
+    const loc = await whereIs(id); if (!loc) return;
     const was = rtHere; rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null;
-    if (RT.path && !RT.path.includes(rtHere)) await routeBuild(rtHere);   // off the route: computed again from here
-    if (was !== rtHere) routeShow();
+    if (RT && RT.path && !RT.path.includes(rtHere)) await routeBuild(rtHere);   // off the route: computed again from here
+    if (was !== rtHere){ if (RT) routeShow();
+      if (S.autoAn && was != null && !(rtHere >= 31000000 && rtHere < 32000000)){ toast(`${sysNm(rtHere)}: market analysis…`); analyseHere(S.scope === 'jumps' ? 'jumps' : 'system'); } }   // auto: each new system (not in wormhole space)
   }, 15000); }
+function autoBtn(){ return `<label class="dim" style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer" title="Every 15 s the position of ${esc((store.get('whmap.tok.' + (RT ? RT.charId : rtChar()), null) || {}).charName || 'your character')} is read; in each new system, Buy to reprocess runs on its station (${S.scope === 'jumps' ? 'within ' + jumpsN() + ' jumps' : 'the whole system'})"><input type="checkbox" data-auto${S.autoAn ? ' checked' : ''}> 🔁 Auto-analyse at each new system</label>`; }
+function wireAuto(root){ root.querySelectorAll('[data-auto]').forEach(c => c.onchange = async () => { S.autoAn = c.checked; saveS();
+  document.querySelectorAll('[data-auto]').forEach(x => x.checked = S.autoAn);
+  if (S.autoAn){ await sysInfo(); const loc = await whereIs(RT ? RT.charId : rtChar()); if (!loc){ toast('Position unknown: log the character in on the map with the location option', true); } else { rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; toast(`Auto-analysis on: next system after ${sysNm(rtHere)}`); } }
+  routePoll(); }); }
 // the window can be moved by its title bar; its place is kept (and kept inside the screen)
 let rtPos = store.get('appr.routePos', null);
 function rtPlace(w){
@@ -421,6 +428,7 @@ function routeShow(){
       <div class="dim">${rtHere ? `Now in <b style="color:var(--text)">${esc(sysNm(rtHere))}</b> <span style="color:${secColor(secOf(rtHere))}">${secTxt(secOf(rtHere))}</span>${rtDock ? ' · docked' : ''}` : 'Position unknown: the map login needs "location"'}</div>
       ${RT.fromMap ? '<div class="dim" style="font-size:11.5px">Route from the map (your wormholes and jump bridges included)</div>' : ''}
       <ol>${P.map((sy, i) => `<li class="${i < at ? 'past' : i === at && rtHere != null ? 'here' : ''}"${i === at ? ' data-here' : ''}><span class="sec" style="color:${secColor(secOf(sy))}">${secTxt(secOf(sy))}</span><span>${i === at && rtHere != null ? '▶ ' : ''}${esc(sysNm(sy))}${(stopAt.get(sy) || []).map(st => `<div class="stop">📍 ${esc(st.label)}</div>`).join('')}</span></li>`).join('')}</ol>
+      <div class="row">${autoBtn()}</div>
       <div class="row"><button type="button" class="small" data-rtgo="system"${rtHere ? '' : ' disabled'}>🔎 Analyse market: this system</button><button type="button" class="small" data-rtgo="jumps"${rtHere ? '' : ' disabled'}>🔎 Within ${jumpsN()} jumps</button></div>
     </div>`;
   rtPlace(w);
@@ -431,7 +439,7 @@ function routeShow(){
     rtPos = { x:e.clientX - drag.x, y:e.clientY - drag.y }; rtPlace(w); };
   hd.onpointerup = e => { if (!drag) return; drag = null; if (moved){ store.set('appr.routePos', rtPos); return; } RT.min = !RT.min; store.set('appr.route', RT); routeShow(); };
   w.querySelector('[data-rtx]').onclick = () => { RT = null; store.set('appr.route', null); clearInterval(rtTimer); w.hidden = true; };
-  w.querySelectorAll('[data-rtgo]').forEach(b => b.onclick = () => analyseHere(b.dataset.rtgo));
+  w.querySelectorAll('[data-rtgo]').forEach(b => b.onclick = () => analyseHere(b.dataset.rtgo)); wireAuto(w);
   w.querySelectorAll('[data-rtfl]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (rtPref() === b.dataset.rtfl) return; setPref(b.dataset.rtfl); await routeBuild(rtHere || RT.path[0]); routeShow(); });
   const h = w.querySelector('[data-here]'); if (h && !RT.min) h.scrollIntoView({ block:'nearest' });
 }
@@ -439,7 +447,7 @@ async function analyseHere(scope){
   if (!rtHere) return; await sysInfo();
   const st = rtDock && rtDock < 100000000 ? rtDock : null;
   $('#stIn').value = sysNm(rtHere);
-  await pickStation(st, true);   // picks the station you are docked in, else the first that can reprocess
+  if (!await pickStation(st, true)) return;   // picks the station you are docked in, else the first that can reprocess
   S.scope = scope; saveS(); syncControls();
   $('#goBr').click(); setTimeout(() => { const g = $('#brGo'); if (g) g.click(); }, 150);
 }
@@ -452,14 +460,14 @@ function rtChar(){
 }
 async function routeFor(id){
   clearInterval(rtTimer); rtTimer = 0; rtHere = null; rtDock = null;
-  if (!id){ RT = null; routeShow(); return; }
+  if (!id){ RT = null; routeShow(); routePoll(); return; }
   await sysInfo();
   const mine = store.get('appr.route', null), a = mapAp(id), tk = store.get('whmap.tok.' + id, null);
   if (a && a.dests.length){
     const keep = new Map((mine && mine.charId === id ? mine.stops : []).map(x => [x.sys, x]));
     RT = { charId:id, char:(tk && tk.charName) || '', stops:a.dests.map(d => keep.get(Number(d)) || { dest:Number(d), sys:Number(d), label:sysNm(Number(d)) }), path:[], min:!!(mine && mine.min) };
   } else if (mine && mine.charId === id && mine.stops && mine.stops.length) RT = mine;
-  else { RT = null; routeShow(); return; }
+  else { RT = null; routeShow(); routePoll(); return; }
   const loc = await whereIs(id); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; }
   await routeBuild(rtHere || (a && a.path && Number(a.path[0])) || (RT.path && RT.path[0]) || RT.stops[0].sys);
   routeShow(); routePoll();
@@ -551,13 +559,13 @@ async function pickStation(prefer, auto){
     const sts = await Promise.all((sy.stations || []).map(id => fetch(`${ESI}/universe/stations/${id}/`).then(x => x.json()).then(x => ({ id, name:x.name, rep:(x.services || []).includes('reprocessing-plant') })).catch(() => null)));
     const all = sts.filter(Boolean); for (const x of all) repCache[x.id] = x.rep; store.set('appr.repst', repCache);
     const list = S.repOnly ? all.filter(x => x.rep) : all;
-    if (!list.length){ out.innerHTML = `<span class="bad">${all.length ? `None of the ${all.length} NPC station(s) of ${esc(sys.name)} can reprocess.` : `${esc(sys.name)} has no NPC station.`}</span>`; return; }
+    if (!list.length){ if (auto) toast(`${sys.name}: no ${S.repOnly ? 'station that can reprocess' : 'NPC station'}, nothing analysed`); out.innerHTML = `<span class="bad">${all.length ? `None of the ${all.length} NPC station(s) of ${esc(sys.name)} can reprocess.` : `${esc(sys.name)} has no NPC station.`}</span>`; return; }
     const use = st => { const h = { k:'st' + st.id, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region:co.region_id, station:st.id };
       const i = HUBS.findIndex(x => x.k === h.k); if (i < 0) HUBS.unshift(h);
       fillHubs();
       S.hub = h.k; saveS(); $('#hub').value = h.k; out.innerHTML = `Market: <b>${esc(st.name)}</b>`; $('#stIn').value = '';
       if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); };
-    if (auto){ use(list.find(x => x.id === prefer) || list.find(x => x.rep) || list[0]); return; }
+    if (auto){ use(list.find(x => x.id === prefer) || list.find(x => x.rep) || list[0]); return true; }
     if (list.length === 1){ use(list[0]); return; }
     out.innerHTML = list.map((x, i) => `<button type="button" class="small" data-sti="${i}" style="margin:2px">${esc(x.name)}${x.rep ? '' : ' · no reprocessing'}</button>`).join('');
     out.querySelectorAll('[data-sti]').forEach(b => b.onclick = () => use(list[+b.dataset.sti]));
@@ -1198,10 +1206,12 @@ function tabBuyRep(box){
       <label title="Kinds of item: how many are checked one by one on the order book. Whole market: how many of the best are checked again on the order book">Items checked at most <input id="brMax" type="number" step="10" min="10" max="600" value="${BR.max}"></label>
     </div>
     <div class="go"><button class="primary" id="brGo">Search</button> <span class="dim" id="brSt"></span></div>
+    <div style="margin:6px 0 2px">${autoBtn()}</div>
     <div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div>`;
   const keep = () => { BR.cat = $('#brCat').value; BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.rtax = Number($('#brRtax').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
   box.querySelectorAll('input,select').forEach(i => i.onchange = keep);
   if (brRun) wireSpots(brRun);
+  wireAuto(box);
   $('#brGo').onclick = async () => {
     keep(); const run = brRun = { html:'' }; if ($('#spots').open) $('#spots').close();
     const q = BR.q.toLowerCase();
