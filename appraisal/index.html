@@ -282,6 +282,7 @@ function parse(text){
     }
     let id = look(line); if (id){ add(id, 1, line); continue; }
     if ((m = line.match(/^(.+?),\s*(?:qty|quantité|anzahl):\s*([\d .,']+)/i))){ id = look(m[1]); if (id){ add(id, qty(m[2]), line); continue; } }   // killmail
+    if ((m = line.match(/^(.+?)\s*\(\s*([\d .,']+)\s*(?:units?|unités?|einheiten|шт\.?)?\s*\)$/i))){ id = look(m[1]); if (id && qty(m[2]) != null){ add(id, qty(m[2]), line); continue; } }   // reprocessing window: Name (1486 Units)
     if ((m = line.match(/^(.+?)\s+[x×]\s?([\d .,']+)$/i))){ id = look(m[1]); if (id){ add(id, qty(m[2]), line); continue; } }      // Name x5
     if ((m = line.match(/^([\d .,']+?)\s*[x×]?\s+(.+)$/i))){ id = look(m[2]); if (id && qty(m[1]) != null){ add(id, qty(m[1]), line); continue; } }   // 5 Name, 5x Name (cargo scan)
     if ((m = line.match(/^(.+?)\s+([\d .,']+)$/))){ id = look(m[1]); if (id && qty(m[2]) != null){ add(id, qty(m[2]), line); continue; } }     // multibuy: Name 5
