@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="../gate.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Appraisal · Anoikis Traveler</title>
@@ -791,7 +792,7 @@ async function bulkPreselect(hub, cand, say){
     const rows = [];
     for (const id of cand){ const p = ip[id]; if (!p || !p.sell) continue;
       const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
-      let per = 0; for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(por * qn * y) * (BR.sellTo === 'sell' ? mm.sell : mm.buy || 0); }
+      let per = 0; for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(qn * y) * ((BR.sellTo === 'sell' ? mm.sell : mm.buy) || 0); }   // one batch (por units) gives qn of each material
       const net = per / por * keepRate, profit = (net - p.sell) / p.sell * 100;
       if (profit >= BR.min) rows.push({ id, score:(net - p.sell) * Math.min(p.sellVol, 1e6) }); }
     return rows.sort((a, b) => b.score - a.score).map(x => x.id);
@@ -841,7 +842,7 @@ function tabBuyRep(box){
       if (run !== brRun) return;
       const b = await getBook(hub, id); if (!b.sell.length) return;
       const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
-      let per = 0; for (const [m, qn] of MATS[id]) per += Math.floor(por * qn * y) * minU(m);   // one batch
+      let per = 0; for (const [m, qn] of MATS[id]) per += Math.floor(qn * y) * minU(m);   // one batch (por units) gives qn of each material
       const net = per / por * keepRate, price = b.sell[0][0], profit = (net - price) / price * 100;
       if (profit >= BR.min){ let units = 0; for (const [p, v] of b.sell){ if ((net - p) / p * 100 < BR.min) break; units += v; }
         found.push({ id, it, price, net, profit, units, gain:(net - price) * units }); }
