@@ -1,5 +1,5 @@
 /* Petit Poucet · Dons : service worker (notifications + offline shell) */
-const CACHE = 'dons-v2';
+const CACHE = 'dons-v3';   // v3: home page in the site's style
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

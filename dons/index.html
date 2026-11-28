@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Petit Poucet · Dons</title>
-<meta name="theme-color" content="#0b0f17">
+<meta name="theme-color" content="#03050b">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dons ISK">
@@ -12,16 +14,36 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-:root{--bg:#0b0f17;--panel:#121827;--line:#243049;--text:#e6ecf5;--dim:#8a97ad;--gold:#f5c542;--ok:#4cc97a;--bad:#ff5d5d;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+/* the site's charter (home page): space black, translucent panels, orange accent */
+@font-face{font-family:"Exo2T";src:url(../fonts/exo2-200.woff2) format("woff2");font-weight:200;font-display:swap}
+@font-face{font-family:"Michroma";src:url(../fonts/michroma.woff2) format("woff2");font-display:swap}
+:root{--bg:#03050b;--panel:rgba(14,20,36,.78);--line:rgba(80,104,150,.35);--text:#e2e8f3;--dim:#9aa6bd;--gold:#f2a74b;--ok:#5fd68a;--bad:#ff6b6b;--wh:#8fb0ff;
+  --display:"Saira Condensed","Arial Narrow",sans-serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--body)}
+body{background:radial-gradient(ellipse 90% 60% at 50% 0,rgba(40,60,110,.25),transparent 70%),var(--bg);min-height:100vh}
+.hero{position:relative;overflow:hidden;height:min(62vh,430px);margin:0 -16px 6px;padding-top:env(safe-area-inset-top)}
+.hero .map{position:absolute;inset:-6%;background:url(../img/neweden.jpg) center/cover no-repeat;opacity:.75;transform:scale(1.05);animation:drift 30s ease-in-out infinite alternate}
+@keyframes drift{to{transform:scale(1.14) translate(-2%,1%)}}
+.hero .flare{position:absolute;inset:0;mix-blend-mode:screen;background:radial-gradient(circle at 34% 30%,rgba(255,220,170,.45) 0,rgba(255,150,60,.25) 8%,transparent 32%)}
+.hero .face{position:absolute;left:50%;top:4%;height:74%;transform:translateX(-50%);-webkit-mask:radial-gradient(ellipse 48% 52% at 50% 48%,#000 55%,transparent 100%);mask:radial-gradient(ellipse 48% 52% at 50% 48%,#000 55%,transparent 100%);filter:contrast(1.3) brightness(.6) saturate(.85)}
+.hero .veil{position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 0%,rgba(3,5,11,.2) 38%,rgba(3,5,11,0) 60%)}
+.hero .t{position:absolute;left:0;right:0;bottom:18px;text-align:center}
+.hero .brand{display:flex;align-items:center;justify-content:center;gap:.8em;font:400 11px "Michroma",sans-serif;letter-spacing:.3em;text-transform:uppercase;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.8)}
+.hero .brand i{display:block;width:3em;height:1px;background:linear-gradient(90deg,transparent,#fff)}.hero .brand i:last-child{background:linear-gradient(90deg,#fff,transparent)}
+.hero .big{font:200 clamp(44px,14vw,72px)/1 "Exo2T",sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#fff;text-shadow:0 0 30px rgba(0,0,0,.6),0 0 2px rgba(255,255,255,.6);margin-top:6px}
+.hero .big b{font-weight:200;color:var(--gold)}
+.hero .sub{margin:6px 0 0;color:var(--dim)}
+.card,.kpi{backdrop-filter:blur(8px)}
 main{max-width:520px;margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
-h1{font-size:18px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 2px}h1 b{color:var(--gold)}
+h1{font:700 22px var(--display);letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}h1 b{color:var(--gold)}
+h3{font-family:var(--display);letter-spacing:.06em;text-transform:uppercase}
 .sub{color:var(--dim);font-size:13px;margin:0 0 16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin:12px 0;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.card > b:first-child{font:700 17px var(--display);letter-spacing:.06em;text-transform:uppercase}
 .total{font:700 30px var(--mono);color:var(--gold)}.total small{font-size:14px;color:var(--dim);font-weight:400}
-button{font:inherit;border-radius:8px;border:1px solid var(--line);background:#1a2234;color:var(--text);padding:10px 14px;cursor:pointer}
-button.primary{background:var(--gold);color:#1b1408;border-color:var(--gold);font-weight:700}
+button{font:inherit;border-radius:4px;border:1px solid var(--line);background:rgba(3,5,11,.5);color:var(--text);padding:10px 14px;cursor:pointer}
+button.primary{background:var(--gold);color:#1b1206;border-color:var(--gold);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-family:var(--display);font-size:17px}
 button:disabled{opacity:.5}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .don{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line)}
@@ -42,7 +64,7 @@ button.no{background:transparent;border-color:var(--bad);color:var(--bad)}
 .hist{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:4px 0;color:var(--dim)}
 #demandes h3,#visites h3{margin:0 0 4px;font-size:15px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
-.kpi{background:#0e1422;border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center}
+.kpi{background:rgba(3,5,11,.55);border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center}
 .kpi b{display:block;font:700 20px var(--mono);color:var(--gold)}.kpi span{font-size:11.5px;color:var(--dim)}
 .bars{display:flex;align-items:flex-end;gap:3px;height:70px;margin:10px 0 2px}
 .bars div{flex:1;background:var(--gold);border-radius:2px 2px 0 0;min-height:2px;opacity:.85}
@@ -53,8 +75,10 @@ button.no{background:transparent;border-color:var(--bad);color:var(--bad)}
 </head>
 <body>
 <main>
-  <h1>Petit Poucet <b>Dons</b></h1>
-  <p class="sub" id="who">Dons en ISK reçus par votre personnage</p>
+  <header class="hero" aria-label="Anoikis Traveler · Dons">
+    <div class="map"></div><div class="flare"></div><img class="face" src="../img/finale-face.jpg" alt=""><div class="veil"></div>
+    <div class="t"><div class="brand"><i></i>Anoikis Traveler<i></i></div><div class="big">Dons <b>ISK</b></div><p class="sub" id="who">Dons en ISK reçus par votre personnage</p></div>
+  </header>
 
   <div class="card" id="installCard" hidden>
     <b>Installez l'appli d'abord</b>
