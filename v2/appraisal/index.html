@@ -134,6 +134,16 @@ tr.spotHi td{background:#f2a74b1c}
 #routeW li .stop{color:var(--accent);font-size:11.5px}
 #routeW .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 #routeW.min .bd{display:none}
+/* market tree, like the in-game market browser */
+.mkwrap{display:grid;grid-template-columns:minmax(200px,250px) minmax(0,1fr);gap:12px;align-items:start}
+.mktree{max-height:72vh;overflow:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:4px;padding:4px 0;font-size:12.5px;background:#0006;position:sticky;top:70px}
+.mktree .n{display:flex;gap:4px;align-items:baseline;padding:2px 6px;cursor:pointer;border-radius:2px;white-space:nowrap}
+.mktree .n:hover{background:#ffffff0d}
+.mktree .n.on{background:#f2a74b26;color:var(--accent);font-weight:600}
+.mktree .n .tw{width:12px;flex:none;color:var(--dim);text-align:center}
+.mktree .n .c{color:var(--dim);font-size:11px;margin-left:auto;padding-left:6px}
+.mktree .n .lb{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1200px){ .mkwrap{grid-template-columns:1fr} .mktree{position:static;max-height:40vh} }
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:4px;display:none;z-index:9}
 #toast.err{border-color:var(--bad)}
 .snap{border:1px solid var(--line);border-left:3px solid var(--split);background:var(--panel);border-radius:5px;padding:8px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -1161,6 +1171,28 @@ async function tabReproc(box){
 
 /* --- Buy to reprocess: items on sale below what their minerals bring, after taxes --- */
 // Bulk prices (Fuzzwork aggregates: lowest sell and highest buy of each item at a station or in a region), 200 items a call
+/* Market groups (the in-game market tree): appraisal/data/mgroups.json, id -> [parent, name] */
+let MG = null; const mgOpen = new Set(store.get('appr.mgopen', []));
+async function loadMG(){ if (!MG){ try{ MG = await (await fetch('../../appraisal/data/mgroups.json')).json(); }catch(e){ MG = {}; } } return MG; }
+const mgPath = mg => { const out = []; let g = mg, n = 0; while (g && MG[g] && n++ < 12){ out.unshift(g); g = MG[g][0]; } return out; };   // root first
+const inMG = (it, sel) => !sel || (it.mg && mgPath(it.mg).includes(Number(sel)));
+// the tree of the groups that hold some of these items, with counts; onPick(id or 0 = everything)
+function mgTree(el, ids, sel, onPick){
+  const cnt = new Map(), kids = new Map();
+  for (const id of ids){ const it = T.byId.get(id); if (!it || !it.mg) continue;
+    const p = mgPath(it.mg); for (let i = 0; i < p.length; i++){ cnt.set(p[i], (cnt.get(p[i]) || 0) + 1); const par = i ? p[i - 1] : 0; if (!kids.has(par)) kids.set(par, new Set()); kids.get(par).add(p[i]); } }
+  for (const g of mgPath(Number(sel) || 0)) mgOpen.add(g);
+  const name = g => MG[g] ? MG[g][1] : String(g);
+  const node = (g, d) => { const ch = [...(kids.get(g) || [])].sort((a, b) => name(a).localeCompare(name(b))), open = mgOpen.has(g);
+    return `<div class="n${Number(sel) === g ? ' on' : ''}" data-mg="${g}" style="padding-left:${6 + d * 12}px" role="treeitem" aria-expanded="${ch.length ? open : ''}"><span class="tw" data-mgt="${g}">${ch.length ? (open ? '▾' : '▸') : ''}</span><span class="lb">${esc(name(g))}</span><span class="c">${fmt(cnt.get(g) || 0)}</span></div>${open ? ch.map(c => node(c, d + 1)).join('') : ''}`; };
+  const roots = [...(kids.get(0) || [])].sort((a, b) => name(a).localeCompare(name(b)));
+  el.innerHTML = `<div class="n${!Number(sel) ? ' on' : ''}" data-mg="0"><span class="tw"></span><span class="lb">All items</span><span class="c">${fmt(ids.length)}</span></div>` + roots.map(g => node(g, 0)).join('');
+  el.onclick = e => { const t = e.target.closest('[data-mgt]'), n = e.target.closest('[data-mg]'); if (!n) return;
+    const g = Number(n.dataset.mg);
+    if (t && t.textContent){ if (mgOpen.has(g)) mgOpen.delete(g); else mgOpen.add(g); store.set('appr.mgopen', [...mgOpen]); mgTree(el, ids, sel, onPick); return; }
+    if (g && !mgOpen.has(g) && kids.has(g)){ mgOpen.add(g); store.set('appr.mgopen', [...mgOpen]); }
+    onPick(g); };
+}
 async function bulkPrices(hub, ids, onStep){
   if (hub.structure){ const by = await structBook(hub), out = {};
     for (const id of ids){ const b = by.get(Number(id)); if (b) out[id] = { sell:b.sell.length ? b.sell[0][0] : 0, sellVol:b.sell.reduce((m, x) => m + x[1], 0), buy:b.buy.length ? b.buy[0][0] : 0 }; }
@@ -1198,7 +1230,7 @@ async function bulkPreselect(hub, cand, say){
 }
 /* Max buy prices: for every reprocessable item of the market, the most you can pay per unit and still make your margin
    once it is reprocessed and its minerals are sold in Jita 4-4 or Amarr VIII (taxes, reprocessing tax and your yields included) */
-const MX = Object.assign({ margin:10, cat:'*', q:'', min:0, sort:'best', cmp:false, n:200 }, store.get('appr.maxbuy', {}));
+const MX = Object.assign({ margin:10, mg:0, q:'', min:0, sort:'best', cmp:false, n:200 }, store.get('appr.maxbuy', {}));
 let mxData = null;   // { key, mp:{ jita:{}, amarr:{} }, here:{} }
 async function mxPrices(say){
   const mins = [...new Set(Object.values(MATS).flatMap(l => l.map(m => m[0])))];
@@ -1210,7 +1242,7 @@ async function mxPrices(say){
 }
 function mxRows(){
   const keepRate = 1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0) - BR.rtax / 100, q = MX.q.toLowerCase(), out = [];
-  for (const k of Object.keys(MATS)){ const id = Number(k), it = T.byId.get(id); if (!it || (MX.cat !== '*' && catOf(it) !== MX.cat) || (q && !it.name.toLowerCase().includes(q))) continue;
+  for (const k of Object.keys(MATS)){ const id = Number(k), it = T.byId.get(id); if (!it || !it.mg || !inMG(it, MX.mg) || (q && !it.name.toLowerCase().includes(q))) continue;
     const por = it.por || 1, y = yieldFor(id) / 100, v = {};
     for (const d of ['jita', 'amarr']){ const mp = mxData.mp[d]; let per = 0;
       for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(qn * y) * ((BR.sellTo === 'sell' ? mm.sell : mm.buy) || 0); }
@@ -1222,7 +1254,7 @@ function mxRows(){
   return out.sort(sorters[MX.sort] || sorters.best);
 }
 function tabMaxBuy(box){
-  if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabMaxBuy(box)); return; }
+  if (!MATS || !MG){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; Promise.all([loadMats(), loadMG()]).then(() => tabMaxBuy(box)); return; }
   const hub = HUBS.find(h => h.k === S.hub && !h.disabled) || HUBS.find(h => !h.disabled);
   const cats = [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort();
   box.innerHTML = `<div class="panel"><h3>Max buy prices</h3>
@@ -1230,13 +1262,15 @@ function tabMaxBuy(box){
     <p class="dim" style="margin:0 0 8px">For every reprocessable item of the market: the most you can pay per unit to keep your margin once it is reprocessed ${CH ? `with the skills of <b>${esc(CH.name)}</b>` : ''} and its minerals sold in Jita 4-4 or Amarr VIII (${BR.sellTo === 'sell' ? 'with sell orders' : 'to buy orders'}), after ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax (settings of Buy to reprocess). Mineral prices: the first 5 % of each order book; hauling not counted.</p>
     <div class="formrow">
       <label>Margin wanted (%) <input id="mxM" type="number" step="1" min="0" value="${MX.margin}"></label>
-      <label>Kind of item <select id="mxCat"><option value="*">Every item</option>${cats.map(c => `<option${c === MX.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="mxQ" value="${esc(MX.q)}" placeholder="optional"></label>
       <label title="Hide items worth less than this per unit">Max price at least (ISK) <input id="mxMin" type="number" step="1" min="0" value="${MX.min}"></label>
     </div>
     <label class="dim" style="display:inline-flex;gap:6px;align-items:center;margin:4px 0"><input type="checkbox" id="mxCmp"${MX.cmp ? ' checked' : ''}> Compare with the sell prices of ${esc(hub.short || hub.name)}${hub.whole || scopeOf(hub) !== 'station' ? ` (${hub.whole ? 'whole region' : scopeOf(hub) === 'jumps' ? jumpsN() + ' jumps' : 'its ' + scopeOf(hub)})` : ''}</label>
     <div class="go"><span class="dim" id="mxSt"></span></div>
-    <div id="mxRes"></div></div>`;
+    <div class="mkwrap"><nav class="mktree" id="mxTree" role="tree" aria-label="Market groups"></nav><div id="mxRes"></div></div></div>`;
+  const allIds = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && it.mg; });
+  const tree = () => mgTree($('#mxTree'), allIds, MX.mg, g => { MX.mg = g; MX.n = 200; store.set('appr.maxbuy', MX); tree(); if (mxData) draw(); });
+  tree();
   const st = m => { const e = $('#mxSt'); if (e) e.textContent = m; };
   const draw = () => {
     const rows = mxRows(), shown = rows.slice(0, MX.n), H = (k, l, cls = 'r') => `<th class="${cls}" data-mxs="${k}" style="cursor:pointer" aria-sort="${MX.sort === k ? 'descending' : 'none'}">${l}${MX.sort === k ? ' ▾' : ''}</th>`;
@@ -1254,7 +1288,7 @@ function tabMaxBuy(box){
     const csv = $('#mxCsv'); if (csv) csv.onclick = async () => { const L = [['Item', 'Max Jita', 'Max Amarr', 'Max buy price', 'Sell price here'].join(',')].concat(rows.map(r => [`"${r.it.name.replace(/"/g, '""')}"`, r.jita.toFixed(2), r.amarr.toFixed(2), r.best.toFixed(2), r.here ? r.here.toFixed(2) : ''].join(',')));
       try{ await navigator.clipboard.writeText(L.join('\n')); toast(`${rows.length} lines copied`); }catch(e){ toast('Copy refused by the browser', true); } };
   };
-  const keep = () => { MX.margin = Math.max(0, Number($('#mxM').value) || 0); MX.cat = $('#mxCat').value; MX.q = $('#mxQ').value.trim(); MX.min = Math.max(0, Number($('#mxMin').value) || 0); MX.cmp = $('#mxCmp').checked; MX.n = 200; store.set('appr.maxbuy', MX); };
+  const keep = () => { MX.margin = Math.max(0, Number($('#mxM').value) || 0); MX.q = $('#mxQ').value.trim(); MX.min = Math.max(0, Number($('#mxMin').value) || 0); MX.cmp = $('#mxCmp').checked; MX.n = 200; store.set('appr.maxbuy', MX); };
   const go = async () => { keep();
     try{ await mxPrices(st);
       if (MX.cmp){ const hk2 = hk(hub) + ':' + mxData.key;
@@ -1268,9 +1302,10 @@ function tabMaxBuy(box){
   $('#mxQ').oninput = () => { clearTimeout(tabMaxBuy.t); tabMaxBuy.t = setTimeout(go, 350); };
   go();
 }
-const BR = Object.assign({ cat:'*', min:5, tax:3.6, broker:1.5, rtax:5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
+const BR = Object.assign({ cat:'*', mg:0, min:5, tax:3.6, broker:1.5, rtax:5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
 let brRun = null;
 function tabBuyRep(box){
+  if (!MG){ loadMG().then(() => tabBuyRep(box)); return; }
   const hub = HUBS.find(h => h.k === S.hub && !h.disabled) || HUBS.find(h => !h.disabled);
   const cats = MATS ? [...new Set(Object.keys(MATS).map(id => T.byId.get(Number(id))).filter(Boolean).map(catOf))].sort() : [];
   if (!MATS){ box.innerHTML = '<div class="panel dim">Loading reprocessing data…</div>'; loadMats().then(() => tabBuyRep(box)); return; }
@@ -1278,7 +1313,6 @@ function tabBuyRep(box){
     ${CH ? '' : `<div class="warnbox" style="margin:0 0 8px">⚠ No character chosen: the yields are your own figures (Reprocess tab: ore ${S.yieldOre} %, other items ${S.yieldScrap} %). Choose your character at the top left so its skills set them.</div>`}
     <p class="dim" style="margin:0 0 8px">Items on sale ${hub.whole ? `in every station of <b>${esc(hub.short)}</b>` : `in ${esc(hub.short || hub.name)}`}${hub.whole ? '' : scopeOf(hub) === 'system' ? ' and its system' : scopeOf(hub) === 'region' ? ' and its whole region' : scopeOf(hub) === 'jumps' ? ` and every station within ${jumpsN()} jump${jumpsN() > 1 ? 's' : ''}` : ''} whose reprocessed minerals sell for more, taxes included. Uses ${CH ? `the skills of <b>${esc(CH.name)}</b>` : 'your yields (Reprocess tab)'}: ore ${(CH ? yieldOreDefault() : S.yieldOre).toFixed(1)} %, other items ${(CH ? yieldFor(-1) : S.yieldScrap).toFixed(1)} %.</p>
     <div class="formrow">
-      <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
       <label>Minimum profit (%) <input id="brMin" type="number" step="0.5" value="${BR.min}"></label>
       <label>Sales tax (%) <input id="brTax" type="number" step="0.1" value="${BR.tax}"></label>
@@ -1289,22 +1323,25 @@ function tabBuyRep(box){
     </div>
     <div class="go"><button class="primary" id="brGo">Search</button> <span class="dim" id="brSt"></span></div>
     <div style="margin:6px 0 2px">${autoBtn()}</div>
-    <div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div>`;
-  const keep = () => { BR.cat = $('#brCat').value; BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.rtax = Number($('#brRtax').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
+    <div class="mkwrap"><nav class="mktree" id="brTree" role="tree" aria-label="Market groups"></nav><div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div></div>`;
+  const allIds = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && it.mg; });
+  const tree = () => mgTree($('#brTree'), allIds, BR.mg, g => { BR.mg = g; store.set('appr.buyrep', BR); tree(); });
+  tree();
+  const keep = () => { BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.rtax = Number($('#brRtax').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
   box.querySelectorAll('input,select').forEach(i => i.onchange = keep);
   if (brRun) wireSpots(brRun);
   wireAuto(box);
   $('#brGo').onclick = async () => {
     keep(); const run = brRun = { html:'' }; if ($('#spots').open) $('#spots').close();
     const q = BR.q.toLowerCase();
-    let cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && (BR.cat === '*' || catOf(it) === BR.cat) && (!q || it.name.toLowerCase().includes(q)); });
-    if (BR.cat === '*'){                                           // whole market: a first pass on bulk prices, then the order book for the best
-      $('#brSt').textContent = `Whole market: ${cand.length} items…`;
+    let cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && it.mg && inMG(it, BR.mg) && (!q || it.name.toLowerCase().includes(q)); });
+    if (cand.length > BR.max){                                     // many items: a first pass on bulk prices, then the order book for the best
+      $('#brSt').textContent = `${cand.length} items…`;
       const pre = await bulkPreselect(hub, cand, msg => { if (run === brRun) $('#brSt').textContent = msg; });
       if (run !== brRun) return;
-      if (!pre){ $('#brRes').innerHTML = '<p class="bad">The bulk price service (Fuzzwork) did not answer: choose a kind of item instead.</p>'; $('#brSt').textContent = ''; return; }
+      if (!pre){ $('#brRes').innerHTML = '<p class="bad">The bulk price service (Fuzzwork) did not answer: choose a smaller group of the market instead.</p>'; $('#brSt').textContent = ''; return; }
       cand = pre.slice(0, BR.max);
-      if (!cand.length){ $('#brRes').innerHTML = `<p class="dim">No item of the whole market pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`; $('#brSt').textContent = ''; return; }
+      if (!cand.length){ $('#brRes').innerHTML = `<p class="dim">No item of this group pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`; $('#brSt').textContent = ''; return; }
     } else cand = cand.slice(0, BR.max);
     if (!cand.length){ $('#brRes').innerHTML = '<p class="dim">Nothing of this kind to check.</p>'; return; }
     const mins = [...new Set(cand.flatMap(id => MATS[id].map(m => m[0])))];
