@@ -4,6 +4,7 @@
   const OWNERS = ['cloporte', 'Sava Yesh', 'Calimeroombrageux'];
   let ok = false;
   try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = JSON.parse(localStorage.getItem(k) || 'null'); if (t && OWNERS.includes(t.charName)) ok = true; } } }catch(e){}
+  try{ for (const t of JSON.parse(localStorage.getItem('fit.chars') || '[]')) if (OWNERS.includes(t.charName)) ok = true; }catch(e){}   // logged in on the Fitting page only
   if (ok || /[?&]code=/.test(location.search)) return;          // a login coming back is let through, it checks itself
   document.documentElement.style.background = '#03050b';
   document.write(`<div style="position:fixed;inset:0;z-index:99999;background:#03050b;color:#e2e8f3;font:16px/1.5 'IBM Plex Sans',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px">

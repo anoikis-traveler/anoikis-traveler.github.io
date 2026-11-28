@@ -147,7 +147,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
 <header>
   <h1><a href="../">Anoikis <b>Traveler</b></a></h1>
   <nav class="tools" aria-label="Tools">
-    <a href="../regions/">Map</a><a href="../fitting/">Fitting</a><a href="./" aria-current="page">Appraisal</a>
+    <a href="../regions/">Map</a><a href="../fitting/">Fitting</a><a href="./" aria-current="page">Appraisal</a><a id="v2link" href="../v2/appraisal/" hidden style="color:#f2a74b;border:1px solid #f2a74b;border-radius:3px" title="New version: your character's skills, your station, Buy to reprocess">v2 ♻</a>
   </nav>
   <span class="grow"></span>
   <span class="sde" id="sdeVer">loading items…</span>
@@ -724,6 +724,11 @@ function setup(){
   $('#bbShare').onclick = async () => { try{ await navigator.clipboard.writeText(location.origin + location.pathname + '#bb=' + bbPack()); toast('Buyback program link copied: send it to your members'); }catch(e){ toast('Copy refused by the browser', true); } };
 }
 
+// the site owner sees the way to the version being rebuilt (v2); nobody else does
+(function(){ const OWN = ['cloporte', 'Sava Yesh', 'Calimeroombrageux']; let ok = false;
+  try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = JSON.parse(localStorage.getItem(k) || 'null'); if (t && OWN.includes(t.charName)) ok = true; } }
+    for (const t of JSON.parse(localStorage.getItem('fit.chars') || '[]')) if (OWN.includes(t.charName)) ok = true; }catch(e){}
+  if (ok) document.getElementById('v2link').hidden = false; })();
 (async function init(){
   setup(); renderHist();
   try{ await loadTypes(); }catch(e){ $('#sdeVer').textContent = 'item list unavailable'; toast(e.message, true); return; }
