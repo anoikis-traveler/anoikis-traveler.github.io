@@ -826,6 +826,7 @@ body.nf #hint{transform:translateY(-16px)}
       <div class="sigfor" id="hubrFor"></div>
       <label class="dim" style="font-size:12.5px"><input type="checkbox" id="hubrWh"> also through Thera / Turnur (and the holes of your chain)</label>
       <table class="hubrt" id="hubrT"></table>
+      <form id="hubrAdd" class="row" style="margin-top:6px;gap:6px"><input id="hubrAddIn" placeholder="Add a system (staging, market…)" autocomplete="off" style="flex:1"><button type="submit" class="small">Add</button></form>
       <div id="hubrDetail"></div>
     </div>
   </section>
@@ -2416,7 +2417,10 @@ function setupHold(){
   ['holdSys', 'holdWho'].forEach(i => $('#' + i).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
 }
 /* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
-const HUBS_T = [ [30000142, 'Jita'], [30002187, 'Amarr'], [30002659, 'Dodixie'], [30002510, 'Rens'], [30002053, 'Hek'] ];
+const HUBS_T0 = [ [30000142, 'Jita'], [30002187, 'Amarr'], [30002659, 'Dodixie'], [30002510, 'Rens'], [30002053, 'Hek'] ];
+// the trade hubs, plus the systems you add yourself (staging, home, a market…)
+let hubrExtra = store.get('whmap.reg.hubrExtra', []);
+const hubList = () => [...HUBS_T0, ...hubrExtra.filter(x => !HUBS_T0.some(y => String(y[0]) === String(x[0])))];
 var hubrRes = {}, hubrFrom = null, hubrPick = null, hubrBusy = 0, hubrSrc = null;   // hubrSrc: a character id, or 'sel' (the selected system); null = the active character
 function hubrPilots(){   // your own characters and where they are
   return vaultChars().map(c => ({ id:c.charId, name:c.charName, sys:DEMO ? demoPos[c.charId] : chars[c.charId] && chars[c.charId].sys ? chars[c.charId].sys : (store.get(CK.me + c.charId, null) || {}).current })).filter(p => p.sys && /^\d+$/.test(String(p.sys)));
@@ -2436,7 +2440,7 @@ async function hubrCompute(){
   const wh = $('#hubrWh').checked, gates = jbList().flatMap(j => [{ from:Number(j.a), to:Number(j.b) }, { from:Number(j.b), to:Number(j.a) }]), all = whConns();
   const my = ++hubrBusy; renderHubr();
   const jobs = [];
-  for (const [h] of HUBS_T) for (const [k, pref, conns] of [['short', 'Shorter', gates], ['safe', 'Safer', gates], ...(wh ? [['wshort', 'Shorter', all], ['wsafe', 'Safer', all]] : [])])
+  for (const [h] of hubList()) for (const [k, pref, conns] of [['short', 'Shorter', gates], ['safe', 'Safer', gates], ...(wh ? [['wshort', 'Shorter', all], ['wsafe', 'Safer', all]] : [])])
     jobs.push(esiRoute(from, h, pref, conns).then(r => { hubrRes[h + ':' + k] = r; }, e => { hubrRes[h + ':' + k] = { err:e.message }; }));
   await Promise.all(jobs); if (my !== hubrBusy) return;
   hubrBusy = 0; renderHubr();
@@ -2452,16 +2456,18 @@ function renderHubr(){
   const wh = $('#hubrWh').checked, cols = [['short', 'Shortest'], ['safe', 'Safest'], ...(wh ? [['wshort', 'Shortest · WH'], ['wsafe', 'Safest · WH']] : [])];
   $('#hubrSub').textContent = hubrBusy ? 'computing…' : '';
   const bar = n => { const t = n.hs + n.ls + n.ns + n.wh || 1, w = x => Math.max(x ? 3 : 0, Math.round(x / t * 46)); return `<span class="sb" title="${n.hs} high-sec · ${n.ls} low-sec · ${n.ns} null-sec${n.wh ? ' · ' + n.wh + ' wormhole' : ''}"><i style="width:${w(n.hs)}px;background:#4fa3ff"></i><i style="width:${w(n.ls)}px;background:#f2a74b"></i><i style="width:${w(n.ns)}px;background:#ef5a5a"></i><i style="width:${w(n.wh)}px;background:#a98bff"></i></span>`; };
-  $('#hubrT').innerHTML = !from ? '' : `<tr><th>Hub</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>` + HUBS_T.map(([h, n]) => {
+  $('#hubrT').innerHTML = !from ? '' : `<tr><th>Hub</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>` + hubList().map(([h, n]) => {
     const vals = cols.map(([k]) => hubrRes[h + ':' + k]), best = Math.min(...vals.filter(Array.isArray).map(r => r.length));
-    return `<tr><td class="h">${esc(n)}</td>${cols.map(([k], i) => { const r = vals[i];
+    const mine = hubrExtra.some(x => String(x[0]) === String(h));
+    return `<tr><td class="h">${esc(n)}${mine ? ` <button type="button" class="lk" data-hrdel="${h}" title="Remove this system from the list">✕</button>` : ''}</td>${cols.map(([k], i) => { const r = vals[i];
       if (!r) return `<td class="dim">${hubrBusy ? '…' : ''}</td>`; if (r.err) return `<td class="dim" title="${esc(r.err)}">—</td>`;
       const mx = hubrMix(r); return `<td><button type="button" class="rc${hubrPick === h + ':' + k ? ' on' : ''}" data-hr="${h}:${k}"><b class="${r.length === best && cols.length > 1 ? 'best' : ''}">${r.length - 1}</b> j${bar(mx)}</button></td>`; }).join('')}</tr>`; }).join('');
   $('#hubrT').querySelectorAll('[data-hr]').forEach(b => b.onclick = () => { hubrPick = b.dataset.hr; renderHubr(); hubrShow(); });
+  $('#hubrT').querySelectorAll('[data-hrdel]').forEach(b => b.onclick = () => { hubrExtra = hubrExtra.filter(x => String(x[0]) !== b.dataset.hrdel); store.set('whmap.reg.hubrExtra', hubrExtra); renderHubr(); });
 }
 function hubrShow(){
   const r = hubrRes[hubrPick]; if (!Array.isArray(r)) return;
-  const pairs = apWhPairs(), [h, k] = hubrPick.split(':'), hubN = (HUBS_T.find(x => String(x[0]) === h) || [])[1];
+  const pairs = apWhPairs(), [h, k] = hubrPick.split(':'), hubN = (hubList().find(x => String(x[0]) === h) || [])[1];
   const firstWh = r.findIndex((id, i) => i && pairs[pairKey(r[i - 1], id)]);
   const path = r.map((id, i) => { const v = secOfId(id), via = i && pairs[pairKey(r[i - 1], id)];
     return `${i ? (via ? `<span class="wh" title="${esc(via)}">⟿</span>` : '<span class="dim">›</span>') : ''}<span class="${v == null ? 'wh' : ''}" style="${v != null ? `color:${secCol(v)}` : ''}">${esc(sysName(id))}${v != null ? ` ${secR(v).toFixed(1)}` : ''}</span>`; }).join(' ');
@@ -2480,6 +2486,10 @@ function setupHubr(){
   const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ hubrFrom = null; renderHubr(); placeWidget(box); box.style.zIndex = ++wz; } };
   btn.onclick = () => show(box.hidden);
   $('#hubrClose').onclick = () => show(false);
+  $('#hubrAdd').onsubmit = async e => { e.preventDefault(); const inp = $('#hubrAddIn'), r = await resolveSystemName(inp.value);
+    if (!r){ toast('Unknown system', true); return; }
+    if (hubList().some(x => String(x[0]) === String(r.id))){ inp.value = ''; return; }
+    hubrExtra.push([Number(r.id), r.name]); store.set('whmap.reg.hubrExtra', hubrExtra); inp.value = ''; hubrFrom = null; hubrCompute(); renderHubr(); };
   $('#hubrWh').checked = store.get('whmap.reg.hubrWh', true);
   $('#hubrWh').onchange = () => { store.set('whmap.reg.hubrWh', $('#hubrWh').checked); hubrCompute(); };
 }
@@ -4728,7 +4738,7 @@ function sysMenu(e, id){
   const item = (act, label, cls, dis) => `<button type="button" role="menuitem" data-act="${act}"${cls ? ` class="${cls}"` : ''}${dis ? ' disabled style="opacity:.45;pointer-events:none"' : ''}>${label}</button>`;
   m.innerHTML = `<div class="cmh">${esc(sysName(id))} <span>${s && !isJ(id) ? secR(s.s).toFixed(1) : esc(classOf(id))}</span></div>`
     + item('dest', 'Set destination', '', !wpOk) + item('wp', 'Add waypoint', '', !wpOk) + '<hr>'
-    + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
+    + item('home', isHome(id) ? '⌂ Remove HOME' : '⌂ Set as HOME')
     + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('')
     + (hubLinksAt(id).length ? '<hr>' + hubLinksAt(id).map((x, i) => item('dn-' + i, downOf(x.l) ? `↺ ${esc(sysName(x.h))} connection: restore` : `✕ Mark the ${esc(sysName(x.h))} connection collapsed`)).join('') : '')
     + '<hr>' + (assetsOn && assetsAt(id).length ? item('assets', '📦 Your assets here') : '') + (s && s.ext ? item('region', `Go to ${esc(s.ext)}`) : '') + item('dotlan', 'Dotlan ↗') + item('zkill', 'zKillboard ↗');
@@ -4763,7 +4773,7 @@ function chainMenu(e, id){
     if (!chainPicked.has(id)) chainSelect([id]);
     html = `<div class="cmh">${esc(sysName(id))} <span>${esc(classOf(id))}</span></div>`
       + (isK(id) ? item('region', 'Open its region') + item('dest', 'Set destination') + item('wp', 'Add waypoint') + '<hr>' : '')
-      + item('home', isHome(id) ? '⌂ Remove home' : '⌂ Set as home')
+      + item('home', isHome(id) ? '⌂ Remove HOME' : '⌂ Set as HOME')
       + ['enter', 'exit'].map(k => item('mk-' + k, markAt(id).includes(k) ? `Remove ${MARKS[k].label}` : `${k === 'enter' ? '🟧' : '🟩'} Set as ${MARKS[k].label}`)).join('') + '<hr>'
       + item('add', '+ System from here') + item('link', 'Link to…') + item('linked', 'Select linked systems') + (/^\d+$/.test(id) ? item('dotlan', 'Dotlan ↗') + item('zkill', 'zKillboard ↗') : '') + '<hr>' + item('del', 'Delete', 'danger');
   } else {
