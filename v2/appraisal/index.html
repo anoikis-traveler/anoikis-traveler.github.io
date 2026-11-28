@@ -296,7 +296,7 @@ async function dockHubOf(t){
   const sysId = loc.solar_system_id; let region = null;
   try{ const sy = await (await fetch(`${ESI}/universe/systems/${sysId}/`)).json(); const co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json(); region = co.region_id; }catch(e){}
   if (loc.station_id){ const st = await (await fetch(`${ESI}/universe/stations/${loc.station_id}/`)).json();
-    return { k:'dock' + t.charId, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region, station:loc.station_id, dock:true, who:t.charName }; }
+    return { k:'dock' + t.charId, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region, station:loc.station_id, dock:true, who:t.charName, noRep:!(st.services || []).includes('reprocessing-plant') }; }
   if (loc.structure_id){
     if (!STRUCT_SCOPES.every(x => scopesOf(t).includes(x))) return { k:'dock' + t.charId, name:'📍 Structure (no access yet)', short:'Structure', region, structure:loc.structure_id, needScope:true, disabled:true, who:t.charName };
     let name = 'Structure'; try{ const r = await fetch(`${ESI}/universe/structures/${loc.structure_id}/`, h); if (r.ok) name = (await r.json()).name; }catch(e){}
@@ -327,7 +327,7 @@ async function useDock(t){
     $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
     if (h.needScope){ st.innerHTML = `${esc(t.charName)} is docked in a structure: reading its market needs the permissions <code>esi-markets.structure_markets.v1</code> and <code>esi-universe.read_structures.v1</code> on the site's EVE application (developers.eveonline.com). The market stays ${esc((HUBS.find(x => x.k === S.hub) || HUBS[0]).short)}.`; $('#hub').value = S.hub; return; }
     S.hub = h.k; saveS(); $('#hub').value = h.k;
-    st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.`;
+    st.innerHTML = `Market: <b>${esc(h.name.replace('📍 ', ''))}</b>, where ${esc(t.charName)} is docked.${h.noRep ? ' <span class="warn">⚠ This station has no reprocessing plant: type the system of one below.</span>' : ''}`;
     if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab();
   }catch(e){ st.innerHTML = `<span class="warn">⚠ Could not read where ${esc(t.charName)} is docked (log it in again on the <a href="../" target="_blank" rel="noopener">map</a>), or type the station's system below.</span>`; }
 }
@@ -338,8 +338,9 @@ async function pickStation(){
     const r = await fetch(`${ESI}/universe/ids/`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify([name]) });
     const sys = ((r.ok ? await r.json() : {}).systems || [])[0]; if (!sys){ out.innerHTML = `<span class="bad">Unknown system: ${esc(name)}</span>`; return; }
     const sy = await (await fetch(`${ESI}/universe/systems/${sys.id}/`)).json(), co = await (await fetch(`${ESI}/universe/constellations/${sy.constellation_id}/`)).json();
-    const sts = await Promise.all((sy.stations || []).map(id => fetch(`${ESI}/universe/stations/${id}/`).then(x => x.json()).then(x => ({ id, name:x.name })).catch(() => null)));
-    const list = sts.filter(Boolean); if (!list.length){ out.innerHTML = `<span class="bad">${esc(sys.name)} has no NPC station.</span>`; return; }
+    const sts = await Promise.all((sy.stations || []).map(id => fetch(`${ESI}/universe/stations/${id}/`).then(x => x.json()).then(x => ({ id, name:x.name, rep:(x.services || []).includes('reprocessing-plant') })).catch(() => null)));
+    const all = sts.filter(Boolean), list = all.filter(x => x.rep);   // only the stations with a reprocessing plant
+    if (!list.length){ out.innerHTML = `<span class="bad">${all.length ? `None of the ${all.length} NPC stations of ${esc(sys.name)} can reprocess.` : `${esc(sys.name)} has no NPC station.`}</span>`; return; }
     const use = st => { const h = { k:'st' + st.id, name:`📍 ${st.name}`, short:st.name.split(' - ')[0], region:co.region_id, station:st.id };
       const i = HUBS.findIndex(x => x.k === h.k); if (i < 0) HUBS.unshift(h);
       $('#hub').innerHTML = HUBS.map(x => `<option value="${x.k}"${x.disabled ? ' disabled' : ''}>${esc(x.name)}</option>`).join('');
