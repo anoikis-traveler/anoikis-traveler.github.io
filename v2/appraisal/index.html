@@ -984,8 +984,11 @@ function render(a){
   o.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; saveS(); o.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); renderTab(); });
   renderTab();
 }
+// the main button is the one of the tool in use: Appraise, or Buy to reprocess
+function syncGo(){ const br = S.tab === 'buyrep' && !!$('#tabBody'); $('#go').classList.toggle('primary', !br); $('#goBr').classList.toggle('primary', br);
+  $('#go').setAttribute('aria-pressed', String(!br)); $('#goBr').setAttribute('aria-pressed', String(br)); }
 function renderTab(){
-  const box = $('#tabBody'); if (!box) return;
+  const box = $('#tabBody'); syncGo(); if (!box) return;
   if (S.tab === 'buyrep'){ tabBuyRep(box); return; }
   if (!A) return;
   ({ items:tabItems, hubs:tabHubs, reproc:tabReproc, freight:tabFreight }[S.tab] || tabItems)(box);
@@ -1414,7 +1417,7 @@ function setup(){
   { const m = /^rg(\d+)$/.exec(S.hub || ''); if (m && S.regName && !HUBS.some(h => h.k === S.hub)) HUBS.unshift(regionHub(Number(m[1]), S.regName)); }
   fillHubs();
   syncControls();
-  $('#go').onclick = appraise;
+  $('#go').onclick = () => { if (S.tab === 'buyrep'){ S.tab = 'items'; saveS(); } syncGo(); appraise(); };
   $('#stForm').onsubmit = e => { e.preventDefault(); pickStation(); };
   { const ji = $('#jumpsN'); ji.value = jumpsN(); ji.onclick = e => e.stopPropagation();
     ji.onchange = () => { S.jumps = ji.value; S.jumps = jumpsN(); ji.value = S.jumps; S.scope = 'jumps'; saveS(); syncControls(); RP.key = ''; if (A && A.rows.length && !A.snap) appraise(); else if (S.tab === 'buyrep' && $('#tabBody')) renderTab(); }; }
