@@ -47,7 +47,9 @@ main{max-width:1320px;margin:0 auto;padding:16px;display:grid;grid-template-colu
 .card{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:14px}
 .card h2{font-family:var(--display);font-size:1.15rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;font-weight:700}
 #paste{width:100%;height:300px;resize:vertical;font-family:var(--mono);font-size:12.5px;line-height:1.45}
-.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.opts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px}
+.opts select,.opts input:not([type=checkbox]){width:100%;min-width:0}
+.left,.left .card{min-width:0}
 .opts label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
 .seg{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .seg button{flex:1;border:none;border-radius:0;padding:6px 4px;background:var(--bg);font-size:13px}
@@ -267,7 +269,7 @@ async function dockedHubs(){
     const t = await freshTok(t0); if (!t) continue;
     try{
       const loc = await (await fetch(`${ESI}/characters/${t.charId}/location/`, { headers:{ Authorization:'Bearer ' + t.access_token } })).json();
-      if (loc.structure_id){ out.push({ k:'dock' + t.charId, name:`📍 ${t.charName}: docked in a structure (its market needs a permission the site does not ask yet)`, short:'Structure', disabled:true }); continue; }
+      if (loc.structure_id){ out.push({ k:'dock' + t.charId, name:`📍 ${t.charName}: in a structure (no access)`, short:'Structure', disabled:true }); continue; }
       if (!loc.station_id) continue;
       const st = await (await fetch(`${ESI}/universe/stations/${loc.station_id}/`)).json();
       const sy = await (await fetch(`${ESI}/universe/systems/${st.system_id}/`)).json();
@@ -688,7 +690,34 @@ async function tabReproc(box){
 }
 
 /* --- Buy to reprocess: items on sale below what their minerals bring, after taxes --- */
-const BR = Object.assign({ cat:'Module', min:5, tax:3.6, broker:1.5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
+// Bulk prices (Fuzzwork aggregates: lowest sell and highest buy of each item at a station or in a region), 200 items a call
+async function bulkPrices(hub, ids, onStep){
+  const out = {}, where = HUBS.slice(-5).some(h => h.station === hub.station) ? `station=${hub.station}` : `region=${hub.region}`;
+  for (let i = 0; i < ids.length; i += 200){
+    const r = await fetch(`https://market.fuzzwork.co.uk/aggregates/?${where}&types=${ids.slice(i, i + 200).join(',')}`);
+    if (!r.ok) throw new Error('Fuzzwork ' + r.status);
+    const j = await r.json(); for (const k in j) out[k] = { sell:Number(j[k].sell.min) || 0, sellVol:Number(j[k].sell.volume) || 0, buy:Number(j[k].buy.max) || 0 };
+    if (onStep) onStep(Math.min(ids.length, i + 200), ids.length);
+  }
+  return out;
+}
+// every reprocessable item priced in bulk; the ones that look profitable, best first
+async function bulkPreselect(hub, cand, say){
+  try{
+    const mins = [...new Set(cand.flatMap(id => MATS[id].map(m => m[0])))];
+    say('Mineral prices…'); const mp = await bulkPrices(hub, mins);
+    const ip = await bulkPrices(hub, cand, (d, n) => say(`Whole market: ${d} / ${n} items priced`));
+    const keepRate = 1 - BR.tax / 100 - (BR.sellTo === 'sell' ? BR.broker / 100 : 0);
+    const rows = [];
+    for (const id of cand){ const p = ip[id]; if (!p || !p.sell) continue;
+      const it = T.byId.get(id), por = it.por || 1, y = (isOreCat(id) ? S.yieldOre : S.yieldScrap) / 100;
+      let per = 0; for (const [m, qn] of MATS[id]){ const mm = mp[m] || {}; per += Math.floor(por * qn * y) * (BR.sellTo === 'sell' ? mm.sell : mm.buy || 0); }
+      const net = per / por * keepRate, profit = (net - p.sell) / p.sell * 100;
+      if (profit >= BR.min) rows.push({ id, score:(net - p.sell) * Math.min(p.sellVol, 1e6) }); }
+    return rows.sort((a, b) => b.score - a.score).map(x => x.id);
+  }catch(e){ return null; }
+}
+const BR = Object.assign({ cat:'*', min:5, tax:3.6, broker:1.5, sellTo:'buy', max:120, q:'' }, store.get('appr.buyrep', {}));
 let brRun = null;
 function tabBuyRep(box){
   const hub = HUBS.find(h => h.k === S.hub && !h.disabled) || HUBS.find(h => !h.disabled);
@@ -697,13 +726,13 @@ function tabBuyRep(box){
   box.innerHTML = `<div class="panel"><h3>Buy to reprocess</h3>
     <p class="dim" style="margin:0 0 8px">Items on sale in ${esc(hub.short || hub.name)} whose reprocessed minerals sell for more, taxes included. Uses your yields (Reprocess tab): ore ${S.yieldOre} %, other items ${S.yieldScrap} %.</p>
     <div class="formrow">
-      <label>Kind of item <select id="brCat">${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label>Kind of item <select id="brCat"><option value="*"${BR.cat === '*' ? ' selected' : ''}>Whole market (every item)</option>${cats.map(c => `<option${c === BR.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
       <label>Name contains <input id="brQ" value="${esc(BR.q)}" placeholder="optional"></label>
       <label>Minimum profit (%) <input id="brMin" type="number" step="0.5" value="${BR.min}"></label>
       <label>Sales tax (%) <input id="brTax" type="number" step="0.1" value="${BR.tax}"></label>
       <label>Minerals sold <select id="brTo"><option value="buy"${BR.sellTo === 'buy' ? ' selected' : ''}>at once, to buy orders</option><option value="sell"${BR.sellTo === 'sell' ? ' selected' : ''}>with sell orders (+ broker fee)</option></select></label>
       <label>Broker fee (%) <input id="brBroker" type="number" step="0.1" value="${BR.broker}"></label>
-      <label>Items checked at most <input id="brMax" type="number" step="10" min="10" max="600" value="${BR.max}"></label>
+      <label title="Kinds of item: how many are checked one by one on the order book. Whole market: how many of the best are checked again on the order book">Items checked at most <input id="brMax" type="number" step="10" min="10" max="600" value="${BR.max}"></label>
     </div>
     <div class="go"><button class="primary" id="brGo">Search</button> <span class="dim" id="brSt"></span></div>
     <div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div>`;
@@ -712,7 +741,15 @@ function tabBuyRep(box){
   $('#brGo').onclick = async () => {
     keep(); const run = brRun = { html:'' };
     const q = BR.q.toLowerCase();
-    const cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && catOf(it) === BR.cat && (!q || it.name.toLowerCase().includes(q)); }).slice(0, BR.max);
+    let cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && (BR.cat === '*' || catOf(it) === BR.cat) && (!q || it.name.toLowerCase().includes(q)); });
+    if (BR.cat === '*'){                                           // whole market: a first pass on bulk prices, then the order book for the best
+      $('#brSt').textContent = `Whole market: ${cand.length} items…`;
+      const pre = await bulkPreselect(hub, cand, msg => { if (run === brRun) $('#brSt').textContent = msg; });
+      if (run !== brRun) return;
+      if (!pre){ $('#brRes').innerHTML = '<p class="bad">The bulk price service (Fuzzwork) did not answer: choose a kind of item instead.</p>'; $('#brSt').textContent = ''; return; }
+      cand = pre.slice(0, BR.max);
+      if (!cand.length){ $('#brRes').innerHTML = `<p class="dim">No item of the whole market pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`; $('#brSt').textContent = ''; return; }
+    } else cand = cand.slice(0, BR.max);
     if (!cand.length){ $('#brRes').innerHTML = '<p class="dim">Nothing of this kind to check.</p>'; return; }
     const mins = [...new Set(cand.flatMap(id => MATS[id].map(m => m[0])))];
     $('#brSt').textContent = 'Mineral prices…';
