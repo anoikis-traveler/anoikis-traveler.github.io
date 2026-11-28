@@ -1151,11 +1151,11 @@ function sovSplash(id, a, why = 'new wormhole'){   // 10 s: the alliance logo, b
   splash(`<img src="https://images.evetech.net/alliances/${a}/logo?size=256" alt="" width="256" height="256">
     <div class="sn">${esc(sovNames[a] || 'Alliance ' + a)}</div><div class="ss">holds <b>${esc(sysName(id))}</b> · ${esc(regionName(regionOf(id)))} · ${esc(why)}${L.lvl ? ` · <b style="color:${t.c}">${esc(t.n)}</b>${L.auto ? ' <span class="dim">(standings)</span>' : ''}` : ''}</div>`, L.lvl);
 }
-function splash(html, lvl){
+function splash(html, lvl){   // friendly (1): no warning frame, only the name in green
   document.querySelectorAll('.sovsplash').forEach(x => x.remove());
   const d = document.createElement('div'); d.className = 'sovsplash'; d.setAttribute('role', 'status');
   d.innerHTML = html;
-  if (lvl){ const t = THREAT[lvl]; const f = document.createElement('div'); f.className = 'threatframe'; f.style.setProperty('--tc', t.c); f.style.setProperty('--tw', (6 + lvl * 4) + 'px'); f.style.setProperty('--ts', (2.6 - lvl * 0.4) + 's'); d.appendChild(f); }
+  if (lvl > 1){ const t = THREAT[lvl]; const f = document.createElement('div'); f.className = 'threatframe'; f.style.setProperty('--tc', t.c); f.style.setProperty('--tw', (6 + lvl * 4) + 'px'); f.style.setProperty('--ts', (2.6 - lvl * 0.4) + 's'); d.appendChild(f); }
   document.body.appendChild(d); document.body.classList.add('splashing');
   const end = () => { d.remove(); if (!document.querySelector('.sovsplash')) document.body.classList.remove('splashing'); };
   d.onclick = end; setTimeout(end, SET.splashSec * 1000);
