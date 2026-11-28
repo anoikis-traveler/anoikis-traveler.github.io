@@ -49,6 +49,7 @@ input,select{background:rgba(3,5,11,.6);border:1px solid var(--line);padding:5px
 .hgx{margin:3px 0;font-size:11.5px}
 .hgx button[aria-pressed="true"]{background:rgba(242,167,75,.18);color:var(--accent);border-color:var(--accent)}
 .hgout{margin-top:3px}
+.holdana{border-top:1px solid var(--line);margin-top:8px;padding-top:6px;font-size:12.5px}
 .jfiche{display:grid;gap:4px;margin:6px 0 4px;font-size:12.5px}
 .jfiche .jst{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:1px 2px 1px 0;font-family:var(--mono);font-size:11.5px}
 .hleft{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:14px}
@@ -821,6 +822,9 @@ body.nf #hint{transform:translateY(-16px)}
       <table class="holdt"><thead><tr><th>Wormhole</th><th>Holder (corporation or alliance)</th><th>Threat</th><th></th></tr></thead><tbody id="holdList"></tbody>
         <tfoot><tr><td><input id="holdSys" list="holdSysList" placeholder="J123456" autocomplete="off"></td><td><input id="holdWho" placeholder="optional" autocomplete="off"></td><td><select id="holdLvl" class="hlvl"></select></td><td><button type="button" class="small primary" id="holdAdd">Add</button></td></tr></tfoot></table>
       <datalist id="holdSysList"></datalist>
+      <div class="holdana"><b>Analyse a wormhole</b> <span class="dim">who lives there, from its kills</span>
+        <form id="holdAna" class="row" style="gap:6px;margin-top:4px"><input id="holdAnaIn" list="holdSysList" placeholder="J131656" autocomplete="off" style="flex:1"><button type="submit" class="small">🔍 Analyse</button></form>
+        <div id="holdAnaOut" style="font-size:12px"></div></div>
       <div id="holdMsg" class="dim" style="font-size:12px"></div>
     </div>
   </section>
@@ -2350,6 +2354,24 @@ async function resolveHolder(name){
   const al = f('alliances'), co = f('corporations'), x = al || co;
   return x ? { id:x.id, name:x.name, kind:al ? 'alliance' : 'corporation' } : { name, kind:'' };       // an unknown name is kept as text
 }
+async function whIdOf(sysTxt){
+  sysTxt = String(sysTxt || '').trim(); if (!sysTxt) return null;
+  let id = sysByName(sysTxt) || sysByName(sysTxt.toUpperCase());
+  if (!id) id = [...new Set([...Object.keys(mapper.nodes || {}), ...allHoles().flatMap(l => [String(l.a), String(l.b)])])].find(x => sysName(x).toLowerCase() === sysTxt.toLowerCase()) || null;
+  if (!id){ const j = await idsOf([sysTxt.toUpperCase()]); const x = (j.systems || [])[0]; if (x){ id = String(x.id); nameCache[id] = x.name; } }
+  return id ? String(id) : null;
+}
+// "Analyse": who lives in any wormhole you name, whenever you want
+async function analyseHolder(){
+  const inp = $('#holdAnaIn'), out = $('#holdAnaOut'), txt = inp.value.trim();
+  if (!txt){ out.innerHTML = '<span class="dim">Write a wormhole name (e.g. J131656).</span>'; return; }
+  out.innerHTML = '<span class="dim">…</span>';
+  const id = await whIdOf(txt);
+  if (!id){ out.innerHTML = `<span class="bad">Unknown system: ${esc(txt)}</span>`; return; }
+  delete holderGuessCache[id];                                   // a new analysis each time you ask
+  out.innerHTML = `<div><b>${esc(sysName(id))}</b> <span class="k">${esc(classOf(id) || '')}</span></div><div class="hgout"></div>`;
+  showHolderGuess(id, out.querySelector('.hgout'));
+}
 async function addHolder(sysTxt, whoTxt, lvl){
   sysTxt = String(sysTxt || '').trim(); if (!sysTxt){ $('#holdMsg').textContent = 'Write the wormhole name (e.g. J123456).'; return; }
   let id = sysByName(sysTxt) || sysByName(sysTxt.toUpperCase());
@@ -2414,7 +2436,7 @@ async function showHolderGuess(id, out){
     let hs = holdersOf(r).slice(); const was = hs.some(h => h.id === x.id);
     hs = was ? hs.filter(h => h.id !== x.id) : [...hs, { id:x.id, name:x.name, kind:x.kind }];
     if (await saveHold(id, withHolders({ ...r, n:sysName(id), guessed:HOLDER_SOURCE, by:tok ? tok.charName : '', t:Date.now() }, hs))){ toast(was ? `${x.name}: removed from ${sysName(id)}` : `${x.name}: holder of ${sysName(id)}`); renderHold(); renderPanel();
-      const o2 = out.isConnected ? out : (() => { const b2 = document.querySelector(`[data-hguess="${id}"]`) || document.querySelector(`[data-hgs="${id}"]`); if (!b2) return null; if (b2.dataset.hgs){ const row = document.querySelector(`#holdList [data-hgo="${id}"]`); if (row){ row.hidden = false; return row.firstElementChild; } return null; } return b2.parentElement.querySelector('.hgout'); })();
+      const o2 = out.isConnected ? out : $('#holdAnaOut .hgout') && $('#holdAnaOut').textContent.includes(sysName(id)) ? $('#holdAnaOut .hgout') : (() => { const b2 = document.querySelector(`[data-hguess="${id}"]`) || document.querySelector(`[data-hgs="${id}"]`); if (!b2) return null; if (b2.dataset.hgs){ const row = document.querySelector(`#holdList [data-hgo="${id}"]`); if (row){ row.hidden = false; return row.firstElementChild; } return null; } return b2.parentElement.querySelector('.hgout'); })();
       if (o2) showHolderGuess(id, o2); } });   // the card was redrawn: show the list again where it now is
 }
 function renderHold(){
@@ -2482,6 +2504,7 @@ function setupHold(){
   $('#holdLvl').innerHTML = lvlOpts(0);
   const add = () => addHolder($('#holdSys').value, $('#holdWho').value, $('#holdLvl').value);
   $('#holdAdd').onclick = add;
+  $('#holdAna').onsubmit = e => { e.preventDefault(); analyseHolder(); };
   ['holdSys', 'holdWho'].forEach(i => $('#' + i).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
 }
 /* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
