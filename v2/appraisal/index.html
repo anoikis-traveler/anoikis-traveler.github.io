@@ -312,10 +312,9 @@ async function sendWp(dest, add, label){
     toast(`${t.charName}: ${add ? 'waypoint added' : 'destination set'}: ${label}`); routeAdd(t, dest, add, label); }
   catch(e){ toast(`EVE refused the waypoint (${e.message}). Is ${t.charName} online?`, true); }
 }
-const wpBtns = (dest, label) => dest ? `<span class="wp" style="white-space:nowrap"><button type="button" class="small" data-wpfl title="Route: shorter or safer (click to switch)">${rtFlag() === 'secure' ? '🛡 Safer' : '⚡ Shorter'}</button> <button type="button" class="small" data-wpset="${dest}" data-wpl="${esc(label)}" title="Set destination in EVE">⤳ Set dest.</button> <button type="button" class="small" data-wpadd="${dest}" data-wpl="${esc(label)}" title="Add a waypoint in EVE">+ Waypoint</button></span>` : '';
+const wpBtns = (dest, label) => dest ? `<span class="wp" style="white-space:nowrap"><button type="button" class="small" data-wpfl title="Route: shorter or safer (click to switch)">${prefTxt()}</button> <button type="button" class="small" data-wpset="${dest}" data-wpl="${esc(label)}" title="Set destination in EVE">⤳ Set dest.</button> <button type="button" class="small" data-wpadd="${dest}" data-wpl="${esc(label)}" title="Add a waypoint in EVE">+ Waypoint</button></span>` : '';
 function wireWp(root){
-  root.querySelectorAll('[data-wpfl]').forEach(b => b.onclick = async e => { e.stopPropagation(); S.rtFlag = rtFlag() === 'secure' ? 'shortest' : 'secure'; saveS();
-    document.querySelectorAll('[data-wpfl]').forEach(x => x.textContent = rtFlag() === 'secure' ? '🛡 Safer' : '⚡ Shorter');
+  root.querySelectorAll('[data-wpfl]').forEach(b => b.onclick = async e => { e.stopPropagation(); setPref(rtPref() === 'Safer' ? 'Shorter' : 'Safer');
     if (RT && RT.path && RT.path.length){ await routeBuild(rtHere || RT.path[0]); routeShow(); } });
   root.querySelectorAll('[data-wpset],[data-wpadd]').forEach(b => b.onclick = e => { e.stopPropagation(); sendWp(b.dataset.wpset || b.dataset.wpadd, !!b.dataset.wpadd, b.dataset.wpl); }); }
 /* Route window: the destination / waypoints sent from this page, the path, where the character is now; analyse the market where you are */
@@ -332,13 +331,25 @@ async function whereIs(charId){
   const t = await tokFor(charId); if (!t || !hasScope(t, 'esi-location.read_location.v1')) return null;
   try{ const r = await fetch(`${ESI}/characters/${t.charId}/location/`, { headers:{ Authorization:'Bearer ' + t.access_token } }); if (!r.ok) return null; return await r.json(); }catch(e){ return null; }
 }
-const rtFlag = () => S.rtFlag === 'secure' ? 'secure' : 'shortest';
-async function legPath(a, b){   // by stargates, shorter or safer (ESI, else our own graph: a jump out of high-sec costs 50)
+// the route is the map's own: same destinations (whmap.reg.ap.<character>), same preference, and its path when the map has computed it (holes and jump bridges included)
+const apKeyOf = id => 'whmap.reg.ap.' + id;
+const mapAp = id => { const a = store.get(apKeyOf(id), null); return a && Array.isArray(a.dests) ? a : null; };
+const rtPref = () => { const a = RT && mapAp(RT.charId); return (a && a.pref) || store.get('whmap.reg.pref', 'Shorter'); };
+const rtFlag = () => rtPref() === 'Safer' ? 'secure' : 'shortest';
+const prefTxt = () => rtPref() === 'Safer' ? '🛡 Safer' : rtPref() === 'LessSecure' ? '☠ Less secure' : '⚡ Shorter';
+function setPref(pref){
+  store.set('whmap.reg.pref', pref);
+  if (RT){ const a = mapAp(RT.charId) || { dests:RT.stops.map(x => String(x.sys)), open:true }; a.pref = pref; a.path = null; a.t = Date.now(); store.set(apKeyOf(RT.charId), a); }
+  document.querySelectorAll('[data-wpfl]').forEach(x => x.textContent = prefTxt());
+}
+const routeCache = new Map();
+async function legPath(a, b){   // CCP's route service, like the map (else our own graph: a jump out of high-sec costs 50 when safer)
   if (a === b) return [a];
-  const fl = rtFlag();
-  try{ const r = await fetch(`${ESI}/route/${a}/${b}/?flag=${fl}`); if (r.ok){ const p = await r.json(); if (Array.isArray(p) && p.length) return p; } }catch(e){}
+  const pref = rtPref(), key = `${a}>${b}>${pref}`; if (routeCache.has(key)) return routeCache.get(key);
+  try{ const r = await fetch(`https://esi.evetech.net/route/${a}/${b}`, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-Compatibility-Date':'2025-09-30' }, body:JSON.stringify({ preference:pref, connections:[] }) });
+    if (r.ok){ const j = await r.json(), p = (Array.isArray(j) ? j : j.route || []).map(Number); if (p.length){ routeCache.set(key, p); return p; } } }catch(e){}
   await ensureGates(); await sysInfo();
-  const cost = y => fl === 'secure' && !((secOf(y) ?? 1) >= 0.45) ? 50 : 1;
+  const hs = y => (secOf(y) ?? 1) >= 0.45, cost = y => pref === 'Safer' ? (hs(y) ? 1 : 50) : pref === 'LessSecure' ? (hs(y) ? 50 : 1) : 1;
   const dist = new Map([[a, 0]]), prev = new Map(), todo = [[0, a]], done = new Set();
   while (todo.length){ let k = 0; for (let i = 1; i < todo.length; i++) if (todo[i][0] < todo[k][0]) k = i;
     const [d, x] = todo.splice(k, 1)[0]; if (done.has(x)) continue; done.add(x); if (x === b) break;
@@ -347,6 +358,12 @@ async function legPath(a, b){   // by stargates, shorter or safer (ESI, else our
 }
 async function routeBuild(from){
   if (!RT || !RT.stops.length) return;
+  // the map's path, when it leads to the same destinations and goes through where you are
+  const a = mapAp(RT.charId), last = RT.stops[RT.stops.length - 1].sys;
+  if (a && Array.isArray(a.path) && a.path.length && Number(a.path[a.path.length - 1]) === last && a.pref === rtPref()){
+    const P = a.path.map(Number), i = P.indexOf(from);
+    if (i >= 0){ RT.path = P.slice(i); RT.whp = a.whp || null; RT.fromMap = true; RT.from = from; store.set('appr.route', RT); return; } }
+  RT.fromMap = false; RT.whp = null;
   const path = [from]; let cur = from;
   for (const st of RT.stops){ const leg = await legPath(cur, st.sys); path.push(...leg.slice(1)); cur = st.sys; }
   RT.path = path; RT.from = from; store.set('appr.route', RT);
@@ -356,10 +373,27 @@ async function routeAdd(t, dest, add, label){
   const stop = { dest:Number(dest), sys, label };
   if (!add || !RT || RT.charId !== t.charId) RT = { charId:t.charId, char:t.charName, stops:[stop], path:[], min:false };
   else RT.stops.push(stop);
+  const old = mapAp(t.charId), pref = (old && old.pref) || store.get('whmap.reg.pref', 'Shorter');
+  store.set(apKeyOf(t.charId), { dests:RT.stops.map(x => String(x.sys)), pref, open:old ? old.open !== false : true, arrived:null, path:null, t:Date.now() });   // the map shows the same route
   const loc = await whereIs(t.charId); rtHere = loc ? loc.solar_system_id : null; rtDock = loc ? (loc.station_id || loc.structure_id || null) : null;
   await routeBuild(rtHere || (RT.path && RT.path[0]) || sys);
   routeShow(); routePoll();
 }
+// the map changed the route (new destination there, path computed with your holes, preference): follow it
+window.addEventListener('storage', async e => {
+  if (!e.key || !e.key.startsWith('whmap.reg.ap.')) return;
+  const id = Number(e.key.slice(13)), a = mapAp(id);
+  if (!a || !a.dests.length){ if (RT && RT.charId === id && !a){ RT = null; store.set('appr.route', null); routeShow(); } return; }
+  if (RT && RT.charId !== id) return;
+  await sysInfo();
+  const keep = new Map((RT ? RT.stops : []).map(x => [x.sys, x]));
+  const stops = a.dests.map(d => keep.get(Number(d)) || { dest:Number(d), sys:Number(d), label:sysNm(Number(d)) });
+  const tk = store.get('whmap.tok.' + id, null);
+  RT = { charId:id, char:(RT && RT.char) || (tk && tk.charName) || '', stops, path:RT ? RT.path : [], min:RT ? RT.min : false };
+  await routeBuild(rtHere || (a.path && Number(a.path[0])) || (RT.path && RT.path[0]) || stops[0].sys);
+  document.querySelectorAll('[data-wpfl]').forEach(x => x.textContent = prefTxt());
+  routeShow(); if (!rtTimer) routePoll();
+});
 function routePoll(){ clearInterval(rtTimer); if (!RT) return;
   rtTimer = setInterval(async () => { if (document.hidden || !RT) return;
     const loc = await whereIs(RT.charId); if (!loc) return;
@@ -373,16 +407,17 @@ function routeShow(){
   const left = P.length - 1 - at, arrived = rtHere === last.sys && (!rtDock || rtDock === last.dest || last.dest === last.sys);
   const stopAt = new Map(); for (const st of RT.stops){ const l = stopAt.get(st.sys) || []; l.push(st); stopAt.set(st.sys, l); }
   w.className = RT.min ? 'min' : ''; w.hidden = false;
-  w.innerHTML = `<div class="hd" data-rtmin title="Fold / unfold"><b>🧭 Route</b><span class="dim">${esc(RT.char)}</span><span class="sp"></span><span class="seg" style="font-size:11px" title="Route shown here; EVE follows its own autopilot setting (Safer / Shorter in the route panel of the game)"><button type="button" data-rtfl="shortest" aria-pressed="${rtFlag() === 'shortest'}" style="padding:2px 6px">Shorter</button><button type="button" data-rtfl="secure" aria-pressed="${rtFlag() === 'secure'}" style="padding:2px 6px">Safer</button></span><span>${arrived ? '<span style="color:var(--ok)">arrived</span>' : `${left} jump${left > 1 ? 's' : ''} left`}</span><button type="button" class="small" data-rtx title="Forget this route (EVE keeps its own)">✕</button></div>
+  w.innerHTML = `<div class="hd" data-rtmin title="Fold / unfold"><b>🧭 Route</b><span class="dim">${esc(RT.char)}</span><span class="sp"></span><span class="seg" style="font-size:11px" title="Same setting as the map's route window; EVE follows its own autopilot setting"><button type="button" data-rtfl="Shorter" aria-pressed="${rtPref() === 'Shorter'}" style="padding:2px 6px">Shorter</button><button type="button" data-rtfl="Safer" aria-pressed="${rtPref() === 'Safer'}" style="padding:2px 6px">Safer</button></span><span>${arrived ? '<span style="color:var(--ok)">arrived</span>' : `${left} jump${left > 1 ? 's' : ''} left`}</span><button type="button" class="small" data-rtx title="Forget this route (EVE keeps its own)">✕</button></div>
     <div class="bd">
       <div class="dim">${rtHere ? `Now in <b style="color:var(--text)">${esc(sysNm(rtHere))}</b> <span style="color:${secColor(secOf(rtHere))}">${secTxt(secOf(rtHere))}</span>${rtDock ? ' · docked' : ''}` : 'Position unknown: the map login needs "location"'}</div>
+      ${RT.fromMap ? '<div class="dim" style="font-size:11.5px">Route from the map (your wormholes and jump bridges included)</div>' : ''}
       <ol>${P.map((sy, i) => `<li class="${i < at ? 'past' : i === at && rtHere != null ? 'here' : ''}"${i === at ? ' data-here' : ''}><span class="sec" style="color:${secColor(secOf(sy))}">${secTxt(secOf(sy))}</span><span>${i === at && rtHere != null ? '▶ ' : ''}${esc(sysNm(sy))}${(stopAt.get(sy) || []).map(st => `<div class="stop">📍 ${esc(st.label)}</div>`).join('')}</span></li>`).join('')}</ol>
       <div class="row"><button type="button" class="small" data-rtgo="system"${rtHere ? '' : ' disabled'}>🔎 Analyse market: this system</button><button type="button" class="small" data-rtgo="jumps"${rtHere ? '' : ' disabled'}>🔎 Within ${jumpsN()} jumps</button></div>
     </div>`;
   w.querySelector('[data-rtmin]').onclick = e => { if (e.target.closest('button')) return; RT.min = !RT.min; store.set('appr.route', RT); routeShow(); };
   w.querySelector('[data-rtx]').onclick = () => { RT = null; store.set('appr.route', null); clearInterval(rtTimer); w.hidden = true; };
   w.querySelectorAll('[data-rtgo]').forEach(b => b.onclick = () => analyseHere(b.dataset.rtgo));
-  w.querySelectorAll('[data-rtfl]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (rtFlag() === b.dataset.rtfl) return; S.rtFlag = b.dataset.rtfl; saveS(); document.querySelectorAll('[data-wpfl]').forEach(x => x.textContent = rtFlag() === 'secure' ? '🛡 Safer' : '⚡ Shorter'); await routeBuild(rtHere || RT.path[0]); routeShow(); });
+  w.querySelectorAll('[data-rtfl]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (rtPref() === b.dataset.rtfl) return; setPref(b.dataset.rtfl); await routeBuild(rtHere || RT.path[0]); routeShow(); });
   const h = w.querySelector('[data-here]'); if (h && !RT.min) h.scrollIntoView({ block:'nearest' });
 }
 async function analyseHere(scope){
@@ -1371,6 +1406,9 @@ function setup(){
   setupChar(await charCallback());
   checkHubsRep();
   loadRegions();
+  if (!RT) sysInfo().then(async () => { for (const t of chars()){ const a = mapAp(t.charId); if (a && a.dests.length){ RT = { charId:t.charId, char:t.charName, stops:a.dests.map(d => ({ dest:Number(d), sys:Number(d), label:sysNm(Number(d)) })), path:[], min:false };
+    const loc = await whereIs(t.charId); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; }
+    await routeBuild(rtHere || (a.path && Number(a.path[0])) || RT.stops[0].sys); routeShow(); routePoll(); break; } } });
   if (RT && RT.path && RT.path.length) sysInfo().then(async () => { const loc = await whereIs(RT.charId); if (loc){ rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; } routeShow(); routePoll(); });
   const hs = location.hash;
   let m;

@@ -4216,7 +4216,7 @@ const apKey = () => 'whmap.reg.ap.' + (tok ? tok.charId : 0);
 function apLoad(){ ap = store.get(apKey(), null); if (ap && !Array.isArray(ap.dests)) ap = null; }
 function apSave(){
   if (!ap){ try{ localStorage.removeItem(apKey()); }catch(e){} return; }
-  store.set(apKey(), { dests:ap.dests, pref:ap.pref, open:ap.open, arrived:ap.arrived || null });
+  store.set(apKey(), { dests:ap.dests, pref:ap.pref, open:ap.open, arrived:ap.arrived || null, path:ap.path || null, whp:ap.whp || null, t:Date.now() });   // path kept for the Appraisal page (same route, holes and bridges included)
 }
 function whConns(){
   const out = [];
@@ -4460,6 +4460,7 @@ function setupInput(){
     if (!e.key || !e.key.startsWith('whmap.')) return;
     if (e.key.startsWith('whmap.cache.') || e.key === 'whmap.map'){ readMapper(); renderWhSel(); renderWatch(); renderHomeBtn(); computeRoute(); render(); renderPanel(); scheduleAp(); if (!$('#wChain').hidden || !$('#wChains').hidden) buildChains(); }
     else if (e.key.startsWith(CK.tok) && !tok){ pickChar(); renderWho(); poll(); }
+    else if (e.key === apKey() && e.newValue){ const n = store.get(apKey(), null), d = n && JSON.stringify(n.dests); if (d && (!ap || d !== JSON.stringify(ap.dests) || n.pref !== ap.pref)){ apLoad(); computeAp(true); } }   // a destination sent from the Appraisal page
   });
   $('#apHead').onclick = () => { if (!ap) return; ap.open = ap.open === false; apSave(); renderAp(); };
   $('#apPref').onchange = e => { if (!ap) return; ap.pref = e.target.value; store.set('whmap.reg.pref', ap.pref); apSave(); computeAp(true); };
