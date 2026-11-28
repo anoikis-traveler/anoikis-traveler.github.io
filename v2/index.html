@@ -439,6 +439,11 @@ body.nf #hint{transform:translateY(-16px)}
 .fcb.stubch{fill:#c9a8ff;pointer-events:auto;cursor:pointer}
 #map.routing .sys.onr .fc{stroke:#5fd68a;stroke-width:2.4}
 #wBan{width:640px;max-width:calc(100vw - 16px)}
+#wCnt{width:420px;max-width:calc(100vw - 16px)}
+#wCnt .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 8px}
+#wCnt .kpi{border:1px solid var(--line);border-radius:6px;padding:6px;text-align:center}
+#wCnt .kpi b{display:block;font:600 18px var(--mono);color:var(--accent)}
+#wCnt .kpi span{font-size:11px;color:var(--dim)}
 #banBody img{display:block;width:100%;border-radius:4px;border:1px solid var(--line);margin:4px 0 8px}
 #banBody h4{margin:10px 0 2px;font-size:12.5px;color:var(--dim);font-weight:500}
 .bancode{display:flex;gap:6px;align-items:center;margin:0 0 6px}
@@ -726,6 +731,7 @@ body.nf #hint{transform:translateY(-16px)}
         <button id="btnMine" class="proxy" type="button" aria-pressed="false">My pilots</button>
         <button id="btnWhc" class="proxy" type="button" aria-pressed="false">Holes by pilot</button>
         <button id="btnBan" class="proxy" type="button" aria-pressed="false" hidden>Forum banner</button>
+        <button id="btnCnt" class="proxy" type="button" aria-pressed="false" hidden>Counters</button>
         <button id="btnAct" class="proxy" type="button" aria-pressed="false" title="The busiest systems of this map">Active systems</button>
         <button id="btnSigs" class="proxy" type="button" aria-pressed="false">Signatures</button>
         <button id="btnStats" class="proxy" type="button" aria-pressed="false" title="Kills, jumps, ratting per hour: the systems take a colour scale">Statistics</button>
@@ -858,6 +864,10 @@ body.nf #hint{transform:translateY(-16px)}
     </div>
   </section>
 
+  <section class="widget" id="wCnt" data-title="Counters" hidden>
+    <header class="wh"><span class="wt">Counters</span><span class="wsub dim">site owner</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="cntClose" aria-label="Close" title="Close">✕</button></header>
+    <div class="wb" id="cntBody"></div>
+  </section>
   <section class="widget" id="wBan" data-title="Forum banner" hidden>
     <header class="wh"><span class="wt">Forum banner</span><span class="wsub dim">site owner</span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="banClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb" id="banBody"></div>
@@ -2702,6 +2712,36 @@ function renderAct(){
   box.querySelectorAll('[data-awp]').forEach(b => b.onclick = () => sendWaypoint(b.dataset.awp, true));
 }
 /* ---------- Forum banner (site owner): the signature images and the code to paste at the end of a forum post ---------- */
+/* ---------- Counters (site owner): donations received and maps on the site ---------- */
+const isk2 = n => n >= 1e9 ? (n / 1e9).toFixed(2) + ' B' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : Math.round(n).toLocaleString();
+async function renderCnt(){
+  const box = $('#cntBody'); if (!box || $('#wCnt').hidden) return;
+  const now = Date.now(), d7 = now - 7 * 864e5, d30 = now - 30 * 864e5;
+  let maps = null, dons = null, donErr = '';
+  if (DEMO) maps = [{ created:now - 2 * 864e5, paidUntil:now + 5 * 864e5 }, { created:now - 20 * 864e5 }, { created:now - 90 * 864e5, site:true }];
+  else if (share.ws){ try{ const r = await shareSend({ op:'adminMaps' }); maps = (r.data && r.data.maps) || []; }catch(e){ maps = null; } }
+  // the donations app (same site): its device key, when it was opened once in this browser
+  const dev = store.get('dons.dev', null);
+  if (DEMO) dons = [{ amount:150e6, date:new Date(now - 864e5).toISOString() }, { amount:40e6, date:new Date(now - 12 * 864e5).toISOString() }];
+  else if (dev && dev.appKey){ try{ const cfg = await (await fetch('../dons/config.json', { cache:'no-store' })).json();
+      const r = await fetch(cfg.worker.replace(/\/+$/, '') + '/donations?key=' + encodeURIComponent(dev.appKey)); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); dons = j.donations || []; }
+    catch(e){ donErr = String(e.message || e); } }
+  const kpi = (v, l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  const born = m => Number(m.created) || 0, paid = m => m.paidUntil && m.paidUntil > now;
+  const sumD = since => (dons || []).filter(d => Date.parse(d.date) > since).reduce((t, d) => t + d.amount, 0);
+  box.innerHTML = `<h4>🗺️ Maps</h4>${maps ? `<div class="kpis">${kpi(maps.length, 'in all')}${kpi(maps.filter(paid).length, 'paid now')}${kpi(maps.filter(m => born(m) > d7).length, 'new · 7 days')}${kpi(maps.filter(m => born(m) > d30).length, 'new · 30 days')}</div>`
+      : '<p class="dim">Connecting to the live server… (log in with cloporte, Sava Yesh or Calimeroombrageux)</p>'}
+    <h4>💰 Donations</h4>${dons ? `<div class="kpis">${kpi(isk2(dons.reduce((t, d) => t + d.amount, 0)), 'ISK in all')}${kpi(isk2(sumD(d30)), 'ISK · 30 days')}${kpi(isk2(sumD(d7)), 'ISK · 7 days')}${kpi(dons.length, 'donations')}</div>`
+      : `<p class="dim">${donErr ? esc(donErr) + ' · ' : ''}Open the <a href="../dons/" target="_blank" rel="noopener">donations app</a> once in this browser and log in: the counter reads it from there.</p>`}
+    <div class="row" style="margin-top:6px"><button type="button" class="small" id="cntRe">↻ Refresh</button></div>`;
+  $('#cntRe').onclick = renderCnt;
+}
+function setupCnt(){
+  const box = $('#wCnt'), btn = $('#btnCnt');
+  const show = on => { box.hidden = !on; btn.setAttribute('aria-pressed', String(on)); if (on){ placeWidget(box); box.style.zIndex = ++wz; renderCnt(); } };
+  btn.onclick = () => { if (box.hidden && !DEMO && !vaultChars().some(isOwnerChar)){ toast('Counters: site owner only', true); return; } show(box.hidden); };
+  $('#cntClose').onclick = () => show(false);
+}
 function setupBan(){
   const box = $('#wBan'), btn = $('#btnBan'), SITE = 'https://anoikis-traveler.github.io/', LINK = SITE + 'guide/?lang=en';
   const V = [['Large · 1200 × 260', 'img/signature.png'], ['Compact · 600 × 130', 'img/signature-small.png']];
@@ -3239,6 +3279,7 @@ function renderChars(){
   if (!DEMO){ const own = vaultChars().some(isOwnerChar);
     const a = $('#navAdmin'), b = $('#navPay'); if (a) a.hidden = !own; if (b) b.hidden = !own;
     const bb = $('#btnBan'); if (bb) bb.hidden = !own; if (!own && $('#wBan') && !$('#wBan').hidden) $('#wBan').hidden = true;
+    const bc = $('#btnCnt'); if (bc) bc.hidden = !own; if (!own && $('#wCnt') && !$('#wCnt').hidden) $('#wCnt').hidden = true;
     const wb = $('#btnWhc'); if (wb) wb.hidden = !own; if (!own && $('#wWhc') && !$('#wWhc').hidden){ $('#wWhc').hidden = true; if (wb) wb.setAttribute('aria-pressed', 'false'); } if (typeof renderViewMenu === 'function') renderViewMenu(); }
   const box = $('#charsBody'); if (!box) return;
   const list = vaultChars(), wpAsk = store.get('whmap.reg.askwp', true);
@@ -5124,12 +5165,12 @@ function initWidget(el){
   placeWidget(el);
 }
 // windows the player has not moved follow their neighbours once the content is in (sizes change after loading)
-function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
+function relayoutDefaults(){ ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wCnt', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const st = wstate[id]; if (!st || st.x == null) placeWidget($('#' + id)); }); }
 /* ---------- View menu in the top bar: every window, open or closed, can be reopened from here ---------- */
 const WINS = [ ['Your group', [['wChars', 'Characters'], ['wWatch', 'Pilots'], ['wInfo', 'Region info']]],
   ['Maps', [['wChain', 'Chain', '#btnChain'], ['wStats', 'Statistics', '#btnStats'], ['wAct', 'Active systems', '#btnAct'], ['wMine', 'My pilots', '#btnMine'], ['wSigs', 'Signatures', '#btnSigs'], ['wHold', 'WH holders', '#btnHold'], ['wHubs', 'Hub routes', '#btnHubr'], ['wJb', 'Jump bridges', '#btnJb'], ['wAssets', 'Assets', '#btnAssets']]],
   ['Settings', [['wCols', 'Colours', '#btnCols'], ['wSet', 'Settings', '#btnSet']]],
-  ['Site owner', [['wWhc', 'Holes by pilot', '#btnWhc'], ['wBan', 'Forum banner', '#btnBan'], ['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
+  ['Site owner', [['wWhc', 'Holes by pilot', '#btnWhc'], ['wCnt', 'Counters', '#btnCnt'], ['wBan', 'Forum banner', '#btnBan'], ['wAdmin', 'Admin', '#navAdmin'], ['wPay', 'Payments', '#navPay']]] ];
 const winOf = id => WINS.flatMap(g => g[1]).find(w => w[0] === id);
 function openWin(id, on){
   const el = $('#' + id), w = winOf(id); if (!el) return;
@@ -5155,10 +5196,10 @@ function setupWidgets(){
   new MutationObserver(ms => { if (ms.some(m => m.target.classList && m.target.classList.contains('widget'))) dockFolded(); }).observe(document.body, { subtree:true, attributes:true, attributeFilter:['hidden'] });   // a window closed or opened: the column closes up
   addEventListener('resize', dockFolded);
   $('#assetsClose').onclick = () => { $('#wAssets').hidden = true; assetsSys = null; };
-  ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => initWidget($('#' + id)));
-  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => placeWidget($('#' + id))));
+  ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wCnt', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => initWidget($('#' + id)));
+  addEventListener('resize', () => ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wCnt', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => placeWidget($('#' + id))));
   $('#btnLayout').onclick = () => { wstate = {}; store.set('whmap.reg.widgets', wstate); for (const [id] of WINS[0][1]) $('#' + id).hidden = false; for (const k in hubPos) delete hubPos[k]; store.set('whmap.reg.hubpos', hubPos);
-    ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; if (el._applySize) el._applySize(); placeWidget(el); }); render(); };
+    ['wTool', 'wChars', 'wWatch', 'wView', 'wWins', 'wCnt', 'wInfo', 'apBox', 'wChain', 'wChains', 'wJb', 'wCols', 'wPoch', 'wAdmin', 'wPay', 'wSet', 'wStats', 'wAssets', 'wSigs', 'wHold', 'wHubs', 'wMine', 'wWhc', 'wAct', 'wBan'].forEach(id => { const el = $('#' + id); el.querySelector('.wcol').textContent = '–'; if (el._applySize) el._applySize(); placeWidget(el); }); render(); };
 }
 
 /* ---------- Start ---------- */
@@ -5188,7 +5229,7 @@ function setupWidgets(){
   else if (me.sys && byId[me.sys]) centerOn(me.sys);
   render(); computeAp(true);
   relayoutDefaults();
-  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); setupBan(); setupAct(); setupHover(); loadStandings(); setInterval(loadStandings, 30 * 60000);
+  setupChain(); setupAllChains(); setupJb(); setupCols(); setupPoch(); setupAdmin(); setupKills(); loadIncursions(); every(loadIncursions, () => SET.inc * 60000); loadSov(); setInterval(loadSov, 3600e3); setupSettings(); setupStats(); setupSigs(); setupHold(); setupHubr(); setupMine(); setupWhc(); setupBan(); setupCnt(); setupAct(); setupHover(); loadStandings(); setInterval(loadStandings, 30 * 60000);
   poll().then(relayoutDefaults);
   loadScout(); every(loadScout, () => SET.scout * 60000);
   if (assetsOn) loadAssets(); every(() => { if (assetsOn) return loadAssets(); }, () => SET.assets * 60000);

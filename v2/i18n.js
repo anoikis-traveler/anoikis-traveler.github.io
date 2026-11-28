@@ -205,6 +205,9 @@ const D = {
   'Analyse a wormhole':['Analyser un wormhole', 'Wurmloch analysieren', 'Analizar un agujero'], 'who lives there, from its kills':['qui l\'habite, d\'après ses kills', 'wer dort wohnt, aus seinen Kills', 'quién vive allí, según sus muertes'],
   '🔍 Analyse':['🔍 Analyser', '🔍 Analysieren', '🔍 Analizar'], 'Write a wormhole name (e.g. J131656).':['Écris un nom de wormhole (ex. J131656).', 'Gib einen Wurmlochnamen ein (z. B. J131656).', 'Escribe el nombre de un agujero (p. ej. J131656).'],
   'Search a wormhole or a holder…':['Chercher un wormhole ou un habitant…', 'Wurmloch oder Bewohner suchen…', 'Buscar un agujero o un habitante…'],
+  'Counters':['Compteurs', 'Zähler', 'Contadores'], 'site owner':['site owner', 'Seitenbesitzer', 'propietario'], '🗺️ Maps':['🗺️ Cartes', '🗺️ Karten', '🗺️ Mapas'], '💰 Donations':['💰 Dons', '💰 Spenden', '💰 Donaciones'],
+  'in all':['au total', 'insgesamt', 'en total'], 'paid now':['payées en ce moment', 'aktuell bezahlt', 'pagados ahora'], 'new · 7 days':['nouvelles · 7 jours', 'neu · 7 Tage', 'nuevos · 7 días'], 'new · 30 days':['nouvelles · 30 jours', 'neu · 30 Tage', 'nuevos · 30 días'],
+  'ISK in all':['ISK au total', 'ISK insgesamt', 'ISK en total'], 'ISK · 30 days':['ISK · 30 jours', 'ISK · 30 Tage', 'ISK · 30 días'], 'ISK · 7 days':['ISK · 7 jours', 'ISK · 7 Tage', 'ISK · 7 días'], 'donations':['dons', 'Spenden', 'donaciones'], '↻ Refresh':['↻ Actualiser', '↻ Aktualisieren', '↻ Actualizar'],
   // v2 banner
   'New version, being rebuilt':['Nouvelle version, en cours de refonte', 'Neue Version, im Umbau', 'Nueva versión, en reconstrucción'], 'Back to the current map':['Retour à la carte actuelle', 'Zurück zur aktuellen Karte', 'Volver al mapa actual'],
 };
