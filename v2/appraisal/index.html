@@ -401,10 +401,17 @@ function routePoll(){ clearInterval(rtTimer); rtTimer = 0; if (!RT && !S.autoAn)
     const was = rtHere; rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null;
     if (RT && RT.path && !RT.path.includes(rtHere)) await routeBuild(rtHere);   // off the route: computed again from here
     if (was !== rtHere){ if (RT) routeShow();
-      if (S.autoAn && was != null && !(rtHere >= 31000000 && rtHere < 32000000)){ toast(`${sysNm(rtHere)}: market analysis…`); analyseHere(S.scope === 'jumps' ? 'jumps' : 'system'); } }   // auto: each new system (not in wormhole space)
+      if (S.autoAn && was != null && !(rtHere >= 31000000 && rtHere < 32000000)){ toast(`${sysNm(rtHere)}: market analysis…`); analyseHere(autoScope()); } }   // auto: each new system (not in wormhole space)
   }, 15000); }
-function autoBtn(){ return `<label class="dim" style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer" title="Every 15 s the position of ${esc((store.get('whmap.tok.' + (RT ? RT.charId : rtChar()), null) || {}).charName || 'your character')} is read; in each new system, Buy to reprocess runs on its station (${S.scope === 'jumps' ? 'within ' + jumpsN() + ' jumps' : 'the whole system'})"><input type="checkbox" data-auto${S.autoAn ? ' checked' : ''}> 🔁 Auto-analyse at each new system</label>`; }
-function wireAuto(root){ root.querySelectorAll('[data-auto]').forEach(c => c.onchange = async () => { S.autoAn = c.checked; saveS();
+const autoScope = () => ['station', 'system', 'jumps', 'region'].includes(S.autoScope) ? S.autoScope : 'system';
+const autoRange = () => `<span style="display:inline-flex;gap:4px;align-items:center;font-size:12.5px" class="dim">range <select data-autosc style="padding:2px 4px;font-size:12px;width:auto">${[['station', 'the station'], ['system', 'the system'], ['jumps', 'within N jumps'], ['region', 'the region']].map(([v, l]) => `<option value="${v}"${autoScope() === v ? ' selected' : ''}>${l}</option>`).join('')}</select><input data-autoj type="number" min="1" max="15" value="${jumpsN()}" aria-label="Number of jumps" style="width:3.4em;padding:2px 4px;font-size:12px${autoScope() === 'jumps' ? '' : ';display:none'}"></span>`;
+function autoBtn(){ return `<label class="dim" style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer" title="Every 15 s the position of ${esc((store.get('whmap.tok.' + (RT ? RT.charId : rtChar()), null) || {}).charName || 'your character')} is read; in each new system, Buy to reprocess runs from its station (range: ${autoScope() === 'jumps' ? 'within ' + jumpsN() + ' jumps' : 'the ' + autoScope()})"><input type="checkbox" data-auto${S.autoAn ? ' checked' : ''}> 🔁 Auto-analyse at each new system</label> ${autoRange()}`; }
+function wireAuto(root){
+  root.querySelectorAll('[data-autosc]').forEach(sel => sel.onchange = () => { S.autoScope = sel.value; saveS();
+    document.querySelectorAll('[data-autosc]').forEach(x => x.value = S.autoScope); document.querySelectorAll('[data-autoj]').forEach(x => x.style.display = S.autoScope === 'jumps' ? '' : 'none'); });
+  root.querySelectorAll('[data-autoj]').forEach(i => i.onchange = () => { S.jumps = i.value; S.jumps = jumpsN(); saveS();
+    document.querySelectorAll('[data-autoj]').forEach(x => x.value = S.jumps); const j = $('#jumpsN'); if (j) j.value = S.jumps; });
+  root.querySelectorAll('[data-auto]').forEach(c => c.onchange = async () => { S.autoAn = c.checked; saveS();
   document.querySelectorAll('[data-auto]').forEach(x => x.checked = S.autoAn);
   if (S.autoAn){ await sysInfo(); const loc = await whereIs(RT ? RT.charId : rtChar()); if (!loc){ toast('Position unknown: log the character in on the map with the location option', true); } else { rtHere = loc.solar_system_id; rtDock = loc.station_id || loc.structure_id || null; toast(`Auto-analysis on: next system after ${sysNm(rtHere)}`); } }
   routePoll(); }); }
