@@ -819,6 +819,7 @@ body.nf #hint{transform:translateY(-16px)}
     <header class="wh"><span class="wt">WH holders</span><span class="wsub dim" id="holdSub"></span><button class="wcol" type="button" aria-label="Fold">–</button><button class="wcol" type="button" id="holdClose" aria-label="Close" title="Close">✕</button></header>
     <div class="wb holdwb">
       <div class="dim" style="font-size:12px">Who lives in a wormhole: each time a pilot of yours jumps into it, while it is on your chain, the holder's logo shows in big.</div>
+      <input id="holdQ" type="search" placeholder="Search a wormhole or a holder…" autocomplete="off" style="width:100%;margin:6px 0 2px">
       <table class="holdt"><thead><tr><th>Wormhole</th><th>Holder (corporation or alliance)</th><th>Threat</th><th></th></tr></thead><tbody id="holdList"></tbody>
         <tfoot><tr><td><input id="holdSys" list="holdSysList" placeholder="J123456" autocomplete="off"></td><td><input id="holdWho" placeholder="optional" autocomplete="off"></td><td><select id="holdLvl" class="hlvl"></select></td><td><button type="button" class="small primary" id="holdAdd">Add</button></td></tr></tfoot></table>
       <datalist id="holdSysList"></datalist>
@@ -2441,7 +2442,9 @@ async function showHolderGuess(id, out){
 }
 function renderHold(){
   const box = $('#wHold'); if (!box || box.hidden) return;
-  const all = holdAll(), ids = Object.keys(all).sort((a, b) => (all[a].n || '').localeCompare(all[b].n || ''));
+  const all = holdAll(), q = ($('#holdQ') ? $('#holdQ').value : '').trim().toLowerCase();
+  const hit = id => !q || (all[id].n || sysName(id)).toLowerCase().includes(q) || holdersOf(all[id]).some(h => h.name.toLowerCase().includes(q));
+  const ids = Object.keys(all).filter(hit).sort((a, b) => (all[a].n || '').localeCompare(all[b].n || ''));
   $('#holdSub').textContent = ids.length ? String(ids.length) : '';
   $('#holdList').innerHTML = ids.map(id => { const r = all[id], hs = holdersOf(r), h = hs[0], on = onChain(id);
     return `<tr><td class="w" title="${on ? 'On your chain' : 'Not on your chain right now'}">${esc(r.n || sysName(id))} <span class="k">${esc(classOf(id) || '')}</span>${on ? ' <span style="color:var(--ok)">●</span>' : ''}</td>
@@ -2450,7 +2453,9 @@ function renderHold(){
         return `<select class="hlvl" data-hl="${id}" title="${L.auto ? `From your standings (${L.st > 0 ? '+' : ''}${L.st}): choose a level to set it by hand` : 'Threat: the map gets a frame of this colour when you jump in'}" style="${c ? `color:${c};border-color:${c}` : ''}">${canAuto ? `<option value="a"${L.auto ? ' selected' : ''}>Auto · ${THREAT[L.auto ? L.lvl : lvlOfStanding(Math.min(...hs.filter(x => x.id).map(x => standOf(x.id, x.kind))))].n}</option>` : ''}${THREAT.map(t => `<option value="${t.k}"${!L.auto && L.lvl === t.k ? ' selected' : ''}>${t.n}</option>`).join('')}</select>`; })()}</td>
       <td style="white-space:nowrap"><button type="button" class="x" data-hgs="${id}" title="Guess who lives here">🔍</button>${hs.length || r.lvl ? `<button type="button" class="x" data-hp="${id}" title="Show what your pilots will see">▶</button>` : ''}<button type="button" class="x" data-hd="${id}" title="Remove">✕</button></td></tr>
       <tr class="hgrow" hidden data-hgo="${id}"><td colspan="4"></td></tr>`; }).join('')
-    || '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>';
+    || (q ? `<tr><td colspan="4" style="font-size:12.5px"><span class="dim">${esc($('#holdQ').value.trim())}: not in the list yet.</span> <button type="button" class="small" id="holdQAna">🔍 Analyse</button></td></tr>`
+          : '<tr><td colspan="4" class="dim" style="font-size:12.5px">No wormhole yet.</td></tr>');
+  const qa = $('#holdQAna'); if (qa) qa.onclick = () => { $('#holdAnaIn').value = $('#holdQ').value.trim(); analyseHolder(); };
   $('#holdList').querySelectorAll('[data-hw]').forEach(i => i.onchange = async () => { const id = i.dataset.hw, r = holdAll()[id]; if (!i.value.trim()) return; const h = await resolveHolder(i.value);
     if (h && !h.id) $('#holdMsg').innerHTML = `<span class="warn">${esc(i.value)}: no corporation or alliance with this exact name, kept as text.</span>`; else $('#holdMsg').textContent = '';
     const hs = holdersOf(r).slice(); if (h && !hs.some(x => (x.id && x.id === h.id) || x.name.toLowerCase() === h.name.toLowerCase())) hs.push(h);
@@ -2505,6 +2510,7 @@ function setupHold(){
   const add = () => addHolder($('#holdSys').value, $('#holdWho').value, $('#holdLvl').value);
   $('#holdAdd').onclick = add;
   $('#holdAna').onsubmit = e => { e.preventDefault(); analyseHolder(); };
+  $('#holdQ').oninput = () => renderHold();
   ['holdSys', 'holdWho'].forEach(i => $('#' + i).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
 }
 /* Routes to the trade hubs: shortest and safest, by gates only or also through Thera / Turnur (CCP's route service) */
