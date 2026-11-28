@@ -1443,9 +1443,21 @@ async function spotsOf(found, locName, locSys){
   for (const o of out){ o.gain = o.items.reduce((m, f) => m + f.gain, 0); o.mvol = o.items.reduce((m, f) => m + f.mvol, 0); o.ivol = o.items.reduce((m, f) => m + f.ivol, 0); }
   return out.sort((a, b) => b.gain - a.gain);
 }
+// any floating window: dragged by its title, place kept (and kept on screen)
+function dragBy(win, handle, key){
+  const place = () => { const p = store.get(key, null); if (!p) return;
+    const W = win.offsetWidth || 300, x = Math.max(0, Math.min(innerWidth - W, p.x)), y = Math.max(0, Math.min(innerHeight - 50, p.y));
+    win.style.left = x + 'px'; win.style.top = y + 'px'; win.style.right = 'auto'; win.style.bottom = 'auto'; };
+  place();
+  let d = null; handle.style.cursor = 'move'; handle.style.touchAction = 'none'; handle.style.userSelect = 'none';
+  handle.onpointerdown = e => { if (e.button || e.target.closest('button,input,select')) return; const b = win.getBoundingClientRect(); d = { x:e.clientX - b.left, y:e.clientY - b.top }; handle.setPointerCapture(e.pointerId); };
+  handle.onpointermove = e => { if (!d) return; store.set(key, { x:e.clientX - d.x, y:e.clientY - d.y }); place(); };
+  handle.onpointerup = () => { d = null; };
+  if (!win.dataset.dragResize){ win.dataset.dragResize = 1; addEventListener('resize', place); }
+}
 function showSpots(run){
   const d = $('#spots'); if (!run.spots || !run.spots.length){ d.close(); return; }
-  d.innerHTML = `<button type="button" class="small x" aria-label="Close">✕</button><h3>Several good buys in one place</h3>
+  d.innerHTML = `<button type="button" class="small x" aria-label="Close">✕</button><h3 title="Drag to move">Several good buys in one place</h3>
     ${run.spots.map((o, i) => `<div class="spot"><div>${o.kind === 'station' ? '🏢' : '🌐'} <b>${esc(o.name)}</b>${o.kind === 'system' ? ` <span class="dim">· whole system, ${o.stations} stations</span>` : ''}</div>
       <div class="dim" style="font-size:12.5px">${o.items.length} items · gain <span class="g">${fmt(o.gain)} ISK</span></div>
       <div class="dim" style="font-size:12.5px" title="Total volume of the minerals once everything is reprocessed, and of the items as bought">📦 after reprocess <b style="color:var(--text)">${fmtM3(o.mvol)} m³</b> · items as bought ${fmtM3(o.ivol)} m³</div>
@@ -1459,6 +1471,7 @@ function showSpots(run){
     try{ await navigator.clipboard.writeText(o.items.map(f => `${f.it.name} ${f.units}`).join('\n')); toast('Copied: paste it in the multibuy window'); }catch(e){ toast('Copy refused by the browser', true); } });
   wireWp(d);
   if (!d.open) d.show();
+  dragBy(d, d.querySelector('h3'), 'appr.spotsPos');
 }
 function wireSpots(run){ const b = document.querySelector('#brRes [data-spots]'); if (b) b.onclick = () => showSpots(run); const res = $('#brRes'); if (res) wireWp(res); }
 
