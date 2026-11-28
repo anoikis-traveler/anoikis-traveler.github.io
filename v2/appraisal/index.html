@@ -285,6 +285,21 @@ async function freshTok(t){
     if (!r.ok) return null; const j = await r.json(), c = jwt(j.access_token);
     const n = { ...t, access_token:j.access_token, refresh_token:j.refresh_token, exp:(c.exp || 0) * 1000 }; store.set('whmap.tok.' + t.charId, n); return n; }catch(e){ return null; }
 }
+/* Destination / waypoint in the EVE client, through a map login that allowed "Set destination" (esi-ui.write_waypoint.v1) */
+async function sendWp(dest, add, label){
+  const all = []; try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) all.push(t); } } }catch(e){}
+  const ok = all.filter(t => { const sc = jwt(t.access_token || '').scp || []; return (Array.isArray(sc) ? sc : [sc]).includes('esi-ui.write_waypoint.v1'); });
+  const t0 = (CH && ok.find(t => t.charId === CH.id)) || ok[0];
+  if (!t0){ toast('No character can receive destinations: on the map, log in with the "Set destination" option ticked', true); return; }
+  const t = await freshTok(t0); if (!t){ toast(`${t0.charName}: login expired, log in again on the map`, true); return; }
+  try{ const q = new URLSearchParams({ add_to_beginning:'false', clear_other_waypoints:String(!add), destination_id:String(dest) });
+    const r = await fetch(`${ESI}/ui/autopilot/waypoint/?${q}`, { method:'POST', headers:{ Authorization:'Bearer ' + t.access_token } });
+    if (!r.ok) throw new Error(r.status);
+    toast(`${t.charName}: ${add ? 'waypoint added' : 'destination set'}: ${label}`); }
+  catch(e){ toast(`EVE refused the waypoint (${e.message}). Is ${t.charName} online?`, true); }
+}
+const wpBtns = (dest, label) => dest ? `<span class="wp" style="white-space:nowrap"><button type="button" class="small" data-wpset="${dest}" data-wpl="${esc(label)}" title="Set destination in EVE">⤳ Set dest.</button> <button type="button" class="small" data-wpadd="${dest}" data-wpl="${esc(label)}" title="Add a waypoint in EVE">+ Waypoint</button></span>` : '';
+function wireWp(root){ root.querySelectorAll('[data-wpset],[data-wpadd]').forEach(b => b.onclick = e => { e.stopPropagation(); sendWp(b.dataset.wpset || b.dataset.wpadd, !!b.dataset.wpadd, b.dataset.wpl); }); }
 async function dockedHubs(){
   const out = [], toks = [];
   try{ for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.startsWith('whmap.tok.')){ const t = store.get(k, null); if (t && t.charId) toks.push(t); } } }catch(e){}
@@ -1091,7 +1106,7 @@ function tabBuyRep(box){
     const cell = (f, i) => { const x = f.per[i], top = x === f.per.reduce((a, z) => z.gain > a.gain ? z : a);
       return `<td class="r num${top ? ' best' : ''}">${x.gain >= 0 ? '' : '−'}${fmt(Math.abs(x.gain))}<small style="display:block;color:var(--dim)">${x.profit >= 0 ? '+' : ''}${x.profit.toFixed(1)} %${i ? ` · ${jumpsTo(locSys[f.loc], DEST[i].sys)}` : ''}</small></td>`; };
     run.html = found.length ? `<table><thead><tr><th>Item</th><th class="r">Units to buy</th><th class="r">Average price</th><th class="r" title="Items as bought / minerals after reprocessing">Volume</th><th class="r" title="Reprocessed where you buy, minerals sold to the buy orders that reach that station">Gain on site</th><th class="r" title="Reprocessed where you buy, minerals hauled to Jita IV - Moon 4">Minerals → Jita</th><th class="r" title="Reprocessed where you buy, minerals hauled to Amarr VIII (Oris)">Minerals → Amarr</th></tr></thead><tbody>
-      ${found.map(f => `<tr data-id="${f.id}" data-loc="${f.loc || ''}" data-sys="${locSys[f.loc] || ''}"><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small></span></div></td>
+      ${found.map(f => `<tr data-id="${f.id}" data-loc="${f.loc || ''}" data-sys="${locSys[f.loc] || ''}"><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small>${scopeOf(hub) !== 'station' && f.loc ? `<span style="display:block;margin-top:3px">${wpBtns(f.loc, locName[f.loc] || 'station')}</span>` : ''}</span></div></td>
         <td class="r num">${fmt(f.units)}</td><td class="r num">${fmtU(f.price)}</td>
         <td class="r num" title="Items: ${fmtM3(f.ivol)} m³ · minerals: ${fmtM3(f.mvol)} m³">${fmtM3(f.mvol)} m³<small style="display:block;color:var(--dim)">items ${fmtM3(f.ivol)} m³</small></td>
         ${[0, 1, 2].map(i => cell(f, i)).join('')}</tr>`).join('')}</tbody></table>
@@ -1126,16 +1141,17 @@ function showSpots(run){
       <div class="dim" style="font-size:12.5px">${o.items.length} items · gain <span class="g">${fmt(o.gain)} ISK</span></div>
       <div class="dim" style="font-size:12.5px" title="Total volume of the minerals once everything is reprocessed, and of the items as bought">📦 after reprocess <b style="color:var(--text)">${fmtM3(o.mvol)} m³</b> · items as bought ${fmtM3(o.ivol)} m³</div>
       <ul>${o.items.slice(0, 8).map(f => `<li>${esc(f.it.name)} × ${fmt(f.units)} <span class="g">+${fmt(f.gain)}</span> <span title="Minerals after reprocess">· ${fmtM3(f.mvol)} m³</span>${f.best ? '' : ' <span title="This item pays more in another station of the list">(better elsewhere)</span>'}${o.kind === 'system' ? ` <span>(${esc((run.locName || {})[f.loc] || '')})</span>` : ''}</li>`).join('')}${o.items.length > 8 ? `<li>and ${o.items.length - 8} more (Show in the list)</li>` : ''}</ul>
-      <div class="row"><button type="button" class="small" data-hi="${i}">Show in the list</button><button type="button" class="small" data-mb="${i}" title="Item names and units, to paste in EVE's multibuy">Copy multibuy</button></div></div>`).join('')}`;
+      <div class="row">${wpBtns(o.key, o.name)}<button type="button" class="small" data-hi="${i}">Show in the list</button><button type="button" class="small" data-mb="${i}" title="Item names and units, to paste in EVE's multibuy">Copy multibuy</button></div></div>`).join('')}`;
   d.querySelector('.x').onclick = () => { d.close(); document.querySelectorAll('tr.spotHi').forEach(t => t.classList.remove('spotHi')); };
   d.querySelectorAll('[data-hi]').forEach(b => b.onclick = () => { const o = run.spots[b.dataset.hi], at = o.kind === 'station' ? 'loc' : 'sys';
     const ids = new Set(o.items.map(f => String(f.id))), rows = [...document.querySelectorAll('#brRes tr[data-loc]')]; rows.forEach(t => t.classList.toggle('spotHi', ids.has(t.dataset.id)));
     const first = rows.find(t => t.classList.contains('spotHi')); if (first) first.scrollIntoView({ block:'center', behavior:'smooth' }); });
   d.querySelectorAll('[data-mb]').forEach(b => b.onclick = async () => { const o = run.spots[b.dataset.mb];
     try{ await navigator.clipboard.writeText(o.items.map(f => `${f.it.name} ${f.units}`).join('\n')); toast('Copied: paste it in the multibuy window'); }catch(e){ toast('Copy refused by the browser', true); } });
+  wireWp(d);
   if (!d.open) d.show();
 }
-function wireSpots(run){ const b = document.querySelector('#brRes [data-spots]'); if (b) b.onclick = () => showSpots(run); }
+function wireSpots(run){ const b = document.querySelector('#brRes [data-spots]'); if (b) b.onclick = () => showSpots(run); const res = $('#brRes'); if (res) wireWp(res); }
 
 /* --- Freight --- */
 function tabFreight(box){
