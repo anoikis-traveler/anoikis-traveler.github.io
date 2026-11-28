@@ -112,6 +112,14 @@ tr.off td:first-child{opacity:1}
 .share i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
 .thin{color:var(--warn);font-size:11px;display:block}
 .none{color:var(--bad);font-size:11px;display:block}
+#spots{position:fixed;inset:auto 18px 18px auto;width:min(420px,calc(100vw - 36px));max-height:70vh;overflow:auto;background:var(--panel);border:1px solid var(--accent);border-radius:6px;box-shadow:0 10px 40px #000a;padding:12px 14px;z-index:8;margin:0;color:var(--text)}
+#spots h3{margin:0 24px 6px 0;font-size:14px;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+#spots .x{position:absolute;top:8px;right:8px;padding:2px 8px}
+#spots .spot{border-top:1px solid var(--line);padding:8px 0}
+#spots .spot b{color:var(--text)} #spots .spot .g{color:var(--ok);font-weight:600}
+#spots ul{margin:4px 0 6px 18px;padding:0;font-size:12.5px;color:var(--dim)}
+#spots .row{display:flex;gap:6px;flex-wrap:wrap}
+tr.spotHi td{background:#f2a74b1c}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:4px;display:none;z-index:9}
 #toast.err{border-color:var(--bad)}
 .snap{border:1px solid var(--line);border-left:3px solid var(--split);background:var(--panel);border-radius:5px;padding:8px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -223,6 +231,7 @@ tr.detail td{background:var(--bg);padding:10px 14px}
   </div>
 </main>
 <div id="toast" role="status"></div>
+<dialog id="spots" aria-label="Several good buys in one place"></dialog>
 <script>
 (() => {
 'use strict';
@@ -961,8 +970,9 @@ function tabBuyRep(box){
     <div id="brRes">${brRun && brRun.html ? brRun.html : ''}</div></div>`;
   const keep = () => { BR.cat = $('#brCat').value; BR.q = $('#brQ').value.trim(); BR.min = Number($('#brMin').value) || 0; BR.tax = Number($('#brTax').value) || 0; BR.broker = Number($('#brBroker').value) || 0; BR.rtax = Number($('#brRtax').value) || 0; BR.sellTo = $('#brTo').value; BR.max = Math.max(10, Math.min(600, Number($('#brMax').value) || 120)); store.set('appr.buyrep', BR); };
   box.querySelectorAll('input,select').forEach(i => i.onchange = keep);
+  if (brRun) wireSpots(brRun);
   $('#brGo').onclick = async () => {
-    keep(); const run = brRun = { html:'' };
+    keep(); const run = brRun = { html:'' }; if ($('#spots').open) $('#spots').close();
     const q = BR.q.toLowerCase();
     let cand = Object.keys(MATS).map(Number).filter(id => { const it = T.byId.get(id); return it && (BR.cat === '*' || catOf(it) === BR.cat) && (!q || it.name.toLowerCase().includes(q)); });
     if (BR.cat === '*'){                                           // whole market: a first pass on bulk prices, then the order book for the best
@@ -989,7 +999,7 @@ function tabBuyRep(box){
       const it = T.byId.get(id), por = it.por || 1, y = yieldFor(id) / 100;
       // the lot is bought in ONE station: each station of the area is tried, the best one is kept
       const groups = b.sellBy && b.sellBy.size ? [...b.sellBy.entries()] : [[hub.station || hub.structure, b.sell]];
-      let best = null;
+      let best = null; const alts = [];
       for (const [loc, levels] of groups){
         let units = 0, cost = 0, top = null;
         for (const [p, v] of levels){
@@ -1007,21 +1017,56 @@ function tabBuyRep(box){
           if (top && (top.net / top.units - p) / p * 100 < BR.min) break;
           if (units > 2e6) break;
         }
-        if (top && (!best || top.gain > best.gain)) best = top;
+        if (top){ alts.push(top); if (!best || top.gain > best.gain) best = top; }
       }
-      if (best) found.push({ id, it, price:best.paid / best.units, net:best.net / best.units, profit:best.profit, units:best.units, gain:best.gain, loc:best.loc });
+      if (best) found.push({ id, it, price:best.paid / best.units, net:best.net / best.units, profit:best.profit, units:best.units, gain:best.gain, loc:best.loc, alts });
     }, (d, n) => { if (run === brRun) $('#brSt').textContent = `${d} / ${n} checked · ${found.length} found`; });
     if (run !== brRun) return;
     found.sort((a, b) => b.gain - a.gain);
-    const locName = {}; await Promise.all([...new Set(found.map(f => f.loc))].map(async l => { if (!l) return; try{ const r = await fetch(`${ESI}/universe/stations/${l}/`); if (r.ok){ const x = await r.json(); const dj = hub.near && scopeOf(hub) === 'jumps' ? hub.near.dist.get(x.system_id) : undefined; locName[l] = x.name + (dj === undefined ? '' : dj ? ` (${dj} jump${dj > 1 ? 's' : ''})` : ' (same system)'); } else locName[l] = 'a structure'; }catch(e){ locName[l] = 'station ' + l; } }));
+    const locName = {}, locSys = {}; await Promise.all([...new Set(found.flatMap(f => [f.loc, ...(f.alts || []).map(a => a.loc)]))].map(async l => { if (!l) return; try{ const r = await fetch(`${ESI}/universe/stations/${l}/`); if (r.ok){ const x = await r.json(); locSys[l] = x.system_id; const dj = hub.near && scopeOf(hub) === 'jumps' ? hub.near.dist.get(x.system_id) : undefined; locName[l] = x.name + (dj === undefined ? '' : dj ? ` (${dj} jump${dj > 1 ? 's' : ''})` : ' (same system)'); } else locName[l] = 'a structure'; }catch(e){ locName[l] = 'station ' + l; } }));
     run.html = found.length ? `<table><thead><tr><th>Item</th><th class="r">Units to buy</th><th class="r">Average price</th><th class="r">Minerals, net / u</th><th class="r">Profit</th><th class="r">Gain</th></tr></thead><tbody>
-      ${found.map(f => `<tr><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small></span></div></td>
+      ${found.map(f => `<tr data-id="${f.id}" data-loc="${f.loc || ''}" data-sys="${locSys[f.loc] || ''}"><td><div class="it"><img loading="lazy" alt="" src="https://images.evetech.net/types/${f.id}/icon?size=32"><span>${esc(f.it.name)}<small>${esc(grpOf(f.it))}${scopeOf(hub) !== 'station' && locName[f.loc] ? ` · buy in <b>${esc(locName[f.loc])}</b>` : ''}</small></span></div></td>
         <td class="r num">${fmt(f.units)}</td><td class="r num">${fmtU(f.price)}</td><td class="r num">${fmtU(f.net)}</td><td class="r num best">+${f.profit.toFixed(1)} %</td><td class="r num"><b>${fmt(f.gain)}</b></td></tr>`).join('')}</tbody></table>
       <p class="hint">Computed on the whole lot, from the order books: the units you buy walk up the sell orders of one station (the best of the area); their minerals walk down the buy orders${BR.sellTo === 'sell' ? ' (listed at the lowest sell price instead)' : ''}. Taken off: ${BR.tax} % sales tax${BR.sellTo === 'sell' ? `, ${BR.broker} % broker fee` : ''} and ${BR.rtax} % reprocessing tax. Yield: ${CH ? esc(CH.name) + "'s skills" : 'your figures in the Reprocess tab'}. ${scopeOf(hub) !== 'station' ? `Orders from ${scopeOf(hub) === 'jumps' ? `${jumpsN()} jump${jumpsN() > 1 ? 's' : ''} around` : 'the ' + scopeOf(hub)}: some items sit in other stations, haul them to where you reprocess; buy orders far away may not reach your station (their range). ` : ''}Try a small lot first.</p>`
       : `<p class="dim">No item of this kind pays ${BR.min} % or more right now in ${esc(hub.short || hub.name)}.</p>`;
+    run.locName = locName;
+    run.spots = scopeOf(hub) !== 'station' ? await spotsOf(found, locName, locSys) : [];
+    if (run.spots.length) run.html = `<p style="margin:0 0 8px"><button type="button" class="small" data-spots>📍 ${run.spots.length} place${run.spots.length > 1 ? 's' : ''} with several good buys</button></p>` + run.html;
     $('#brRes').innerHTML = run.html; $('#brSt').textContent = `${cand.length} checked · ${found.length} found`;
+    wireSpots(run); if (run.spots.length) showSpots(run);
   };
 }
+// several profitable items in one station (or one system): one trip buys them all
+async function spotsOf(found, locName, locSys){
+  const byLoc = new Map(), bySys = new Map();
+  for (const f0 of found) for (const a of f0.alts || [f0]){ if (!a.loc) continue;
+    const f = { it:f0.it, id:f0.id, units:a.units, gain:a.gain, loc:a.loc, best:a.loc === f0.loc };
+    (byLoc.get(f.loc) || byLoc.set(f.loc, []).get(f.loc)).push(f);
+    const sy = locSys[f.loc]; if (sy){ const l = bySys.get(sy) || bySys.set(sy, new Map()).get(sy), o = l.get(f.id); if (!o || f.gain > o.gain) l.set(f.id, f); } }
+  const out = [];
+  for (const [l, fs] of byLoc) if (fs.length > 1) out.push({ kind:'station', key:l, name:locName[l] || 'station ' + l, items:fs });
+  for (const [sy, m] of bySys){ const fs = [...m.values()], locs = new Set(fs.map(f => f.loc)); if (fs.length > 1 && locs.size > 1){
+    let nm = 'system ' + sy; try{ const r = await fetch(`${ESI}/universe/systems/${sy}/`); if (r.ok) nm = (await r.json()).name; }catch(e){}
+    out.push({ kind:'system', key:sy, name:nm, items:fs, stations:locs.size }); } }
+  for (const o of out) o.gain = o.items.reduce((m, f) => m + f.gain, 0);
+  return out.sort((a, b) => b.gain - a.gain);
+}
+function showSpots(run){
+  const d = $('#spots'); if (!run.spots || !run.spots.length){ d.close(); return; }
+  d.innerHTML = `<button type="button" class="small x" aria-label="Close">✕</button><h3>Several good buys in one place</h3>
+    ${run.spots.map((o, i) => `<div class="spot"><div>${o.kind === 'station' ? '🏢' : '🌐'} <b>${esc(o.name)}</b>${o.kind === 'system' ? ` <span class="dim">· whole system, ${o.stations} stations</span>` : ''}</div>
+      <div class="dim" style="font-size:12.5px">${o.items.length} items · gain <span class="g">${fmt(o.gain)} ISK</span></div>
+      <ul>${o.items.slice(0, 8).map(f => `<li>${esc(f.it.name)} × ${fmt(f.units)} <span class="g">+${fmt(f.gain)}</span>${f.best ? '' : ' <span title="This item pays more in another station of the list">(better elsewhere)</span>'}${o.kind === 'system' ? ` <span>(${esc((run.locName || {})[f.loc] || '')})</span>` : ''}</li>`).join('')}${o.items.length > 8 ? `<li>and ${o.items.length - 8} more (Show in the list)</li>` : ''}</ul>
+      <div class="row"><button type="button" class="small" data-hi="${i}">Show in the list</button><button type="button" class="small" data-mb="${i}" title="Item names and units, to paste in EVE's multibuy">Copy multibuy</button></div></div>`).join('')}`;
+  d.querySelector('.x').onclick = () => { d.close(); document.querySelectorAll('tr.spotHi').forEach(t => t.classList.remove('spotHi')); };
+  d.querySelectorAll('[data-hi]').forEach(b => b.onclick = () => { const o = run.spots[b.dataset.hi], at = o.kind === 'station' ? 'loc' : 'sys';
+    const ids = new Set(o.items.map(f => String(f.id))), rows = [...document.querySelectorAll('#brRes tr[data-loc]')]; rows.forEach(t => t.classList.toggle('spotHi', ids.has(t.dataset.id)));
+    const first = rows.find(t => t.classList.contains('spotHi')); if (first) first.scrollIntoView({ block:'center', behavior:'smooth' }); });
+  d.querySelectorAll('[data-mb]').forEach(b => b.onclick = async () => { const o = run.spots[b.dataset.mb];
+    try{ await navigator.clipboard.writeText(o.items.map(f => `${f.it.name} ${f.units}`).join('\n')); toast('Copied: paste it in the multibuy window'); }catch(e){ toast('Copy refused by the browser', true); } });
+  if (!d.open) d.show();
+}
+function wireSpots(run){ const b = document.querySelector('#brRes [data-spots]'); if (b) b.onclick = () => showSpots(run); }
 
 /* --- Freight --- */
 function tabFreight(box){
