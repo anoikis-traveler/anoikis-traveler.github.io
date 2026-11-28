@@ -1108,7 +1108,7 @@ function tabBuyRep(box){
 async function spotsOf(found, locName, locSys){
   const byLoc = new Map(), bySys = new Map();
   for (const f0 of found) for (const a of f0.alts || [f0]){ if (!a.loc) continue;
-    const f = { it:f0.it, id:f0.id, units:a.units, gain:a.gain, loc:a.loc, best:a.loc === f0.loc };
+    const f = { it:f0.it, id:f0.id, units:a.units, gain:a.gain, mvol:a.mvol || 0, ivol:a.ivol || 0, loc:a.loc, best:a.loc === f0.loc };
     (byLoc.get(f.loc) || byLoc.set(f.loc, []).get(f.loc)).push(f);
     const sy = locSys[f.loc]; if (sy){ const l = bySys.get(sy) || bySys.set(sy, new Map()).get(sy), o = l.get(f.id); if (!o || f.gain > o.gain) l.set(f.id, f); } }
   const out = [];
@@ -1116,7 +1116,7 @@ async function spotsOf(found, locName, locSys){
   for (const [sy, m] of bySys){ const fs = [...m.values()], locs = new Set(fs.map(f => f.loc)); if (fs.length > 1 && locs.size > 1){
     let nm = 'system ' + sy; try{ const r = await fetch(`${ESI}/universe/systems/${sy}/`); if (r.ok) nm = (await r.json()).name; }catch(e){}
     out.push({ kind:'system', key:sy, name:nm, items:fs, stations:locs.size }); } }
-  for (const o of out) o.gain = o.items.reduce((m, f) => m + f.gain, 0);
+  for (const o of out){ o.gain = o.items.reduce((m, f) => m + f.gain, 0); o.mvol = o.items.reduce((m, f) => m + f.mvol, 0); o.ivol = o.items.reduce((m, f) => m + f.ivol, 0); }
   return out.sort((a, b) => b.gain - a.gain);
 }
 function showSpots(run){
@@ -1124,7 +1124,8 @@ function showSpots(run){
   d.innerHTML = `<button type="button" class="small x" aria-label="Close">✕</button><h3>Several good buys in one place</h3>
     ${run.spots.map((o, i) => `<div class="spot"><div>${o.kind === 'station' ? '🏢' : '🌐'} <b>${esc(o.name)}</b>${o.kind === 'system' ? ` <span class="dim">· whole system, ${o.stations} stations</span>` : ''}</div>
       <div class="dim" style="font-size:12.5px">${o.items.length} items · gain <span class="g">${fmt(o.gain)} ISK</span></div>
-      <ul>${o.items.slice(0, 8).map(f => `<li>${esc(f.it.name)} × ${fmt(f.units)} <span class="g">+${fmt(f.gain)}</span>${f.best ? '' : ' <span title="This item pays more in another station of the list">(better elsewhere)</span>'}${o.kind === 'system' ? ` <span>(${esc((run.locName || {})[f.loc] || '')})</span>` : ''}</li>`).join('')}${o.items.length > 8 ? `<li>and ${o.items.length - 8} more (Show in the list)</li>` : ''}</ul>
+      <div class="dim" style="font-size:12.5px" title="Total volume of the minerals once everything is reprocessed, and of the items as bought">📦 after reprocess <b style="color:var(--text)">${fmtM3(o.mvol)} m³</b> · items as bought ${fmtM3(o.ivol)} m³</div>
+      <ul>${o.items.slice(0, 8).map(f => `<li>${esc(f.it.name)} × ${fmt(f.units)} <span class="g">+${fmt(f.gain)}</span> <span title="Minerals after reprocess">· ${fmtM3(f.mvol)} m³</span>${f.best ? '' : ' <span title="This item pays more in another station of the list">(better elsewhere)</span>'}${o.kind === 'system' ? ` <span>(${esc((run.locName || {})[f.loc] || '')})</span>` : ''}</li>`).join('')}${o.items.length > 8 ? `<li>and ${o.items.length - 8} more (Show in the list)</li>` : ''}</ul>
       <div class="row"><button type="button" class="small" data-hi="${i}">Show in the list</button><button type="button" class="small" data-mb="${i}" title="Item names and units, to paste in EVE's multibuy">Copy multibuy</button></div></div>`).join('')}`;
   d.querySelector('.x').onclick = () => { d.close(); document.querySelectorAll('tr.spotHi').forEach(t => t.classList.remove('spotHi')); };
   d.querySelectorAll('[data-hi]').forEach(b => b.onclick = () => { const o = run.spots[b.dataset.hi], at = o.kind === 'station' ? 'loc' : 'sys';
